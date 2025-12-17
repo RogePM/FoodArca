@@ -15,11 +15,8 @@ import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSuccess, onAddItemByBarcode }) {
     const { pantryId, pantryDetails } = usePantry();
 
-    // --- 🔥 FANG ARCHITECTURE: FEATURE FLAG ---
-    // We check if the pantry has specific settings. 
-    // If 'settings' doesn't exist yet, we default to TRUE (Safe Fallback).
-    // In the future, you will add a 'settings' JSON column to your Supabase DB.
-    const enableClientTracking = pantryDetails?.settings?.enable_client_tracking ?? true; 
+    // Feature Flag: Default to TRUE if settings don't exist yet
+    const enableClientTracking = pantryDetails?.settings?.enable_client_tracking ?? true;
 
     // Checkout Form State
     const [isAnonymous, setIsAnonymous] = useState(false);
@@ -35,16 +32,14 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
     const [showScanner, setShowScanner] = useState(false);
     const [isLookingUp, setIsLookingUp] = useState(false);
 
-    // Helper: Format Category text
     const formatCategory = (cat) => {
         return cat ? cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'General';
     };
 
-    // --- BARCODE SCAN HANDLER (Unchanged) ---
+    // --- 1. BARCODE SCANNER (Unchanged) ---
     const handleBarcodeScanned = async (barcode) => {
-        // ... (Keep your existing scanner logic exactly as is) ...
         console.log('📷 Scanned barcode:', barcode);
-        setShowScanner(false); 
+        setShowScanner(false);
         setIsLookingUp(true);
 
         try {
@@ -66,13 +61,13 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
         }
     };
 
-    // --- UPDATED CHECKOUT LOGIC ---
+    // --- 2. CHECKOUT LOGIC (Fixed) ---
     const handleCheckout = async () => {
         if (cart.length === 0) return;
 
-        // 🔥 LOGIC GATE: Only validate inputs if tracking is ENABLED
-        if (enableClientTracking) {
-            if (!isAnonymous && !clientName.trim()) {
+        // Validation: Only enforce names if we are NOT in anonymous mode AND tracking is on
+        if (enableClientTracking && !isAnonymous) {
+            if (!clientName.trim()) {
                 alert("Please enter a Client Name or select 'Walk-in / Anonymous'");
                 return;
             }
@@ -84,21 +79,36 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
                 const { item, quantity } = line;
                 const newStock = item.quantity - quantity;
 
-                // A. Log Distribution
-                await fetch('/api/foods/log-distribution', {
+                // -------------------------------------------------------------
+                // 🔥 CRITICAL FIX: POINT TO THE NEW API
+                // -------------------------------------------------------------
+                // We use /api/client-distributions because that is where we added
+                // the "Auto-create Client Profile" logic.
+                await fetch('/api/client-distributions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-pantry-id': pantryId },
                     body: JSON.stringify({
-                        itemId: item._id, itemName: item.name, category: item.category,
-                        quantityDistributed: quantity, unit: 'units', reason: reason,
-                        // 🔥 PAYLOAD ADAPTATION
-                        // If tracking is off, we send nulls. The API (Step 1) handles the defaults.
-                        clientName: enableClientTracking ? (isAnonymous ? 'Walk-in Client' : clientName) : null,
-                        clientId: enableClientTracking ? (isAnonymous ? undefined : clientId) : null
+                        itemId: item._id,
+                        itemName: item.name,
+                        category: item.category,
+                        quantityDistributed: quantity,
+                        unit: 'units',
+                        reason: reason,
+
+                        // Smart Payload:
+                        // 1. If tracking is OFF -> Send nulls (Backend handles defaults)
+                        // 2. If Anonymous -> Send 'Walk-in' and NO ID (Backend sees "SYS" and skips directory save)
+                        // 3. If Real Client -> Send Name and ID (Backend saves to Directory)
+                        clientName: enableClientTracking
+                            ? (isAnonymous ? 'Walk-in Client' : clientName)
+                            : null,
+                        clientId: enableClientTracking
+                            ? (isAnonymous ? undefined : clientId)
+                            : null
                     })
                 });
 
-                // B. Update/Delete Item (Keep your existing logic)
+                // B. Update/Delete Item (Keep existing logic)
                 if (newStock <= 0) {
                     await fetch(`/api/foods/${item._id}?reason=Distributed+Full+Stock`, {
                         method: 'DELETE',
@@ -136,10 +146,9 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
 
     return (
         <div className="flex flex-col h-full bg-white relative">
-            
-            {/* ... (Keep Scanner & Loader logic exactly the same) ... */}
+
             {showScanner && (
-                <BarcodeScannerOverlay 
+                <BarcodeScannerOverlay
                     onScan={handleBarcodeScanned}
                     onClose={() => setShowScanner(false)}
                 />
@@ -186,19 +195,18 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
                                         <p className="font-medium text-sm truncate text-gray-900">{line.item.name}</p>
                                         <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{formatCategory(line.item.category)}</p>
                                     </div>
-                                    {/* (Quantity Controls - Keep exactly as you have them) */}
                                     <div className="flex items-center gap-1">
                                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onUpdateQty(line.item._id, -1)} disabled={isCheckingOut}>
                                             <Minus className="h-3 w-3" />
                                         </Button>
-                                        <Input 
-                                            type="number" 
-                                            value={line.quantity} 
+                                        <Input
+                                            type="number"
+                                            value={line.quantity}
                                             onChange={(e) => {
                                                 const val = parseFloat(e.target.value);
                                                 if (!isNaN(val) && val >= 0) onUpdateQty(line.item._id, val - line.quantity);
                                             }}
-                                            className="w-16 h-8 p-0 text-center border-gray-200" 
+                                            className="w-16 h-8 p-0 text-center border-gray-200"
                                         />
                                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onUpdateQty(line.item._id, 1)} disabled={line.quantity >= line.item.quantity || isCheckingOut}>
                                             <Plus className="h-3 w-3" />
@@ -215,9 +223,8 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
                     {/* FIXED BOTTOM FORM */}
                     <div className="p-5 border-t bg-gray-50 pb-safe-area shrink-0">
                         <div className="space-y-5">
-                            
-                            {/* 🔥 CONDITIONAL RENDERING: THE FEATURE FLAG */}
-                            {/* Only show User/Client inputs if the feature is enabled */}
+
+                            {/* 🔥 FEATURE FLAG CHECK */}
                             {enableClientTracking && (
                                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                                     <div className="flex items-center justify-between bg-white p-3 rounded-lg border shadow-sm">
@@ -244,7 +251,7 @@ export function DistributionCart({ cart, onUpdateQty, onRemove, onCheckoutSucces
                                 </div>
                             )}
 
-                            {/* Reason Select - Always Show */}
+                            {/* Reason Select */}
                             <div className="grid gap-2">
                                 <label className="text-xs font-semibold text-gray-500 uppercase">Reason</label>
                                 <select className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm" value={reason} onChange={(e) => setReason(e.target.value)} disabled={isCheckingOut}>

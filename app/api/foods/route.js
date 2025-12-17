@@ -54,7 +54,7 @@ const logChange = async (actionType, item, changes = null, metadata = {}, pantry
 // --- AUTHENTICATION HELPER ---
 async function authenticateRequest(req) {
   const cookieStore = await cookies();
-  
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -67,7 +67,7 @@ async function authenticateRequest(req) {
 
   // ✅ Use getUser() instead of getSession()
   const { data: { user }, error } = await supabase.auth.getUser();
-  
+
   if (error || !user) {
     return { authenticated: false, user: null, error: 'Unauthorized' };
   }
@@ -80,29 +80,27 @@ async function authenticateRequest(req) {
 // ----------------------------------------------------------------------------------
 export async function GET(req) {
   try {
-    // ✅ ADD AUTH CHECK
     const auth = await authenticateRequest(req);
-    if (!auth.authenticated) {
-      console.log('❌ GET /api/foods - Unauthorized');
-      return NextResponse.json({ message: auth.error }, { status: 401 });
-    }
+    if (!auth.authenticated) return NextResponse.json({ message: auth.error }, { status: 401 });
 
     const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) {
-      console.log('❌ GET /api/foods - No pantry ID');
-      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
-    }
+    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    console.log('✅ GET /api/foods - User:', auth.user.email, 'Pantry:', pantryId);
+    // 1. Parse Query Params
+    const { searchParams } = new URL(req.url);
+    const sortBy = searchParams.get('sort') || 'expirationDate'; // Default sort
+    const order = searchParams.get('order') === 'desc' ? -1 : 1; // Default Ascending (Oldest first)
 
     await connectDB();
-    const foods = await FoodItem.find({ pantryId });
-    
-    console.log('✅ GET /api/foods - Found', foods.length, 'items');
+
+    // 2. Query with Sort
+    const foods = await FoodItem.find({ pantryId })
+        .sort({ [sortBy]: order }); // 🚀 Database does the sorting now
+
     return NextResponse.json({ count: foods.length, data: foods });
   } catch (error) {
-    console.error('❌ GET /api/foods - Database Error:', error);
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+    console.error('GET Error:', error);
+    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
@@ -124,6 +122,37 @@ export async function POST(req) {
     if (!pantryId) {
       console.log('❌ POST /api/foods - No pantry ID');
       return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
+    }
+    // ================================ READ-ONLY USER CHECK ==============================
+    // ==================================================================
+    // We check if this specific user is "Active" in this specific pantry.
+    // We use the supabase client from the auth helper to query the relationship.
+
+    const { data: memberData, error: memberError } = await auth.supabase
+      .from('pantry_members')
+      .select('is_active, role')
+      .eq('user_id', auth.user.id)
+      .eq('pantry_id', pantryId)
+      .single();
+
+    if (memberError || !memberData) {
+      // If we can't find the member record, they don't belong here.
+      return NextResponse.json({ message: 'Membership not found' }, { status: 403 });
+    }
+
+    if (memberData.is_active === false) {
+      // ⛔ BLOCK THE WRITE
+      console.log(`⛔ Blocked Read-Only User: ${auth.user.email}`);
+      return NextResponse.json(
+        { message: 'Your account is in Read-Only mode. Ask your Admin to activate you.' },
+        { status: 403 }
+      );
+    }
+    // ==================================================================
+
+
+    if (!data.name || !data.category || !data.quantity) {
+      return NextResponse.json({ message: 'Please provide Name, Category, and Quantity' }, { status: 400 });
     }
 
     if (!data.name || !data.category || !data.quantity) {
@@ -200,14 +229,14 @@ export async function POST(req) {
 
     if (existingItem) {
       console.log('📦 Merging with existing batch');
-      
+
       // 🔥 FIX 1: UPDATE INFO EVEN ON MERGE
       // If the user fixed a typo or changed category, we update the existing record
-      existingItem.name = data.name; 
-      existingItem.category = data.category; 
+      existingItem.name = data.name;
+      existingItem.category = data.category;
       existingItem.quantity += quantityToAdd;
       existingItem.lastModified = new Date();
-      
+
       foodItem = await existingItem.save();
     } else {
       console.log('✨ Creating new batch');
@@ -228,17 +257,17 @@ export async function POST(req) {
     // We moved this OUT of the "else" block. 
     // Now, every time you submit a valid item, the system "Learns" the new name/category.
     if (barcode && !barcode.startsWith('INT-') && !barcode.startsWith('SYS-')) {
-        await BarcodeCache.findOneAndUpdate(
-          { barcode: barcode, pantryId },
-          { 
-              name: data.name, 
-              category: data.category, 
-              lastModified: new Date(), 
-              pantryId 
-          },
-          { upsert: true, new: true } 
-        );
-        console.log('🧠 Barcode Cache Updated');
+      await BarcodeCache.findOneAndUpdate(
+        { barcode: barcode, pantryId },
+        {
+          name: data.name,
+          category: data.category,
+          lastModified: new Date(),
+          pantryId
+        },
+        { upsert: true, new: true }
+      );
+      console.log('🧠 Barcode Cache Updated');
     }
 
     console.log('✅ POST /api/foods - Success');

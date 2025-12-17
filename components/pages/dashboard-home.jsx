@@ -51,7 +51,7 @@ function StatCard({ title, value, subtitle, icon: Icon, delay, loading }) {
             ) : (
               <div className="flex items-baseline gap-2">
                 {/* Tracking-tighter makes numbers look solid and premium */}
-                <h3 className="text-3xl lg:text-4xl font-bold text-[#518c45] tracking-tighter tabular-nums">
+                <h3 className="text-3xl lg:text-4xl font-bold text-[#40723694] tracking-tighter tabular-nums">
                   {value}
                 </h3>
               </div>
@@ -147,7 +147,7 @@ export function DashboardHome({ setActiveView }) {
     const fetchStats = async () => {
       if (!pantryId) return;
       try {
-        const res = await fetch('/api/dashboard/stats', {
+        const res = await fetch('/api/pantry-stats', {
           headers: { 'x-pantry-id': pantryId }
         });
         if (res.ok) {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { ClientDistribution } from '@/lib/models/ClientDistributionModel';
 import { ChangeLog } from '@/lib/models/ChangeLogModel';
+import { Client } from '@/lib/models/ClientModel';
 
 // --- FIXED Helper: Log Changes ---
 const logChange = async (actionType, item, changes = null, metadata = {}, pantryId) => {
@@ -80,15 +81,54 @@ export async function POST(req) {
     await connectDB();
 
     // 🔥 SENIOR FIX: DEFAULT VALUES
-    // If frontend sends nothing (Mode: Inventory Only), we default to "System Adjustment"
     const safeClientName = data.clientName || 'General Inventory Adjustment';
     const safeClientId = data.clientId || 'SYS';
 
-    // 1. Create Record
+    // ---------------------------------------------------------
+    // 🚀 NEW: AUTO-UPDATE CLIENT DIRECTORY
+    // ---------------------------------------------------------
+    // We only create a client record if this is a real person (not "SYS")
+    // and not an internal adjustment.
+    if (safeClientId !== 'SYS' && safeClientId !== 'anonymous') {
+      try {
+        // "Upsert" = Update if exists, Insert if new
+        await Client.findOneAndUpdate(
+          {
+            pantryId: pantryId,
+            // Case-insensitive search to prevent "John Doe" vs "john doe" duplicates
+            clientId: { $regex: new RegExp(`^${safeClientId}$`, 'i') }
+          },
+          {
+            $set: {
+              // Always update these fields to keep them fresh
+              firstName: safeClientName.split(' ')[0],
+              lastName: safeClientName.split(' ').slice(1).join(' ') || '',
+              lastVisit: new Date(),
+              isActive: true
+            },
+            $setOnInsert: {
+              // Only set these ONCE when creating a new client
+              pantryId,
+              clientId: safeClientId, // Keep original casing or normalize here
+              createdAt: new Date(),
+              familySize: 1 // Default, can be updated later via Profile page
+            }
+          },
+          { upsert: true, new: true }
+        );
+        console.log(`✅ Client Directory tracked: ${safeClientName}`);
+      } catch (clientErr) {
+        console.error("⚠️ Failed to track client (Non-fatal):", clientErr);
+        // We swallow this error so the Distribution itself doesn't fail.
+      }
+    }
+    // ---------------------------------------------------------
+
+    // 1. Create Distribution Record (Business as usual)
     const distribution = await ClientDistribution.create({
       ...data,
-      clientName: safeClientName, // Use safe value
-      clientId: safeClientId,     // Use safe value
+      clientName: safeClientName,
+      clientId: safeClientId,
       pantryId,
       distributionDate: new Date(),
     });
@@ -100,8 +140,8 @@ export async function POST(req) {
       category: data.category
     }, null, {
       reason: data.reason,
-      clientName: safeClientName, // Use safe value
-      clientId: safeClientId,     // Use safe value
+      clientName: safeClientName,
+      clientId: safeClientId,
       removedQuantity: data.quantityDistributed,
       unit: data.unit
     }, pantryId);
