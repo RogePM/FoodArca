@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Menu, X, Leaf } from 'lucide-react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function NavBar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const supabase = createClientComponentClient();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -16,6 +19,13 @@ export default function NavBar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isMobileMenuOpen]);
+
+  const handleSignIn = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` }
+    });
+  };
 
   const scrollToSection = (e, id) => {
     e.preventDefault();
@@ -40,10 +50,10 @@ export default function NavBar() {
       <div className={`flex flex-col border border-[#E7E5E4] transition-all duration-500 ease-in-out overflow-hidden md:overflow-visible ${containerClasses}`}>
 
         {/* --- TOP ROW --- */}
-        <div className="flex items-center justify-between w-full relative">
+        <div className="flex items-center justify-between w-full relative gap-4">
 
           {/* ZONE 1: Left (Logo) */}
-          <div className="flex-1 flex justify-start min-w-0">
+          <div className="flex-1 flex justify-start min-w-fit">
             <a href="#" onClick={(e) => scrollToSection(e, 'top')} className="flex items-center gap-2 group cursor-pointer">
               <div className="relative flex items-center justify-center shrink-0">
                 <Leaf className="w-6 h-8 text-[#D97757]" strokeWidth={2} />
@@ -55,7 +65,7 @@ export default function NavBar() {
           </div>
 
           {/* ZONE 2: Center (Nav Links) */}
-          {/* CHANGED: md:flex -> lg:flex. This hides links earlier to prevent overlapping */}
+          {/* Note: Hidden on small screens, Flex on LG (Large) screens */}
           <div className="hidden lg:flex items-center gap-8 px-8 shrink-0">
             {['Inventory', 'Distribution', 'Clients', 'Pricing'].map((item) => (
               <a
@@ -70,15 +80,19 @@ export default function NavBar() {
           </div>
 
           {/* ZONE 3: Right (Button) */}
-          <div className="flex-1 flex justify-end items-center gap-3 min-w-0">
-            {/* Button stays visible on small screens (sm) unless menu is needed */}
-            <button className="hidden sm:block bg-[#1C1917] text-white hover:bg-[#D97757] px-5 py-2.5 rounded-full text-xs md:text-sm font-medium transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-95 whitespace-nowrap">
+          <div className="flex-1 flex justify-end items-center gap-3 min-w-fit">
+            
+            {/* FIX: Changed breakpoint to 'md:block' so it appears on Tablets & Desktop */}
+            <button 
+              onClick={handleSignIn}
+              className="hidden md:block bg-[#1C1917] text-white hover:bg-[#D97757] px-5 py-2.5 rounded-full text-xs md:text-sm font-medium transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-95 whitespace-nowrap"
+            >
               Start Free Pilot
             </button>
             
-            {/* Hamburger: Now appears on screens smaller than LG (tablets/small laptops) */}
+            {/* Hamburger: Shows on Mobile (< md), Hides on Tablet/Desktop (md:hidden) */}
             <button
-              className="lg:hidden text-[#1C1917] p-1 hover:bg-black/5 rounded-md transition-colors"
+              className="md:hidden text-[#1C1917] p-1 hover:bg-black/5 rounded-md transition-colors"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
               {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
@@ -88,7 +102,6 @@ export default function NavBar() {
         </div>
 
         {/* --- MOBILE MENU --- */}
-        {/* CHANGED: md:hidden -> lg:hidden to match the top bar logic */}
         <div className={`lg:hidden flex flex-col transition-all duration-500 ease-in-out ${isMobileMenuOpen ? 'max-h-[500px] opacity-100 pt-6 pb-4' : 'max-h-0 opacity-0 pointer-events-none'}`}>
           {['Inventory', 'Distribution', 'Clients', 'Pricing'].map((item) => (
             <a
@@ -100,7 +113,11 @@ export default function NavBar() {
               {item}
             </a>
           ))}
-          <button className="w-full mt-8 bg-[#D97757] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-transform">
+          
+          <button 
+            onClick={handleSignIn}
+            className="w-full mt-8 bg-[#D97757] text-white py-4 rounded-xl font-bold uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-transform"
+          >
             Start Free Pilot
           </button>
         </div>

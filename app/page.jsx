@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import NavBar from '@/app/frontNav/NavBar'; // Adjust path if your folder is different
+import DevicesSection from '@/app/Frontend/DevicesSection';
+
+
 
 // --- Animation Imports ---
 import gsap from 'gsap';
@@ -90,7 +93,7 @@ export default function LandingPage() {
     const timer = setTimeout(() => {
       ctx = gsap.context(() => {
 
-        // --- A. HERO SECTION ---
+        // --- A. HERO SECTION (Kept the same, this was fine) ---
         const heroTextElements = gsap.utils.toArray('.hero-reveal');
         heroTextElements.forEach((el, i) => {
           gsap.fromTo(el,
@@ -113,74 +116,70 @@ export default function LandingPage() {
           }
         });
 
-        // --- B. SECTION 2: INVENTORY ANIMATIONS ---
+        // --- B. INVENTORY (Made snappier) ---
         const inventoryItems = gsap.utils.toArray('.inventory-item');
         gsap.fromTo(inventoryItems,
-          { opacity: 0, x: 30 },
+          { opacity: 0, x: 20 }, // Reduced distance from 30 to 20
           {
-            opacity: 1, x: 0, duration: 0.8, stagger: 0.2, ease: "power3.out",
-            scrollTrigger: { trigger: "#inventory", start: "top 70%" }
+            opacity: 1, x: 0,
+            duration: 0.6, // Faster duration (was 0.8)
+            stagger: 0.1,  // Faster stagger (was 0.2)
+            ease: "power3.out",
+            scrollTrigger: { trigger: "#inventory", start: "top 85%" } // Triggers sooner
           }
         );
 
-        // --- // --- C. PREMIUM 3D PARALLAX ---
+        // --- C. PARALLAX (Kept, but optimized start point) ---
         const parallaxImages = gsap.utils.toArray('.parallax-wrapper');
-
         parallaxImages.forEach((image, i) => {
-          // "i" is the index (0, 1, 2).
-          // We use it to make even items rotate Left, and odd items rotate Right.
-          // This creates a nice "Zig-Zag" motion variety.
           const rotateDir = i % 2 === 0 ? 1 : -1;
-
           gsap.fromTo(image,
+            { y: 100, scale: 0.9, rotation: -5 * rotateDir },
             {
-              y: 100,              // Start low
-              scale: 0.9,          // Start smaller (far away)
-              rotation: -5 * rotateDir // Start tilted one way
-            },
-            {
-              y: -100,             // Move high
-              scale: 1.1,          // End larger (closer)
-              rotation: 5 * rotateDir, // End tilted the other way
-              ease: "none",        // Keep it linear
+              y: -100, scale: 1.1, rotation: 5 * rotateDir, ease: "none",
               scrollTrigger: {
                 trigger: image.parentElement,
-                start: "top bottom",
-                end: "bottom top",
-                scrub: true      // Lock to scrollbar
+                start: "top bottom", end: "bottom top", scrub: true
               }
             }
           );
         });
- // ---
-        // --- D. PRICING CARDS ---
+
+        // --- D. PRICING CARDS (Fixed the delay glitch) ---
         const pricingCards = gsap.utils.toArray('.pricing-card');
         pricingCards.forEach((card, index) => {
           gsap.fromTo(card,
-            { opacity: 0, y: 60 },
+            { opacity: 0, y: 40 }, // Reduced Y distance so it travels less
             {
-              opacity: 1, y: 0, duration: 0.8, ease: "back.out(1.2)",
-              scrollTrigger: { trigger: "#pricing-cards", start: "top 75%" },
-              delay: index * 0.15
+              opacity: 1, y: 0,
+              duration: 0.6, // Faster duration (was 0.8)
+              ease: "back.out(1.1)", // Slightly less bounce to feel more professional
+              scrollTrigger: {
+                trigger: "#pricing-cards",
+                start: "top 85%" // Triggers much earlier (was 75%)
+              },
+              delay: index * 0.1 // Reduced delay between cards
             }
           );
         });
-        // --- F. GENERIC FADE IN UP (New) ---
-        // Finds anything with the class "fade-in-up" and animates it
+
+        // --- F. DEVICES SECTION / FADE UP (The Critical Fix) ---
+        // 1. Changed duration to 0.7s (was 1s)
+        // 2. Changed start to "top 90%" (triggers almost immediately when in view)
+        // 3. REMOVED 'reverse' from toggleActions. Once it loads, it stays. 
+        //    This fixes the "glitch" where scrolling up makes it vanish.
         const fadeElements = gsap.utils.toArray('.fade-in-up');
-        
         fadeElements.forEach((el) => {
           gsap.fromTo(el,
-            { opacity: 0, y: 50 }, // Start state: invisible and 50px lower
+            { opacity: 0, y: 40 },
             {
-              opacity: 1, 
-              y: 0, 
-              duration: 1, 
+              opacity: 1, y: 0,
+              duration: 0.7,
               ease: "power3.out",
               scrollTrigger: {
                 trigger: el,
-                start: "top 85%", // Animation starts when top of image hits 85% of viewport height
-                toggleActions: "play none none reverse" // Plays on scroll down, reverses on scroll up
+                start: "top 90%", // Starts animating as soon as it enters the viewport
+                toggleActions: "play none none none" // PLAY ONCE. Do not reverse.
               }
             }
           );
@@ -263,7 +262,7 @@ export default function LandingPage() {
     <div ref={mainRef} className="min-h-screen bg-[#FAFAF9] text-[#1C1917] font-sans selection:bg-[#D97757] selection:text-white overflow-x-hidden">
 
       {/* --- Navigation --- */}
-     <NavBar />
+      <NavBar />
 
       {/* --- Hero Section --- */}
       <main className="hero-section min-h-screen pt-32 pb-20 lg:pt-40 lg:pb-32 px-6 flex flex-col justify-center overflow-hidden">
@@ -362,15 +361,15 @@ export default function LandingPage() {
                   onClick={() => setActiveInventoryTab(index)}
                   /* Added 'inventory-item' class for GSAP stagger */
                   className={`inventory-item group p-6 rounded-3xl cursor-pointer transition-all duration-300 border ${activeInventoryTab === index
-                      ? 'bg-white shadow-xl shadow-[#D6D3D1]/20 border-[#E7E5E4]'
-                      : 'bg-transparent border-transparent hover:bg-white/50'
+                    ? 'bg-white shadow-xl shadow-[#D6D3D1]/20 border-[#E7E5E4]'
+                    : 'bg-transparent border-transparent hover:bg-white/50'
                     }`}
                 >
                   <div className="flex items-start gap-6">
                     {/* Icon Box */}
                     <div className={`shrink-0 p-3 rounded-2xl transition-colors duration-300 ${activeInventoryTab === index
-                        ? 'bg-[#D97757] text-white shadow-lg shadow-[#D97757]/20'
-                        : 'bg-[#E7E5E4]/50 text-[#A8A29E] group-hover:text-[#D97757] group-hover:bg-[#D97757]/10'
+                      ? 'bg-[#D97757] text-white shadow-lg shadow-[#D97757]/20'
+                      : 'bg-[#E7E5E4]/50 text-[#A8A29E] group-hover:text-[#D97757] group-hover:bg-[#D97757]/10'
                       }`}>
                       <tab.icon size={24} />
                     </div>
@@ -606,105 +605,9 @@ export default function LandingPage() {
         </div>
       </section>
 
- {/* --- SECTION 5: DEVICES (The Ecosystem Layout) --- */}
-      <section id="devices-section" className="py-24 bg-[#1C1917] text-[#FAFAF9] overflow-hidden">
-        <div className="container mx-auto px-6">
-          
-          {/* Header */}
-          <div className="text-center mb-16 md:mb-24">
-            <h2 className="text-3xl md:text-5xl font-serif mb-6">From the Warehouse to the Front Desk.</h2>
-            <p className="text-xl text-[#A8A29E] font-light max-w-2xl mx-auto">
-              Food Arca adapts to you. Manage clients on the laptop, check stock on the tablet, and scan items with your phone.
-            </p>
-          </div>
-
-          {/* Device Composition */}
-          <div className="relative max-w-7xl mx-auto">
-            
-            {/* Ambient Glow Background */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-[#D97757]/10 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
-
-           {/* DESKTOP LAYOUT (Center-Anchored Composition) */}
-            <div className="hidden md:block relative h-[600px] w-full max-w-[1200px] mx-auto">
-                
-                {/* 1. Laptop (The Anchor) */}
-                {/* Centered perfectly using left-1/2 and -translate-x-1/2 */}
-                <div className="fade-in-up absolute left-1/2 -translate-x-1/2 top-0 w-[700px] z-10 hover:z-20 transition-all duration-500 hover:scale-[1.02]">
-                    <Image 
-                        src="/HomePC.png" 
-                        alt="Admin Dashboard" 
-                        width={823} 
-                        height={617} 
-                        className="w-full h-auto drop-shadow-2xl"
-                    />
-                </div>
-
-                {/* 2. Tablet (Bottom Left) */}
-                {/* Anchored to Center (left-1/2), then pushed LEFT by 480px */}
-                <div className="fade-in-up absolute left-1/2 bottom-8 -ml-[500px] w-[450px] z-20 hover:z-30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2">
-                    <Image 
-                        src="/HomeTablet.png" 
-                        alt="Warehouse Tablet" 
-                        width={749} 
-                        height={499} 
-                        className="w-full h-auto drop-shadow-2xl"
-                    />
-                </div>
-
-                {/* 3. Phone (Bottom Right) */}
-                {/* Anchored to Center (left-1/2), then pushed RIGHT by 260px */}
-                <div className="fade-in-up absolute left-1/2 bottom-0 ml-[260px] w-[220px] z-30 hover:z-40 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2">
-                    <Image 
-                        src="/HomePhoneMock.png" 
-                        alt="Mobile Scanner" 
-                        width={572} 
-                        height={1018} 
-                        className="w-full h-auto drop-shadow-2xl"
-                    />
-                </div>
-            </div>
-
-            {/* MOBILE LAYOUT (Vertical Stack) */}
-            <div className="md:hidden flex flex-col gap-8">
-                {/* 1. Laptop (Full Width) */}
-                <div className="w-full relative z-10">
-                    <Image 
-                        src="/HomePC.png" 
-                        alt="Admin Dashboard" 
-                        width={823} 
-                        height={617} 
-                        className="fade-in-up w-full h-auto drop-shadow-2xl"
-                    />
-                </div>
-
-                {/* 2. Row: Tablet + Phone */}
-                <div className="flex items-end gap-4 relative z-20 px-2">
-                    {/* Tablet (Takes 60% width) */}
-                    <div className="w-[60%]">
-                        <Image 
-                            src="/HomeTablet.png" 
-                            alt="Warehouse Tablet" 
-                            width={749} 
-                            height={499} 
-                            className="fade-in-up w-full h-auto drop-shadow-xl"
-                        />
-                    </div>
-                    {/* Phone (Takes 40% width) */}
-                    <div className="w-[40%] pb-2">
-                        <Image 
-                            src="/HomePhoneMock.png" 
-                            alt="Mobile Scanner" 
-                            width={572} 
-                            height={1018} 
-                            className="fade-in-up w-full h-auto drop-shadow-xl"
-                        />
-                    </div>
-                </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
+      {/* --- SECTION 5: DEVICES (The Ecosystem Layout) --- */}
+      {/* --- SECTION 5: DEVICES (Bento Grid) --- */}
+      <DevicesSection />
 
       {/* --- SECTION 6: PRICING (Updated Strategy) --- */}
       <section id="pricing" className="min-h-screen py-24 bg-[#FAFAF9] relative overflow-hidden flex flex-col justify-center scroll-mt-20">
@@ -723,9 +626,9 @@ export default function LandingPage() {
 
           {/* 0. UNIVERSAL FEATURES (Subtle) */}
           <div className="flex flex-wrap justify-center gap-4 md:gap-8 mb-16 text-sm text-[#78716C] font-light">
-             <span className="flex items-center gap-2"><Smartphone size={16}/> Mobile Camera Scanning</span>
-             <span className="flex items-center gap-2"><RefreshCw size={16}/> Real-Time Sync</span>
-             <span className="flex items-center gap-2"><LockIcon size={16}/> Secure Cloud Storage</span>
+            <span className="flex items-center gap-2"><Smartphone size={16} /> Mobile Camera Scanning</span>
+            <span className="flex items-center gap-2"><RefreshCw size={16} /> Real-Time Sync</span>
+            <span className="flex items-center gap-2"><LockIcon size={16} /> Secure Cloud Storage</span>
           </div>
 
           {/* 1. THE PILOT BANNER (The Hook) */}
@@ -811,8 +714,8 @@ export default function LandingPage() {
                   <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-medium">50 Items</span></div>
                   <div className="flex justify-between"><span>Client Profiles</span> <span className="font-medium">Unlimited</span></div>
                   <div className="flex justify-between"><span>Team Size</span> <span className="font-medium">10 Users</span></div>
-                  <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]"/></div>
-                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]"/></div>
+                  <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]" /></div>
+                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]" /></div>
                 </div>
               </div>
 
@@ -823,8 +726,8 @@ export default function LandingPage() {
                   <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-medium">300 Items</span></div>
                   <div className="flex justify-between"><span>Client Profiles</span> <span className="font-medium">100 Families</span></div>
                   <div className="flex justify-between"><span>Team Size</span> <span className="font-medium">2 Users</span></div>
-                  <div className="flex justify-between items-center"><span>Data Exports</span> <XCircle size={16} className="text-[#A8A29E]"/></div>
-                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]"/></div>
+                  <div className="flex justify-between items-center"><span>Data Exports</span> <XCircle size={16} className="text-[#A8A29E]" /></div>
+                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]" /></div>
                 </div>
               </div>
 
@@ -836,8 +739,8 @@ export default function LandingPage() {
                   <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-bold text-[#1C1917]">2,000 Items</span></div>
                   <div className="flex justify-between"><span>Client Profiles</span> <span className="font-bold text-[#1C1917]">1,500 Families</span></div>
                   <div className="flex justify-between"><span>Team Size</span> <span className="font-bold text-[#1C1917]">10 Users</span></div>
-                  <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]"/></div>
-                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]"/></div>
+                  <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]" /></div>
+                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]" /></div>
                 </div>
               </div>
 
@@ -848,64 +751,64 @@ export default function LandingPage() {
                   <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-medium">Unlimited</span></div>
                   <div className="flex justify-between"><span>Client Profiles</span> <span className="font-medium">Unlimited</span></div>
                   <div className="flex justify-between"><span>Team Size</span> <span className="font-medium">Unlimited</span></div>
-                  <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]"/></div>
-                  <div className="flex justify-between items-center"><span>Multi-Location</span> <Check size={16} className="text-[#D97757]"/></div>
+                  <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]" /></div>
+                  <div className="flex justify-between items-center"><span>Multi-Location</span> <Check size={16} className="text-[#D97757]" /></div>
                 </div>
               </div>
             </div>
 
             {/* --- DESKTOP VIEW: Comparison Table --- */}
             <div className="hidden md:block overflow-x-auto pb-4">
-                <table className="w-full text-left border-collapse whitespace-nowrap min-w-[600px]">
+              <table className="w-full text-left border-collapse whitespace-nowrap min-w-[600px]">
                 <thead>
-                    <tr className="border-b border-[#E7E5E4]">
+                  <tr className="border-b border-[#E7E5E4]">
                     <th className="py-4 pl-4 font-serif text-lg bg-[#FAFAF9] sticky left-0 z-10">Feature</th>
                     <th className="py-4 px-4 font-medium text-[#78716C]">Free Pilot</th>
                     <th className="py-4 px-4 font-medium text-[#78716C]">Basic</th>
                     <th className="py-4 px-4 font-bold text-[#D97757]">Pro</th>
                     <th className="py-4 px-4 font-medium text-[#78716C]">Enterprise</th>
-                    </tr>
+                  </tr>
                 </thead>
                 <tbody className="text-sm text-[#57534E]">
-                    <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
-                        <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Inventory Limit</td>
-                        <td className="px-4">50 Items</td>
-                        <td className="px-4">300 Items</td>
-                        <td className="px-4 font-bold text-[#1C1917]">2,000 Items</td>
-                        <td className="px-4">Unlimited</td>
-                    </tr>
-                    <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
-                        <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Client Profiles</td>
-                        <td className="px-4">1,500 Families</td>
-                        <td className="px-4">100 Families</td>
-                        <td className="px-4 font-bold text-[#1C1917]">1,500 Families</td>
-                        <td className="px-4">Unlimited</td>
-                    </tr>
-                    <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
-                        <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Team Size</td>
-                        <td className="px-4">10 Users</td>
-                        <td className="px-4">2 Users</td>
-                        <td className="px-4 font-bold text-[#1C1917]">10 Users</td>
-                        <td className="px-4">Unlimited</td>
-                    </tr>
-                    <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50 bg-[#D97757]/5">
-                        <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Data Exports (CSV)</td>
-                        <td className="px-4 text-[#D97757]"><Check size={18} /></td>
-                        <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
-                        <td className="px-4 text-[#D97757]"><Check size={18} /></td>
-                        <td className="px-4 text-[#D97757]"><Check size={18} /></td>
-                    </tr>
-                    <tr className="hover:bg-white/50">
-                        <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Multi-Location</td>
-                        <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
-                        <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
-                        <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
-                        <td className="px-4 text-[#D97757]"><Check size={18} /></td>
-                    </tr>
+                  <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
+                    <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Inventory Limit</td>
+                    <td className="px-4">50 Items</td>
+                    <td className="px-4">300 Items</td>
+                    <td className="px-4 font-bold text-[#1C1917]">2,000 Items</td>
+                    <td className="px-4">Unlimited</td>
+                  </tr>
+                  <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
+                    <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Client Profiles</td>
+                    <td className="px-4">1,500 Families</td>
+                    <td className="px-4">100 Families</td>
+                    <td className="px-4 font-bold text-[#1C1917]">1,500 Families</td>
+                    <td className="px-4">Unlimited</td>
+                  </tr>
+                  <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
+                    <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Team Size</td>
+                    <td className="px-4">10 Users</td>
+                    <td className="px-4">2 Users</td>
+                    <td className="px-4 font-bold text-[#1C1917]">10 Users</td>
+                    <td className="px-4">Unlimited</td>
+                  </tr>
+                  <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50 bg-[#D97757]/5">
+                    <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Data Exports (CSV)</td>
+                    <td className="px-4 text-[#D97757]"><Check size={18} /></td>
+                    <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
+                    <td className="px-4 text-[#D97757]"><Check size={18} /></td>
+                    <td className="px-4 text-[#D97757]"><Check size={18} /></td>
+                  </tr>
+                  <tr className="hover:bg-white/50">
+                    <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Multi-Location</td>
+                    <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
+                    <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
+                    <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
+                    <td className="px-4 text-[#D97757]"><Check size={18} /></td>
+                  </tr>
                 </tbody>
-                </table>
+              </table>
             </div>
-          
+
           </div>
 
         </div>
@@ -945,14 +848,14 @@ export default function LandingPage() {
       </section>
 
       {/* --- Footer --- */}
-    <footer className="bg-[#FAFAF9] border-t border-[#E7E5E4] pt-24 pb-12 relative overflow-hidden">
+      <footer className="bg-[#FAFAF9] border-t border-[#E7E5E4] pt-24 pb-12 relative overflow-hidden">
         {/* Background Watermark */}
         <div className="absolute -top-24 -right-24 text-[20rem] font-serif text-[#1C1917] opacity-[0.02] pointer-events-none select-none leading-none">
           Arca
         </div>
 
         <div className="container mx-auto px-6 relative z-10">
-          
+
           {/* Top CTA Row */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-20 pb-20 border-b border-[#E7E5E4]">
             <div className="max-w-xl">
@@ -972,14 +875,14 @@ export default function LandingPage() {
 
           {/* Main Footer Content */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-12 lg:gap-24 mb-20">
-            
+
             {/* Column 1: Brand & Description */}
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center gap-2 mb-6">
                 <Leaf size={24} className="text-[#D97757]" />
                 <span className="text-xl font-serif font-medium tracking-tight text-[#1C1917]">Food Arca</span>
               </div>
-              
+
               <p className="text-[#78716C] text-sm leading-relaxed mb-6">
                 The mobile-first inventory tool for high-volume food pantries. Scan barcodes, sync teams in real-time, and speed up your distribution lines.
               </p>
@@ -990,15 +893,15 @@ export default function LandingPage() {
               <h4 className="font-serif text-[#1C1917] mb-6 text-lg">Quick Links</h4>
               <ul className="space-y-4 text-sm text-[#78716C]">
                 {['Inventory', 'Distribution', 'Clients', 'Pricing'].map((item) => (
-                    <li key={item}>
-                        <a 
-                            href={`#${item.toLowerCase()}`} 
-                            onClick={(e) => scrollToSection(e, `#${item.toLowerCase()}`)} 
-                            className="hover:text-[#D97757] transition-colors"
-                        >
-                            {item}
-                        </a>
-                    </li>
+                  <li key={item}>
+                    <a
+                      href={`#${item.toLowerCase()}`}
+                      onClick={(e) => scrollToSection(e, `#${item.toLowerCase()}`)}
+                      className="hover:text-[#D97757] transition-colors"
+                    >
+                      {item}
+                    </a>
+                  </li>
                 ))}
               </ul>
             </div>
@@ -1020,14 +923,14 @@ export default function LandingPage() {
               {/* Local Roots Bubbles */}
               <div className="pt-4 border-t border-[#E7E5E4]/60">
                 <span className="text-xs font-semibold text-[#D97757] tracking-wider uppercase mb-3 block">
-                    Proudly Serving The Triad
+                  Proudly Serving The Triad
                 </span>
                 <div className="flex flex-wrap gap-2">
-                    {['Forsyth County', 'Guilford County', 'Kernersville', 'Winston-Salem'].map((city) => (
-                        <span key={city} className="inline-block px-2 py-1 bg-[#E7E5E4]/40 border border-[#E7E5E4] rounded-md text-[10px] font-medium text-[#57534E]">
-                            {city}
-                        </span>
-                    ))}
+                  {['Forsyth County', 'Guilford County', 'Kernersville', 'Winston-Salem'].map((city) => (
+                    <span key={city} className="inline-block px-2 py-1 bg-[#E7E5E4]/40 border border-[#E7E5E4] rounded-md text-[10px] font-medium text-[#57534E]">
+                      {city}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1056,8 +959,8 @@ export default function LandingPage() {
       <button
         onClick={(e) => scrollToSection(e, 'top')}
         className={`fixed bottom-8 right-8 z-50 p-4 rounded-full shadow-2xl transition-all duration-500 ease-out border border-[#E7E5E4] ${showScrollTop
-            ? 'opacity-100 translate-y-0 bg-[#1C1917] text-white hover:bg-[#D97757] hover:-translate-y-1'
-            : 'opacity-0 translate-y-10 pointer-events-none'
+          ? 'opacity-100 translate-y-0 bg-[#1C1917] text-white hover:bg-[#D97757] hover:-translate-y-1'
+          : 'opacity-0 translate-y-10 pointer-events-none'
           }`}
         aria-label="Scroll to top"
       >
