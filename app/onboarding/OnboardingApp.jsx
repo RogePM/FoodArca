@@ -20,6 +20,7 @@ export default function OnboardingWizard() {
   const [isLoading, setIsLoading] = useState(false);
   const [session, setSession] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [verifyingInvite, setVerifyingInvite] = useState(false); // New state for URL code check
 
   // --- Form States ---
   const [createData, setCreateData] = useState({
@@ -29,7 +30,7 @@ export default function OnboardingWizard() {
     generatedCode: ''
   });
 
-  const [invites, setInvites] = useState([]); // List of emails to invite
+  const [invites, setInvites] = useState([]); 
   const [currentInvite, setCurrentInvite] = useState('');
 
   const [joinData, setJoinData] = useState({
@@ -48,7 +49,51 @@ export default function OnboardingWizard() {
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
-  // 1. Auth & URL Parameter Check
+
+  // --- 1. CODE LOOKUP LOGIC (Moved up so useEffect can use it) ---
+  const handleCodeLookup = async (codeOverride = null) => {
+    setIsLoading(true);
+    setErrorMsg('');
+    
+    // Use the override (from URL) or the state (from Input)
+    const codeToTest = codeOverride || joinData.code;
+
+    try {
+      if (!codeToTest) throw new Error("No code provided");
+
+      const { data, error } = await supabase
+        .rpc('get_pantry_by_code', { code_input: codeToTest.trim().toUpperCase() })
+        .single();
+
+      if (error || !data) throw new Error("Invalid or expired invite code.");
+
+      // Success! Populate data and move to confirmation
+      setJoinData(prev => ({
+        ...prev,
+        code: codeToTest,
+        pantryName: data.name,
+        address: data.address,
+        pantryId: data.pantry_id
+      }));
+      
+      setIntent('join');
+      setStep(3); // Jump straight to Confirmation
+
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err.message);
+      // If URL code failed, send them to manual entry step
+      if (codeOverride) {
+        setIntent('join');
+        setStep(2); 
+      }
+    } finally {
+      setIsLoading(false);
+      setVerifyingInvite(false);
+    }
+  };
+
+  // --- 2. AUTH & URL CHECK ---
   useEffect(() => {
     const initWizard = async () => {
       // A. Check Session
@@ -56,37 +101,32 @@ export default function OnboardingWizard() {
       if (!session) { router.push('/'); return; }
       setSession(session);
 
-      // B. Pre-fill Name from Google/Auth
+      // B. Pre-fill Name
       if (session.user?.user_metadata?.full_name) {
         setProfileData(prev => ({ ...prev, fullName: session.user.user_metadata.full_name }));
       }
 
-      // C. Auto-detect Invite Code from Email Link
-      // We look for "code" or "invite_code" in the URL query params
+      // C. Auto-detect Invite Code from URL
       const params = new URLSearchParams(window.location.search);
       const urlCode = params.get('code') || params.get('invite_code');
 
       if (urlCode) {
         console.log("🔗 Detected Invite Code:", urlCode);
-        setIntent('join'); // Switch mode to 'Join'
-        setStep(2);        // Skip the selection screen
-        setJoinData(prev => ({ ...prev, code: urlCode })); // Pre-fill the input
-
-        // Optional: You could even trigger the lookup immediately if you want
-        // handleCodeLookup(urlCode); 
+        setVerifyingInvite(true); // Show loader
+        handleCodeLookup(urlCode); // Trigger lookup immediately
       }
     };
 
     initWizard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, router]);
+
+
+  // --- HANDLERS ---
 
   const handleAddInvite = (e) => {
     e.preventDefault();
-
-    // 1. Sanitize the input (Remove spaces, force lowercase)
     const cleanEmail = currentInvite.trim().toLowerCase();
-
-    // 2. Check if valid and not already in the list
     if (cleanEmail && cleanEmail.includes('@') && !invites.includes(cleanEmail)) {
       setInvites([...invites, cleanEmail]);
       setCurrentInvite('');
@@ -102,10 +142,8 @@ export default function OnboardingWizard() {
     setErrorMsg('');
 
     try {
-      // 1. Generate a Join Code (Simple Random for now)
       const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-      // 2. Insert Pantry (Defaults to 'pilot' tier via DB schema)
       const { data: pantry, error: pantryError } = await supabase
         .from('food_pantries')
         .insert({
@@ -113,17 +151,13 @@ export default function OnboardingWizard() {
           address: createData.address,
           type: createData.type,
           join_code: generatedCode,
-          // subscription_tier defaults to 'pilot'
-          // max_items_limit defaults to 50
         })
         .select('pantry_id')
         .single();
 
       if (pantryError) throw new Error(pantryError.message);
-
       const newPantryId = pantry.pantry_id;
 
-      // 3. Insert Admin Member
       const { error: memberError } = await supabase
         .from('pantry_members')
         .insert({
@@ -132,16 +166,12 @@ export default function OnboardingWizard() {
           role: 'owner'
         });
 
-      // --- ROLLBACK SAFETY ---
       if (memberError) {
-        // If we can't make them owner, delete the pantry so it doesn't float forever
         await supabase.from('food_pantries').delete().eq('pantry_id', newPantryId);
         throw new Error("Failed to assign owner. Please try again.");
       }
 
-      // 4. Process Invites (DB + Email API)
       if (invites.length > 0) {
-        // A) Insert into Database (for your records)
         const invitePayload = invites.map(email => ({
           pantry_id: newPantryId,
           email: email,
@@ -149,18 +179,8 @@ export default function OnboardingWizard() {
           invited_by: session.user.id
         }));
 
-        const { error: inviteError } = await supabase
-          .from('pantry_invitations')
-          .insert(invitePayload);
+        await supabase.from('pantry_invitations').insert(invitePayload);
 
-        if (inviteError) {
-          console.error("DB Invite warning:", inviteError);
-          // We continue anyway because the Pantry was successfully created
-        }
-
-        // B) Call the API to send actual emails
-        // We use a try/catch block specifically here so if the email server is down, 
-        // the user still sees the "Success" screen for creating their pantry.
         try {
           await Promise.all(invites.map(email =>
             fetch('/api/invite', {
@@ -171,12 +191,9 @@ export default function OnboardingWizard() {
           ));
         } catch (apiError) {
           console.error("Failed to send email invites:", apiError);
-          // Don't throw error here; we want the user to proceed to dashboard
         }
-
       }
 
-      // 5. Update Profile
       await supabase.from('user_profiles').upsert({
         user_id: session.user.id,
         name: profileData.fullName || 'Admin',
@@ -184,7 +201,6 @@ export default function OnboardingWizard() {
         phone: profileData.phone || null
       });
 
-      // Success
       setCreateData(prev => ({ ...prev, generatedCode }));
       setStep('success');
 
@@ -201,10 +217,7 @@ export default function OnboardingWizard() {
     setErrorMsg('');
 
     try {
-      // 1. Check limits before joining
-      // (Optional: You could query count of members here if strict enforcement is needed frontend side)
-
-      // 2. Insert Membership
+      // 1. Insert Membership (Join the team)
       const { error: memberError } = await supabase
         .from('pantry_members')
         .insert({
@@ -218,13 +231,27 @@ export default function OnboardingWizard() {
         throw memberError;
       }
 
-      // 3. Update Profile
+      // 2. Update User Profile
       await supabase.from('user_profiles').upsert({
         user_id: session.user.id,
         name: profileData.fullName,
         current_pantry_id: joinData.pantryId,
         phone: profileData.phone || null
       });
+
+      // 🔥 3. THE FIX: Remove the "Pending" Invitation
+      // We look for an invitation for this Pantry ID and this User's Email
+      // and delete it so it disappears from the Admin's "Pending" list.
+      const { error: cleanupError } = await supabase
+        .from('pantry_invitations')
+        .delete()
+        .eq('pantry_id', joinData.pantryId)
+        .eq('email', session.user.email); // Matches the logged-in user's email
+
+      if (cleanupError) {
+        console.warn("Could not clean up invitation:", cleanupError);
+        // We don't stop the success flow here, just log the warning
+      }
 
       setStep('success');
 
@@ -235,37 +262,21 @@ export default function OnboardingWizard() {
     }
   };
 
-  const handleCodeLookup = async () => {
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const { data, error } = await supabase
-        .rpc('get_pantry_by_code', { code_input: joinData.code.trim().toUpperCase() })
-        .single();
-
-      if (error || !data) throw new Error("Invalid join code.");
-
-      setJoinData(prev => ({
-        ...prev,
-        pantryName: data.name,
-        address: data.address,
-        pantryId: data.pantry_id
-      }));
-      setStep(prev => prev + 1);
-    } catch (err) {
-      setErrorMsg(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // --- Render Helpers ---
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push('/');
   };
 
-  if (!session) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  // --- RENDER ---
+
+  if (!session || verifyingInvite) {
+    return (
+        <div className="h-screen flex flex-col items-center justify-center gap-4 bg-[#FAFAFA]">
+            <Loader2 className="animate-spin h-8 w-8 text-[#d97757]" />
+            {verifyingInvite && <p className="text-gray-500 font-medium animate-pulse">Verifying invite code...</p>}
+        </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-gray-900">
@@ -367,12 +378,10 @@ export default function OnboardingWizard() {
             </WizardStep>
           )}
 
-          {/* Create Step 3: Invites (The Hook) */}
+          {/* Create Step 3: Invites */}
           {intent === 'create' && step === 3 && (
             <WizardStep title="Invite your Team" subtitle="Your Pilot Plan includes 10 staff seats." onBack={() => setStep(2)}>
               <div className="space-y-6">
-
-                {/* Invite Input */}
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                   <Label className="text-xs font-bold uppercase text-gray-500 tracking-wide">Add Team Members</Label>
                   <form onSubmit={handleAddInvite} className="flex gap-2 mt-2">
@@ -387,7 +396,6 @@ export default function OnboardingWizard() {
                   </form>
                 </div>
 
-                {/* Invite List */}
                 <div className="space-y-2 min-h-[100px]">
                   {invites.length === 0 && (
                     <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-100 rounded-lg">
@@ -430,7 +438,7 @@ export default function OnboardingWizard() {
                   placeholder="XXXXXX"
                   className="h-16 text-center text-3xl font-mono tracking-widest uppercase bg-gray-50"
                 />
-                <Button onClick={handleCodeLookup} disabled={joinData.code.length < 6 || isLoading} className="w-full h-12 bg-[#d97757] hover:bg-[#c06245]">
+                <Button onClick={() => handleCodeLookup()} disabled={joinData.code.length < 6 || isLoading} className="w-full h-12 bg-[#d97757] hover:bg-[#c06245]">
                   {isLoading ? <Loader2 className="animate-spin" /> : 'Find Team'}
                 </Button>
               </div>
@@ -488,7 +496,7 @@ export default function OnboardingWizard() {
                 </div>
               )}
 
-              <Button onClick={() => router.push('/dashboard')} className="w-full h-14 bg-[#d97757] hover:bg-[#c06245] text-white text-lg shadow-xl font-bold">
+              <Button onClick={() => {window.location.href = '/dashboard';}} className="w-full h-14 bg-[#d97757] hover:bg-[#c06245] text-white text-lg shadow-xl font-bold">
                 Enter Dashboard
               </Button>
             </motion.div>

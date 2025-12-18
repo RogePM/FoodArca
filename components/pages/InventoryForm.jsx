@@ -3,13 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   Trash2, Loader2, Save, Package, Weight,
-  MapPin, ScanBarcode, Tag, ChevronDown, X, Camera
+  MapPin, ScanBarcode, Tag, ChevronDown, X, Camera,
+  StickyNote // Imported Icon
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea'; // Ensure you have this component
 import {
   Sheet,
   SheetContent,
@@ -18,9 +20,7 @@ import {
   SheetFooter
 } from '@/components/ui/SheetCart';
 
-// 👇 Import your existing scanner component
 import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
-
 import { categories as CATEGORY_OPTIONS } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
 
@@ -38,14 +38,16 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
     unit: 'units',
     expirationDate: '',
     storageLocation: '',
+    notes: '', // ✅ Added Notes State
   });
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState('');
-
-  // 📸 NEW: Scanner State
+  
+  // UI States
   const [showScanner, setShowScanner] = useState(false);
+  const [showNotes, setShowNotes] = useState(false); // ✅ Toggle for Notes UI
 
   // --- LOAD DATA ---
   useEffect(() => {
@@ -62,7 +64,10 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
             ? format(new Date(item.expirationDate), 'yyyy-MM-dd')
             : '',
           storageLocation: item.storageLocation || '',
+          notes: item.notes || '', // ✅ Load existing notes
         });
+        // ✅ Automatically show the notes box if notes exist
+        setShowNotes(!!item.notes);
       } else {
         setFormData({
           name: '',
@@ -72,7 +77,9 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
           unit: 'units',
           expirationDate: '',
           storageLocation: '',
+          notes: '', // Reset
         });
+        setShowNotes(false);
       }
     }
   }, [item, isOpen]);
@@ -82,12 +89,10 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // 📸 NEW: Handle Scan Result
   const handleScan = (code) => {
     console.log("Scanned:", code);
     setFormData(prev => ({ ...prev, barcode: code }));
     setShowScanner(false);
-    // Optional: Play a beep sound here
   };
 
   // --- ACTIONS ---
@@ -156,7 +161,7 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
 
   return (
     <>
-      {/* 📸 CAMERA OVERLAY (Shows when showScanner is true) */}
+      {/* CAMERA OVERLAY */}
       {showScanner && (
         <BarcodeScannerOverlay
           onScan={handleScan}
@@ -181,7 +186,7 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
               </span>
             ) : (
               <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="md:hidden text-gray-400 -mr-2">
-                <X className="h-5 w-5" />
+                {/* <X className="h-5 w-5" /> */}
               </Button>
             )}
           </SheetHeader>
@@ -209,7 +214,6 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
                   />
                 </div>
 
-                {/* 📸 BARCODE INPUT WITH CAMERA BUTTON */}
                 <div className="space-y-1.5">
                   <Label htmlFor="barcode" className="text-xs font-semibold text-gray-500 uppercase">Barcode / SKU</Label>
                   <div className="flex gap-2">
@@ -332,6 +336,39 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
                   </div>
                 </div>
               </div>
+            </section>
+
+            {/* 📝 NEW: NOTES SECTION (Collapsible) */}
+            <section className="space-y-3">
+              {!showNotes ? (
+                <button
+                  type="button"
+                  onClick={() => setShowNotes(true)}
+                  className="text-xs font-medium text-[#d97757] flex items-center gap-1.5 hover:underline py-2"
+                >
+                  <StickyNote className="h-3.5 w-3.5" /> 
+                  {formData.notes ? "Edit Note" : "Add Note (Optional)"}
+                </button>
+              ) : (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor="notes" className="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
+                      <StickyNote className="h-3.5 w-3.5 text-[#d97757]" /> Item Notes
+                    </Label>
+                    <span onClick={() => setShowNotes(false)} className="cursor-pointer text-xs text-[#d97757] font-medium">
+                      Hide
+                    </span>
+                  </div>
+                  <Textarea
+                    id="notes"
+                    name="notes"
+                    value={formData.notes}
+                    onChange={handleChange}
+                    placeholder="E.g. Donated by Walmart, dented packaging..."
+                    className="bg-white border-gray-200 min-h-[80px] text-base resize-none focus-visible:ring-[#d97757]"
+                  />
+                </div>
+              )}
             </section>
 
             <div className="h-24"></div>

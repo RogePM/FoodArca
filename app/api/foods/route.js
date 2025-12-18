@@ -69,10 +69,11 @@ async function authenticateRequest(req) {
   const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error || !user) {
-    return { authenticated: false, user: null, error: 'Unauthorized' };
+    return { authenticated: false, user: null, supabase: null, error: 'Unauthorized' };
   }
 
-  return { authenticated: true, user, error: null };
+  // 🔥 FIX: RETURN THE SUPABASE CLIENT HERE so POST can use it
+  return { authenticated: true, user, supabase, error: null };
 }
 
 // ----------------------------------------------------------------------------------
@@ -86,16 +87,14 @@ export async function GET(req) {
     const pantryId = req.headers.get('x-pantry-id');
     if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    // 1. Parse Query Params
     const { searchParams } = new URL(req.url);
-    const sortBy = searchParams.get('sort') || 'expirationDate'; // Default sort
-    const order = searchParams.get('order') === 'desc' ? -1 : 1; // Default Ascending (Oldest first)
+    const sortBy = searchParams.get('sort') || 'expirationDate';
+    const order = searchParams.get('order') === 'desc' ? -1 : 1;
 
     await connectDB();
 
-    // 2. Query with Sort
     const foods = await FoodItem.find({ pantryId })
-        .sort({ [sortBy]: order }); // 🚀 Database does the sorting now
+      .sort({ [sortBy]: order });
 
     return NextResponse.json({ count: foods.length, data: foods });
   } catch (error) {
@@ -104,12 +103,12 @@ export async function GET(req) {
   }
 }
 
-/// ----------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------
 // --- POST: Add Item ---
 // ----------------------------------------------------------------------------------
 export async function POST(req) {
   try {
-    // ✅ ADD AUTH CHECK
+    // ✅ AUTH CHECK
     const auth = await authenticateRequest(req);
     if (!auth.authenticated) {
       console.log('❌ POST /api/foods - Unauthorized');
@@ -123,11 +122,10 @@ export async function POST(req) {
       console.log('❌ POST /api/foods - No pantry ID');
       return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
     }
-    // ================================ READ-ONLY USER CHECK ==============================
-    // ==================================================================
-    // We check if this specific user is "Active" in this specific pantry.
-    // We use the supabase client from the auth helper to query the relationship.
 
+    // ================================ READ-ONLY USER CHECK ==============================
+    // 🔥 THIS LINE WAS CRASHING BECAUSE AUTH.SUPABASE WAS MISSING
+    // NOW IT WILL WORK
     const { data: memberData, error: memberError } = await auth.supabase
       .from('pantry_members')
       .select('is_active, role')
@@ -136,24 +134,17 @@ export async function POST(req) {
       .single();
 
     if (memberError || !memberData) {
-      // If we can't find the member record, they don't belong here.
       return NextResponse.json({ message: 'Membership not found' }, { status: 403 });
     }
 
     if (memberData.is_active === false) {
-      // ⛔ BLOCK THE WRITE
       console.log(`⛔ Blocked Read-Only User: ${auth.user.email}`);
       return NextResponse.json(
         { message: 'Your account is in Read-Only mode. Ask your Admin to activate you.' },
         { status: 403 }
       );
     }
-    // ==================================================================
-
-
-    if (!data.name || !data.category || !data.quantity) {
-      return NextResponse.json({ message: 'Please provide Name, Category, and Quantity' }, { status: 400 });
-    }
+    // ====================================================================================
 
     if (!data.name || !data.category || !data.quantity) {
       return NextResponse.json({ message: 'Please provide Name, Category, and Quantity' }, { status: 400 });
@@ -163,7 +154,7 @@ export async function POST(req) {
 
     await connectDB();
 
-    // 1. Prepare Data (Barcode, Date Normalization)
+    // 1. Prepare Data
     const validUnits = ['units', 'lbs', 'kg', 'oz'];
     const unit = validUnits.includes(data.unit) ? data.unit : 'units';
     let searchDate = null;
@@ -181,7 +172,7 @@ export async function POST(req) {
       expirationDate: searchDate ? searchDate : { $exists: false }
     });
 
-    // 3. CHECK IF BARCODE IS ALREADY REGISTERED IN CACHE
+    // 3. CHECK CACHE
     const isBarcodeRegistered = await BarcodeCache.findOne({
       barcode: barcode,
       pantryId
@@ -189,13 +180,13 @@ export async function POST(req) {
 
     // --- 4. GATEKEEPER LOGIC ---
     if (!existingItem && !isBarcodeRegistered) {
-      // Create service-role Supabase client for admin queries
-      const supabase = createClient(
+      // 🔥 FIX: Use Service Role Key for admin queries, not Anon key
+      const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        process.env.SUPABASE_SERVICE_ROLE_KEY // Ensure this ENV is set
       );
 
-      const { data: pantryData, error: pantryError } = await supabase
+      const { data: pantryData, error: pantryError } = await supabaseAdmin
         .from('food_pantries')
         .select('max_items_limit')
         .eq('pantry_id', pantryId)
@@ -210,7 +201,6 @@ export async function POST(req) {
 
       if (maxLimit < 999999) {
         const currentBarcodeCount = await BarcodeCache.countDocuments({ pantryId });
-
         console.log(`📊 Current items: ${currentBarcodeCount}/${maxLimit}`);
 
         if (currentBarcodeCount >= maxLimit) {
@@ -230,11 +220,14 @@ export async function POST(req) {
     if (existingItem) {
       console.log('📦 Merging with existing batch');
 
-      // 🔥 FIX 1: UPDATE INFO EVEN ON MERGE
-      // If the user fixed a typo or changed category, we update the existing record
       existingItem.name = data.name;
       existingItem.category = data.category;
       existingItem.quantity += quantityToAdd;
+      
+      // ✅ Update fields on merge
+      if (data.storageLocation) existingItem.storageLocation = data.storageLocation;
+      if (data.notes) existingItem.notes = data.notes;
+
       existingItem.lastModified = new Date();
 
       foodItem = await existingItem.save();
@@ -246,6 +239,8 @@ export async function POST(req) {
         unit: unit,
         barcode: barcode,
         expirationDate: searchDate || data.expirationDate,
+        storageLocation: data.storageLocation || '',
+        notes: data.notes || '',
         lastModified: new Date(),
       };
       foodItem = await FoodItem.create(newItemData);
@@ -253,15 +248,14 @@ export async function POST(req) {
       await logChange('added', foodItem, null, {}, pantryId);
     }
 
-    // 🔥 FIX 2: UPDATE CACHE ALWAYS
-    // We moved this OUT of the "else" block. 
-    // Now, every time you submit a valid item, the system "Learns" the new name/category.
+    // 6. UPDATE CACHE
     if (barcode && !barcode.startsWith('INT-') && !barcode.startsWith('SYS-')) {
       await BarcodeCache.findOneAndUpdate(
         { barcode: barcode, pantryId },
         {
           name: data.name,
           category: data.category,
+          storageLocation: data.storageLocation || '', // Cache location too
           lastModified: new Date(),
           pantryId
         },

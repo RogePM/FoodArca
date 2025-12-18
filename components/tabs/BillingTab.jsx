@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { 
-    Loader2, CreditCard, CheckCircle2, 
-    ShieldAlert, BarChart3, Zap 
+import {
+    Loader2, CheckCircle2, ShieldAlert,
+    BarChart3, Zap, Mail
 } from 'lucide-react';
+import { PLANS } from '@/lib/plans'; // Import your plan config
 
 export function BillingTab({ details, currentPlan, currentTier, userRole, pantryId }) {
-    
+
     const [usage, setUsage] = useState({ items: 0, clients: 0 });
     const [loading, setLoading] = useState(true);
     const [isRedirecting, setIsRedirecting] = useState(false);
 
-    // Permission Check
+    // Permission Check: Allow 'owner' AND 'admin' to see billing, but only OWNER can pay
+    // Adjust this if you want admins to pay too.
     const isOwner = userRole === 'owner';
 
     // Safe Limits
     const maxItems = details?.max_items_limit ?? currentPlan?.limits?.items ?? 100;
-    const maxClients = details?.max_clients_limit ?? currentPlan?.limits?.clients ?? 100; 
+    const maxClients = details?.max_clients_limit ?? currentPlan?.limits?.clients ?? 100;
     const maxUsers = details?.max_users_limit ?? currentPlan?.limits?.users ?? 1;
 
     // Fetch Stats
@@ -26,7 +28,7 @@ export function BillingTab({ details, currentPlan, currentTier, userRole, pantry
                 const res = await fetch('/api/pantry-stats', {
                     headers: { 'x-pantry-id': pantryId }
                 });
-                
+
                 if (res.ok) {
                     const data = await res.json();
                     setUsage({
@@ -50,7 +52,7 @@ export function BillingTab({ details, currentPlan, currentTier, userRole, pantry
         if (!isOwner) return;
         setIsRedirecting(true);
         try {
-            const res = await fetch('/api/stripe/portal', { 
+            const res = await fetch('/api/stripe/portal', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -68,18 +70,15 @@ export function BillingTab({ details, currentPlan, currentTier, userRole, pantry
         }
     };
 
-    // 2. UPGRADE TO PRO (Checkout)
-    const handleUpgrade = async () => {
+    // 2. UPGRADE HANDLER (Dynamic)
+    const handleUpgrade = async (tierKey) => {
         if (!isOwner) return;
         setIsRedirecting(true);
         try {
             const res = await fetch('/api/stripe/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    // ⚠️ PASTE YOUR STRIPE PRICE ID HERE (e.g. price_1Pf...)
-                    priceId: 'price_1SfE2gBdTnP8Bq3t6XJSbnC7' 
-                }) 
+                body: JSON.stringify({ tier: tierKey }) // Send 'basic' or 'pro'
             });
             const data = await res.json();
             if (data.url) {
@@ -103,156 +102,207 @@ export function BillingTab({ details, currentPlan, currentTier, userRole, pantry
     };
 
     return (
-        <div className="space-y-8 max-w-4xl mx-auto">
-            
-            {/* --- SECTION 1: PLAN CARD --- */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                <div className="p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    
-                    {/* Plan Details */}
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <h2 className="text-2xl font-bold text-gray-900 capitalize">
-                                {currentPlan.name} Plan
-                            </h2>
-                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border ${
-                                currentTier === 'pro' 
-                                ? 'bg-green-100 text-green-700 border-green-200' 
-                                : 'bg-orange-100 text-orange-700 border-orange-200'
+        <div className="space-y-10 max-w-5xl mx-auto">
+
+            {/* --- SECTION 1: CURRENT PLAN STATUS --- */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div>
+                    <div className="flex items-center gap-3 mb-1">
+                        <h2 className="text-2xl font-bold text-gray-900 capitalize">
+                            {currentPlan.name} Plan
+                        </h2>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border ${currentTier === 'pro' || currentTier === 'enterprise'
+                                ? 'bg-green-100 text-green-700 border-green-200'
+                                : 'bg-gray-100 text-gray-700 border-gray-200'
                             }`}>
-                                Active
-                            </span>
-                        </div>
-                        <p className="text-gray-500">
-                            {currentPlan.price === 0 
-                                ? 'Free forever for pilot partners.' 
-                                : `$${currentPlan.price} / month. Next billing date: Dec 30, 2025`}
-                        </p>
+                            Active
+                        </span>
                     </div>
-
-                    {/* Actions (Owner Only) */}
-                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                        {isOwner ? (
-                            <>
-                                <Button 
-                                    variant="outline" 
-                                    onClick={handleManageSubscription}
-                                    disabled={isRedirecting}
-                                    className="border-gray-300 text-gray-700"
-                                >
-                                    {isRedirecting ? <Loader2 className="animate-spin h-4 w-4" /> : 'Manage Billing'}
-                                </Button>
-                                {currentTier !== 'pro' && (
-                                    <Button 
-                                        onClick={handleUpgrade} // 🔥 Attached Handler
-                                        disabled={isRedirecting}
-                                        className="bg-[#d97757] hover:bg-[#c06245] text-white shadow-md"
-                                    >
-                                        {isRedirecting ? <Loader2 className="animate-spin h-4 w-4" /> : <><Zap className="h-4 w-4 mr-2" /> Upgrade to Pro</>}
-                                    </Button>
-                                )}
-                            </>
-                        ) : (
-                            <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-100 text-gray-500 text-sm">
-                                <ShieldAlert className="h-4 w-4" />
-                                <span>Contact owner to manage billing</span>
-                            </div>
-                        )}
-                    </div>
+                    <p className="text-gray-500 text-sm">
+                        {currentPlan.price === 0
+                            ? 'You are currently on the free pilot tier.'
+                            : 'Your next billing cycle renews automatically.'}
+                    </p>
                 </div>
 
-                {/* Feature List Footer */}
-                <div className="bg-gray-50 border-t border-gray-100 p-4 px-8 flex flex-wrap gap-x-8 gap-y-2 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        {maxUsers >= 100 ? 'Unlimited Team Members' : `${maxUsers} Team Seats`}
+                {isOwner ? (
+                    <Button
+                        variant="outline"
+                        onClick={handleManageSubscription}
+                        disabled={isRedirecting || currentTier === 'pilot'}
+                        className="border-gray-300 text-gray-700"
+                    >
+                        {isRedirecting ? <Loader2 className="animate-spin h-4 w-4" /> : 'Manage Subscription'}
+                    </Button>
+                ) : (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-100 text-gray-500 text-xs">
+                        <ShieldAlert className="h-3 w-3" />
+                        <span>Only owner can manage billing</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        Analytics Dashboard
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        Priority Support
-                    </div>
-                </div>
+                )}
             </div>
 
-            {/* --- SECTION 2: USAGE METRICS --- */}
+            {/* --- SECTION 2: AVAILABLE PLANS (Grid) --- */}
             <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-gray-400" />
-                    Resource Usage
+                    <Zap className="h-5 w-5 text-[#d97757]" />
+                    Available Plans
                 </h3>
-                
-                <div className="grid md:grid-cols-2 gap-6">
-                    {/* Usage Card (Items) */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <p className="text-sm font-medium text-gray-500 mb-1">Inventory Items</p>
-                                <h4 className="text-3xl font-bold text-gray-900">
-                                    {loading ? '...' : usage.items.toLocaleString()}
-                                </h4>
-                            </div>
-                            <div className="text-right">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Limit</span>
-                                <p className="text-sm font-semibold text-gray-700">
-                                    {maxItems >= 100000 ? 'Unlimited' : maxItems.toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
-                        {maxItems < 100000 && (
-                            <div className="space-y-2">
-                                <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                                    <div 
-                                        className={`h-full rounded-full transition-all duration-1000 ${
-                                            calculatePercent(usage.items, maxItems) > 90 ? 'bg-red-500' : 'bg-[#d97757]'
-                                        }`}
-                                        style={{ width: `${calculatePercent(usage.items, maxItems)}%` }}
-                                    />
-                                </div>
-                                <p className="text-xs text-gray-500 text-right">
-                                    {Math.round(calculatePercent(usage.items, maxItems))}% Used
-                                </p>
-                            </div>
-                        )}
-                    </div>
 
-                    {/* Usage Card (Clients) */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <p className="text-sm font-medium text-gray-500 mb-1">Client Families</p>
-                                <h4 className="text-3xl font-bold text-gray-900">
-                                    {loading ? '...' : usage.clients.toLocaleString()}
-                                </h4>
-                            </div>
-                            <div className="text-right">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Limit</span>
-                                <p className="text-sm font-semibold text-gray-700">
-                                    {maxClients >= 100000 ? 'Unlimited' : maxClients.toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
-                        {maxClients < 100000 && (
-                            <div className="space-y-2">
-                                <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                                    <div 
-                                        className={`h-full rounded-full transition-all duration-1000 ${
-                                            calculatePercent(usage.clients, maxClients) > 90 ? 'bg-red-500' : 'bg-blue-600'
-                                        }`}
-                                        style={{ width: `${calculatePercent(usage.clients, maxClients)}%` }}
-                                    />
+                <div className="grid md:grid-cols-3 gap-6">
+                    {['basic', 'pro', 'enterprise'].map((tierKey) => {
+                        const plan = PLANS[tierKey];
+                        const isCurrent = currentTier === tierKey;
+
+                        return (
+                            <div
+                                key={tierKey}
+                                className={`
+                                    relative flex flex-col rounded-xl p-6 border transition-all duration-200
+                                    ${isCurrent
+                                        ? 'border-green-500 ring-1 ring-green-500 bg-green-50/10'
+                                        : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
+                                    }
+                                `}
+                            >
+                                {isCurrent && (
+                                    <span className="absolute top-0 right-0 bg-green-500 text-white text-[10px] px-3 py-1 rounded-bl-xl font-bold uppercase tracking-wide">
+                                        Current Plan
+                                    </span>
+                                )}
+
+                                <div className="mb-4">
+                                    <h3 className="font-bold text-lg text-gray-900 capitalize">{plan.name}</h3>
+                                    <div className="flex items-baseline gap-1 mt-1">
+                                        <span className="text-3xl font-bold text-gray-900">
+                                            {plan.price !== null ? `$${plan.price}` : 'Custom'}
+                                        </span>
+                                        {plan.price !== null && <span className="text-sm text-gray-500">/mo</span>}
+                                    </div>
                                 </div>
-                                <p className="text-xs text-gray-500 text-right">
-                                    {Math.round(calculatePercent(usage.clients, maxClients))}% Used
-                                </p>
+
+                                <div className="space-y-3 flex-1">
+                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                        <span>
+                                            {plan.limits.items >= 10000 ? 'Unlimited' : plan.limits.items.toLocaleString()} Items
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                        <span>
+                                            {plan.limits.clients >= 10000 ? 'Unlimited' : plan.limits.clients.toLocaleString()} Clients
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                        <span>
+                                            {plan.limits.users >= 10000 ? 'Unlimited' : plan.limits.users} Team Members
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 pt-4 border-t border-gray-100">
+                                    {isCurrent ? (
+                                        <Button disabled variant="outline" className="w-full bg-gray-50 text-gray-400">
+                                            Active
+                                        </Button>
+                                    ) : tierKey === 'enterprise' ? (
+                                        <Button
+                                            className="w-full bg-gray-900 text-white hover:bg-black"
+                                            onClick={() => window.location.href = 'mailto:rogeliopmdev@gmail.com'}
+                                        >
+                                    <Mail className="h-4 w-4 mr-2" /> Contact Sales
+                                </Button>
+                                ) : (
+                                <Button
+                                    className={`w-full ${tierKey === 'pro' ? 'bg-[#d97757] hover:bg-[#c06245] text-white' : 'bg-white border border-gray-300 hover:bg-gray-50 text-gray-900'}`}
+                                    onClick={() => handleUpgrade(tierKey)}
+                                    disabled={!isOwner || isRedirecting}
+                                >
+                                    {isRedirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : (tierKey === 'pro' ? 'Upgrade to Pro' : 'Select Basic')}
+                                </Button>
+                                    )}
                             </div>
-                        )}
-                    </div>
-                </div>
+                            </div>
+                );
+                    })}
             </div>
         </div>
+
+            {/* --- SECTION 3: USAGE METRICS --- */ }
+    <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-gray-400" />
+            Resource Usage
+        </h3>
+
+        <div className="grid md:grid-cols-2 gap-6">
+            {/* Usage Card (Items) */}
+            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 mb-1">Inventory Items</p>
+                        <h4 className="text-3xl font-bold text-gray-900">
+                            {loading ? '...' : usage.items.toLocaleString()}
+                        </h4>
+                    </div>
+                    <div className="text-right">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Limit</span>
+                        <p className="text-sm font-semibold text-gray-700">
+                            {maxItems >= 100000 ? 'Unlimited' : maxItems.toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+                {maxItems < 100000 && (
+                    <div className="space-y-2">
+                        <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-1000 ${calculatePercent(usage.items, maxItems) > 90 ? 'bg-red-500' : 'bg-[#d97757]'
+                                    }`}
+                                style={{ width: `${calculatePercent(usage.items, maxItems)}%` }}
+                            />
+                        </div>
+                        <p className="text-xs text-gray-500 text-right">
+                            {Math.round(calculatePercent(usage.items, maxItems))}% Used
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* Usage Card (Clients) */}
+            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 mb-1">Client Families</p>
+                        <h4 className="text-3xl font-bold text-gray-900">
+                            {loading ? '...' : usage.clients.toLocaleString()}
+                        </h4>
+                    </div>
+                    <div className="text-right">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Limit</span>
+                        <p className="text-sm font-semibold text-gray-700">
+                            {maxClients >= 100000 ? 'Unlimited' : maxClients.toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+                {maxClients < 100000 && (
+                    <div className="space-y-2">
+                        <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-1000 ${calculatePercent(usage.clients, maxClients) > 90 ? 'bg-red-500' : 'bg-blue-600'
+                                    }`}
+                                style={{ width: `${calculatePercent(usage.clients, maxClients)}%` }}
+                            />
+                        </div>
+                        <p className="text-xs text-gray-500 text-right">
+                            {Math.round(calculatePercent(usage.clients, maxClients))}% Used
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    </div>
+        </div >
     );
 }

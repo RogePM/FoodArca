@@ -5,6 +5,9 @@ import { cookies } from 'next/headers'
 export async function GET(request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  
+  // 🔥 Capture the 'next' param (e.g. /onboarding)
+  const next = requestUrl.searchParams.get('next')
 
   if (code) {
     const cookieStore = await cookies()
@@ -26,30 +29,41 @@ export async function GET(request) {
       }
     )
 
-    // 1️⃣ Create session from Google OAuth code
+    // 1️⃣ Exchange Code for Session (Critical Step)
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+    
     if (error) {
       console.error('Exchange error:', error.message)
-      return NextResponse.redirect(new URL('/?error=auth_failed', requestUrl.origin))
+      return NextResponse.redirect(new URL('/?error=auth_code_error', requestUrl.origin))
     }
 
     console.log('✅ Session created successfully!')
 
-    // 2️⃣ Get the logged-in user
+    // 2️⃣ PRIORITY: If 'next' exists (from Invite Link), go there immediately
+    // This fixes the invite flow by skipping the profile check logic below
+    if (next) {
+        console.log(`➡️ Redirecting to requested path: ${next}`)
+        return NextResponse.redirect(new URL(next, requestUrl.origin))
+    }
+
+    // -------------------------------------------------------------
+    // Standard Login Logic (Fallback if no 'next' param)
+    // -------------------------------------------------------------
+
+    // 3️⃣ Get the logged-in user
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      console.error("❌ No user returned after OAuth!")
       return NextResponse.redirect(new URL('/?error=no_user', requestUrl.origin))
     }
 
-    // 3️⃣ Check if profile exists
-    const { data: profile, error: profileError } = await supabase
+    // 4️⃣ Check if profile exists
+    const { data: profile } = await supabase
       .from('user_profiles')
       .select('user_id')
       .eq('user_id', user.id)
       .single()
 
-    // 4️⃣ Redirect based on profile
+    // 5️⃣ Redirect based on profile status
     if (!profile) {
       console.log("🟡 No profile found → redirecting to onboarding")
       return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
@@ -59,6 +73,6 @@ export async function GET(request) {
     return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
   }
 
-  // no code in URL — back to landing page
+  // No code in URL — back to landing page
   return NextResponse.redirect(new URL('/', requestUrl.origin))
 }
