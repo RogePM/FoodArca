@@ -14,6 +14,9 @@ export function SettingsView() {
     // Default to 'general'
     const [activeTab, setActiveTab] = useState('general'); 
     const [details, setDetails] = useState(pantryDetails);
+    
+    // Usage State
+    const [clientCount, setClientCount] = useState(0);
     const [loading, setLoading] = useState(true);
 
     const supabase = createBrowserClient(
@@ -21,50 +24,78 @@ export function SettingsView() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
 
-    // --- FIX 1: Listen for URL Hash on Load ---
-    // This ensures if the modal sends them to /dashboard#billing, it opens the right tab
+    // --- Listen for URL Hash on Load ---
     useEffect(() => {
-        // Function to check hash
         const checkHash = () => {
             if (window.location.hash === '#billing') {
                 setActiveTab('billing');
             }
         };
-
-        // Check immediately on mount
         checkHash();
-
-        // Listen for the event (triggered by browser or our manual dispatch)
         window.addEventListener('hashchange', checkHash);
         return () => window.removeEventListener('hashchange', checkHash);
     }, []);
 
     useEffect(() => {
         const fetchSettings = async () => {
-            if (pantryDetails) {
-                setDetails(pantryDetails);
-                setLoading(false);
-                return;
-            }
             if (!pantryId) return;
 
-            const { data } = await supabase
-                .from('food_pantries')
-                .select('*')
-                .eq('pantry_id', pantryId)
-                .single();
+            try {
+                // 1. Fetch Pantry Details (if not already synced)
+                // This ensures we get the latest 'max_clients_limit' from your DB
+                let currentDetails = pantryDetails;
+                
+                if (!currentDetails) {
+                    const { data } = await supabase
+                        .from('food_pantries')
+                        .select('*')
+                        .eq('pantry_id', pantryId)
+                        .single();
+                    if (data) {
+                        setDetails(data);
+                        currentDetails = data;
+                    }
+                } else {
+                    setDetails(pantryDetails);
+                }
 
-            if (data) setDetails(data);
-            setLoading(false);
+                // 2. Fetch Real-time Client Usage
+                // We count the ACTUAL rows in the clients table to ensure accuracy
+                const { count, error } = await supabase
+                    .from('clients')
+                    .select('*', { count: 'exact', head: true }) 
+                    .eq('pantry_id', pantryId);
+
+                if (!error) {
+                    setClientCount(count || 0);
+                }
+
+            } catch (err) {
+                console.error("Error loading settings:", err);
+            } finally {
+                setLoading(false);
+            }
         };
+
         fetchSettings();
     }, [pantryId, pantryDetails, supabase]);
 
     if (loading) return <div className="p-20 text-center text-gray-400">Loading settings...</div>;
 
+    // --- LIMIT CALCULATION LOGIC ---
     const currentTier = details?.subscription_tier || 'pilot';
     const currentPlan = getPlanDetails(currentTier);
     const hasProFeatures = currentPlan.features.csv_export;
+    
+    // 1. Check if the Database Row has a specific limit (Override)
+    // 2. If null, fallback to the Generic Plan Limit
+    const dbLimit = details?.max_clients_limit;
+    const planLimit = currentPlan.features.max_clients;
+    
+    // Use the DB limit if it exists (even if it is 0), otherwise use plan default
+    const maxClients = (dbLimit !== null && dbLimit !== undefined) ? dbLimit : planLimit;
+    
+    const isUnlimited = maxClients > 100000; 
 
     const commonProps = {
         pantryId,
@@ -75,7 +106,14 @@ export function SettingsView() {
         refreshPantry,
         currentPlan,
         hasProFeatures,
-        currentTier
+        currentTier,
+        // Pass the calculated stats
+        usageStats: {
+            current: clientCount,
+            limit: maxClients,
+            isUnlimited,
+            percentUsed: isUnlimited ? 0 : Math.min(100, (clientCount / maxClients) * 100)
+        }
     };
 
     return (
@@ -95,6 +133,18 @@ export function SettingsView() {
                                 <h1 className="font-bold text-gray-900 text-lg">Settings</h1>
                             </div>
                         </div>
+
+                        {/* Resource Indicator */}
+                        <div className={`hidden md:flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border ${
+                            commonProps.usageStats.percentUsed >= 100 
+                                ? 'bg-red-50 border-red-200 text-red-700' 
+                                : 'bg-gray-50 border-gray-100 text-gray-500'
+                        }`}>
+                            <span>Clients:</span>
+                            <span className="font-bold">
+                                {clientCount} / {isUnlimited ? '∞' : maxClients}
+                            </span>
+                        </div>
                     </div>
 
                     {/* TAB NAVIGATION */}
@@ -102,7 +152,6 @@ export function SettingsView() {
                         {['general', 'billing'].map((tab) => (
                             <button
                                 key={tab}
-                                // 🔥 FIX 2: Add this attribute so your Modal can find the button!
                                 data-tab={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`pb-3 text-sm font-medium transition-all relative ${

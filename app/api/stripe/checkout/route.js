@@ -3,6 +3,23 @@ import { stripe } from '@/lib/stripe';
 import { createClient } from '@/utils/supabase/server';
 import { PLANS } from '@/lib/plans';
 
+// --- SHARED SECURITY & ROLE HELPER ---
+async function verifyAdminAccess(supabase, userId) {
+  // ✅ ACTION: Find the pantry and verify the user is an ADMIN
+  const { data: membership, error } = await supabase
+    .from('pantry_members')
+    .select('pantry_id, role, is_active')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !membership) return null;
+  
+  // Only admins should be allowed to spend money/change plans
+  if (membership.role !== 'admin' || !membership.is_active) return null;
+
+  return membership.pantry_id;
+}
+
 export async function POST(req) {
   try {
     const supabase = await createClient();
@@ -12,56 +29,43 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // 1. SECURITY: Ensure the user belongs to a pantry and IS AN ADMIN
+    const pantryId = await verifyAdminAccess(supabase, user.id);
+    if (!pantryId) {
+      return NextResponse.json({ 
+        error: 'Forbidden: Only an active Admin can manage subscriptions.' 
+      }, { status: 403 });
+    }
+
     const body = await req.json();
     const { tier } = body;
 
-    // Validate the requested tier
+    // 2. Plan Validation
     const selectedPlan = PLANS[tier];
     if (!selectedPlan || !selectedPlan.stripePriceId) {
       return NextResponse.json({ error: 'Invalid plan selected' }, { status: 400 });
     }
 
-    // --- STEP 1: Find the Pantry ID via the Members Table ---
-    const { data: memberRecord } = await supabase
-      .from('pantry_members')
-      .select('pantry_id')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!memberRecord?.pantry_id) {
-      return NextResponse.json({ error: 'No pantry found for this user.' }, { status: 404 });
-    }
-
-    const pantryId = memberRecord.pantry_id;
-
-    // --- STEP 2: Get Pantry Details ---
+    // 3. Get Pantry Details for Stripe
     const { data: pantry } = await supabase
       .from('food_pantries')
-      .select('stripe_customer_id, name') // Fetch name for new customer creation
+      .select('stripe_customer_id, name')
       .eq('pantry_id', pantryId)
       .single();
 
     let customerId = pantry?.stripe_customer_id;
 
     // --- STEP 3: Verify or Create Stripe Customer (Self-Healing) ---
-
-    // A. If ID exists, ask Stripe if it's still valid
     if (customerId) {
       try {
         const customer = await stripe.customers.retrieve(customerId);
-        if (customer.deleted) {
-          console.log("⚠️ Customer deleted in Stripe. Resetting...");
-          customerId = null;
-        }
+        if (customer.deleted) customerId = null;
       } catch (error) {
-        console.log("⚠️ Invalid Customer ID. Resetting...");
         customerId = null;
       }
     }
 
-    // B. If ID is missing or was just reset, create a new one
     if (!customerId) {
-      console.log("✨ Creating new Stripe Customer...");
       const newCustomer = await stripe.customers.create({
         email: user.email,
         name: pantry?.name || 'Pantry Admin',
@@ -73,7 +77,6 @@ export async function POST(req) {
 
       customerId = newCustomer.id;
 
-      // Save the new ID to Supabase immediately
       await supabase
         .from('food_pantries')
         .update({ stripe_customer_id: customerId })
@@ -90,12 +93,8 @@ export async function POST(req) {
         quantity: 1
       }],
       mode: 'subscription',
-
-      // ✅ FIX: Use this instead of 'automatic_payment_methods'
-      // This enables Credit Cards AND Apple Pay / Google Pay automatically
       payment_method_types: ['card'],
-
-      success_url: `${origin}/api/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/dashboard?session_id={CHECKOUT_SESSION_ID}&success=true`,
       cancel_url: `${origin}/dashboard`,
       metadata: {
         userId: user.id,
@@ -107,7 +106,7 @@ export async function POST(req) {
     return NextResponse.json({ url: session.url });
 
   } catch (err) {
-    console.error("Stripe Checkout Error:", err);
+    console.error("❌ Stripe Checkout Error:", err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

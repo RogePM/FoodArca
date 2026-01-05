@@ -4,31 +4,32 @@ import React, { useState, useEffect } from 'react';
 import {
   Trash2, Loader2, Save, Package, Weight,
   MapPin, ScanBarcode, Tag, ChevronDown, X, Camera,
-  StickyNote // Imported Icon
+  StickyNote, Calendar, Layers
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea'; // Ensure you have this component
+import { Textarea } from '@/components/ui/textarea';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetFooter
-} from '@/components/ui/SheetCart';
+  SheetFooter,
+  SheetClose
+} from '@/components/ui/sheet';
 
 import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 import { categories as CATEGORY_OPTIONS } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
 
+// Remove browser default spinners on number inputs
 const noSpinnerClass = "[&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) {
   const { pantryId } = usePantry();
-  const focusClass = `focus-visible:ring-[#d97757] focus-visible:border-[#d97757]`;
 
   const [formData, setFormData] = useState({
     name: '',
@@ -38,21 +39,21 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
     unit: 'units',
     expirationDate: '',
     storageLocation: '',
-    notes: '', // ✅ Added Notes State
+    notes: '',
   });
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState({ type: '', text: '' });
   
   // UI States
   const [showScanner, setShowScanner] = useState(false);
-  const [showNotes, setShowNotes] = useState(false); // ✅ Toggle for Notes UI
+  const [showNotes, setShowNotes] = useState(false);
 
   // --- LOAD DATA ---
   useEffect(() => {
     if (isOpen) {
-      setMessage('');
+      setMessage({ type: '', text: '' });
       if (item) {
         setFormData({
           name: item.name || '',
@@ -64,9 +65,8 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
             ? format(new Date(item.expirationDate), 'yyyy-MM-dd')
             : '',
           storageLocation: item.storageLocation || '',
-          notes: item.notes || '', // ✅ Load existing notes
+          notes: item.notes || '',
         });
-        // ✅ Automatically show the notes box if notes exist
         setShowNotes(!!item.notes);
       } else {
         setFormData({
@@ -77,7 +77,7 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
           unit: 'units',
           expirationDate: '',
           storageLocation: '',
-          notes: '', // Reset
+          notes: '',
         });
         setShowNotes(false);
       }
@@ -90,7 +90,6 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
   };
 
   const handleScan = (code) => {
-    console.log("Scanned:", code);
     setFormData(prev => ({ ...prev, barcode: code }));
     setShowScanner(false);
   };
@@ -99,7 +98,7 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
   const handleSubmit = async () => {
     if (!pantryId) return;
     if (!formData.name) {
-      alert("Item name is required");
+      setMessage({ type: 'error', text: 'Item name is required' });
       return;
     }
 
@@ -121,17 +120,17 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
       });
 
       if (res.ok) {
-        setMessage('✅ Saved');
+        setMessage({ type: 'success', text: 'Item saved successfully!' });
         setTimeout(() => {
           onItemUpdated?.();
           onOpenChange(false);
         }, 500);
       } else {
-        setMessage('Failed to save.');
+        setMessage({ type: 'error', text: 'Failed to save item.' });
       }
     } catch (error) {
       console.error('Error saving:', error);
-      setMessage('Error saving.');
+      setMessage({ type: 'error', text: 'Network error occurred.' });
     } finally {
       setIsSaving(false);
     }
@@ -147,8 +146,8 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
         headers: { 'x-pantry-id': pantryId }
       });
       if (res.ok) {
-        onOpenChange(false);
         onItemUpdated?.();
+        onOpenChange(false);
       } else {
         alert("Failed to delete");
       }
@@ -170,68 +169,114 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
       )}
 
       <Sheet open={isOpen} onOpenChange={onOpenChange}>
-        <SheetContent
-          side="right"
-          className="w-full sm:max-w-md flex flex-col h-[100dvh] p-0 bg-[#f9fafb] border-l-0 sm:border-l"
+        <SheetContent 
+          side="right" 
+          className="w-full sm:max-w-md flex flex-col h-full p-0 bg-white shadow-2xl border-l border-gray-200"
         >
-          {/* HEADER */}
-          <SheetHeader className="px-5 py-4 bg-white border-b border-gray-100 flex flex-row items-center justify-between shrink-0 space-y-0">
-            <SheetTitle className="text-xl font-bold text-gray-900">
-              {item ? 'Edit Item' : 'New Item'}
-            </SheetTitle>
-            {message ? (
-              <span className={`text-xs font-bold px-3 py-1 rounded-full animate-in fade-in zoom-in ${message.includes('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                }`}>
-                {message}
-              </span>
-            ) : (
-              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="md:hidden text-gray-400 -mr-2">
-                {/* <X className="h-5 w-5" /> */}
-              </Button>
-            )}
+          {/* HEADER (Fixed) */}
+          <SheetHeader className="px-6 py-5 border-b bg-gray-50/50 flex flex-row items-center justify-between space-y-0">
+            <div className="flex flex-col gap-1">
+              <SheetTitle className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <Package className="h-5 w-5 text-[#d97757]" strokeWidth={3} />
+                {item ? 'Edit Inventory' : 'Add Item'}
+              </SheetTitle>
+              {message.text && (
+                <div className={`text-[10px] font-bold uppercase tracking-wide ${message.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                  {message.text}
+                </div>
+              )}
+            </div>
+            
+            {/* Custom X Button */}
+            <button 
+              onClick={() => onOpenChange(false)}
+              className="h-8 w-8 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </SheetHeader>
 
-          {/* BODY */}
-          <div className="flex-1 overflow-y-auto px-5 py-6 space-y-8">
+          {/* BODY (Scrollable) */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
 
-            {/* IDENTIFICATION CARD */}
-            <section className="space-y-3">
-              <Label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 ml-1">
-                <ScanBarcode className="h-3.5 w-3.5 text-[#d97757]" /> Identification
+            {/* 1. STOCK LEVEL (Redesigned: Clean Input Group) */}
+            <section className="space-y-4">
+               <Label className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-2">
+                  <Weight className="h-3.5 w-3.5 text-[#d97757]" /> Stock Level
+               </Label>
+               
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                     <Label className="text-[10px] font-black text-gray-400 uppercase">Quantity</Label>
+                     <Input
+                        id="quantity"
+                        name="quantity"
+                        type="number"
+                        step="any"
+                        placeholder="0"
+                        value={formData.quantity}
+                        onChange={handleChange}
+                        className={`h-11 text-lg font-bold border-2 border-gray-100 rounded-xl focus:border-[#d97757] focus:ring-0 ${noSpinnerClass}`}
+                     />
+                  </div>
+                  <div className="space-y-1">
+                     <Label className="text-[10px] font-black text-gray-400 uppercase">Unit</Label>
+                     <div className="relative">
+                        <select
+                           name="unit"
+                           value={formData.unit}
+                           onChange={handleChange}
+                           className="w-full h-11 appearance-none rounded-xl border-2 border-gray-100 bg-white pl-3 pr-8 text-sm font-medium shadow-sm focus:border-[#d97757] focus:outline-none"
+                        >
+                           <optgroup label="Count">
+                              <option value="units">Units</option>
+                           </optgroup>
+                           <optgroup label="Weight">
+                              <option value="lbs">Lbs</option>
+                              <option value="kg">Kg</option>
+                              <option value="oz">Oz</option>
+                           </optgroup>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-3.5 h-4 w-4 text-gray-400 pointer-events-none" />
+                     </div>
+                  </div>
+               </div>
+            </section>
+
+            {/* 2. IDENTIFICATION (Card Style) */}
+            <section className="space-y-4 bg-gray-50 p-4 rounded-2xl border-2 border-gray-100 shadow-inner">
+              <Label className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-2">
+                <Tag className="h-3.5 w-3.5 text-[#d97757]" /> Identification
               </Label>
-
-              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-5">
-                <div className="space-y-1.5">
-                  <Label htmlFor="name" className="text-xs font-semibold text-gray-500 uppercase">Item Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className={`h-12 bg-gray-50 border-gray-200 ${focusClass} text-base`}
-                    required
-                    placeholder="e.g. Organic Milk"
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-gray-400 uppercase">Item Name</Label>
+                  <Input 
+                    name="name" 
+                    value={formData.name} 
+                    onChange={handleChange} 
+                    className="h-11 border-2 border-gray-100 bg-white rounded-xl focus:border-[#d97757] focus:ring-0 transition-all font-medium" 
+                    placeholder="e.g. Canned Corn"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="barcode" className="text-xs font-semibold text-gray-500 uppercase">Barcode / SKU</Label>
+                
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-gray-400 uppercase">Barcode / SKU</Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
-                      <Input
-                        id="barcode"
-                        name="barcode"
-                        value={formData.barcode}
-                        onChange={handleChange}
-                        className={`h-12 pl-4 pr-10 bg-gray-50 border-gray-200 font-mono text-base ${focusClass}`}
-                        placeholder="Scan or enter code"
+                      <ScanBarcode className="absolute left-3 top-3.5 h-4 w-4 text-gray-300" />
+                      <Input 
+                        name="barcode" 
+                        value={formData.barcode} 
+                        onChange={handleChange} 
+                        className="h-11 pl-9 border-2 border-gray-100 bg-white rounded-xl font-mono text-sm focus:border-[#d97757] focus:ring-0 transition-all" 
+                        placeholder="Scan or type..."
                       />
-                      <ScanBarcode className="absolute right-3 top-3.5 h-5 w-5 text-gray-400 pointer-events-none" />
                     </div>
-                    <Button
-                      type="button"
+                    <Button 
+                      type="button" 
                       onClick={() => setShowScanner(true)}
-                      className="h-12 w-12 shrink-0 bg-gray-900 text-white hover:bg-black"
+                      className="h-11 w-11 rounded-xl bg-gray-900 hover:bg-black text-white shrink-0"
                     >
                       <Camera className="h-5 w-5" />
                     </Button>
@@ -240,132 +285,87 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
               </div>
             </section>
 
-            {/* DETAILS CARD */}
-            <section className="space-y-3">
-              <Label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 ml-1">
-                <Tag className="h-3.5 w-3.5 text-[#d97757]" /> Details
-              </Label>
-
-              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="category" className="text-xs font-semibold text-gray-500 uppercase">Category</Label>
-                    <div className="relative">
-                      <select
-                        name="category"
-                        value={formData.category}
-                        onChange={handleChange}
-                        className={`appearance-none w-full h-12 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-[#d97757] focus:border-transparent`}
-                      >
-                        {CATEGORY_OPTIONS.map((cat) => (
-                          <option key={cat.value} value={cat.value}>{cat.name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-4 h-4 w-4 text-gray-400 pointer-events-none" />
-                    </div>
+            {/* 3. LOGISTICS (Card Style) */}
+            <section className="space-y-4 bg-gray-50 p-4 rounded-2xl border-2 border-gray-100 shadow-inner">
+               <Label className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-2">
+                  <Layers className="h-3.5 w-3.5 text-[#d97757]" /> Logistics
+               </Label>
+               
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                     <Label className="text-[10px] font-black text-gray-400 uppercase">Category</Label>
+                     <div className="relative">
+                        <select
+                           name="category"
+                           value={formData.category}
+                           onChange={handleChange}
+                           className="w-full h-11 appearance-none rounded-xl border-2 border-white bg-white pl-3 pr-8 text-sm font-medium shadow-sm focus:border-[#d97757] focus:outline-none"
+                        >
+                           {CATEGORY_OPTIONS.map((cat) => (
+                              <option key={cat.value} value={cat.value}>{cat.name}</option>
+                           ))}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-3.5 h-4 w-4 text-gray-400 pointer-events-none" />
+                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="expirationDate" className="text-xs font-semibold text-gray-500 uppercase">Expires</Label>
-                    <Input
-                      id="expirationDate"
-                      name="expirationDate"
-                      type="date"
-                      value={formData.expirationDate}
-                      onChange={handleChange}
-                      className={`h-12 bg-gray-50 border-gray-200 text-gray-600 ${focusClass} text-base`}
-                    />
+                  <div className="space-y-1">
+                     <Label className="text-[10px] font-black text-gray-400 uppercase">Expiration</Label>
+                     <div className="relative">
+                        <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-gray-300" />
+                        <Input 
+                           name="expirationDate" 
+                           type="date" 
+                           value={formData.expirationDate} 
+                           onChange={handleChange} 
+                           className="h-11 pl-9 border-2 border-white bg-white rounded-xl shadow-sm text-sm focus:border-[#d97757] focus:ring-0" 
+                        />
+                     </div>
                   </div>
-                </div>
+               </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="storageLocation" className="text-xs font-semibold text-gray-500 uppercase">Storage</Label>
+               <div className="space-y-1">
+                  <Label className="text-[10px] font-black text-gray-400 uppercase">Storage Location</Label>
                   <div className="relative">
-                    <Input
-                      id="storageLocation"
-                      name="storageLocation"
-                      value={formData.storageLocation}
-                      onChange={handleChange}
-                      placeholder="e.g. Shelf A"
-                      className={`h-12 bg-gray-50 border-gray-200 ${focusClass} text-base`}
-                    />
-                    <MapPin className="absolute right-3 top-3.5 h-5 w-5 text-gray-400 pointer-events-none" />
+                     <MapPin className="absolute left-3 top-3.5 h-4 w-4 text-gray-300" />
+                     <Input 
+                        name="storageLocation" 
+                        value={formData.storageLocation} 
+                        onChange={handleChange} 
+                        placeholder="e.g. Shelf A, Bin 2"
+                        className="h-11 pl-9 border-2 border-white bg-white rounded-xl shadow-sm focus:border-[#d97757] focus:ring-0 transition-all" 
+                     />
                   </div>
-                </div>
-              </div>
+               </div>
             </section>
 
-            {/* INVENTORY LEVEL CARD */}
-            <section className="space-y-3">
-              <Label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2 ml-1">
-                <Package className="h-3.5 w-3.5 text-[#d97757]" /> Inventory Level
-              </Label>
-
-              <div className="flex gap-0 shadow-sm rounded-lg overflow-hidden border border-gray-200 bg-white ring-offset-background transition-colors focus-within:ring-2 focus-within:ring-[#d97757] focus-within:ring-offset-2 focus-within:border-[#d97757]">
-                <div className="relative flex-1">
-                  <Input
-                    id="quantity"
-                    name="quantity"
-                    type="number"
-                    step="any"
-                    placeholder="0"
-                    value={formData.quantity}
-                    onChange={handleChange}
-                    required
-                    className={`h-14 text-xl font-bold pl-4 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 z-10 relative bg-transparent text-base ${noSpinnerClass}`}
-                  />
-                </div>
-                <div className="relative bg-gray-50 border-l border-gray-200 w-32 shrink-0">
-                  <select
-                    name="unit"
-                    value={formData.unit}
-                    onChange={handleChange}
-                    className="w-full h-full appearance-none bg-transparent pl-4 pr-8 text-sm font-semibold text-gray-700 focus:outline-none cursor-pointer"
-                  >
-                    <optgroup label="Count">
-                      <option value="units">Units</option>
-                    </optgroup>
-                    <optgroup label="Weight">
-                      <option value="lbs">Lbs</option>
-                      <option value="kg">Kg</option>
-                      <option value="oz">Oz</option>
-                    </optgroup>
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#d97757]">
-                    {formData.unit === 'units' ? <Package className="h-4 w-4" /> : <Weight className="h-4 w-4" />}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* 📝 NEW: NOTES SECTION (Collapsible) */}
+            {/* 4. NOTES (Collapsible) */}
             <section className="space-y-3">
               {!showNotes ? (
                 <button
                   type="button"
                   onClick={() => setShowNotes(true)}
-                  className="text-xs font-medium text-[#d97757] flex items-center gap-1.5 hover:underline py-2"
+                  className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-xs font-bold text-gray-400 flex items-center justify-center gap-2 hover:bg-gray-50 hover:border-[#d97757] hover:text-[#d97757] transition-all"
                 >
-                  <StickyNote className="h-3.5 w-3.5" /> 
-                  {formData.notes ? "Edit Note" : "Add Note (Optional)"}
+                  <StickyNote className="h-4 w-4" /> 
+                  {formData.notes ? "View Notes" : "Add Note"}
                 </button>
               ) : (
                 <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="notes" className="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
+                  <div className="flex justify-between items-center px-1">
+                    <Label className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-2">
                       <StickyNote className="h-3.5 w-3.5 text-[#d97757]" /> Item Notes
                     </Label>
-                    <span onClick={() => setShowNotes(false)} className="cursor-pointer text-xs text-[#d97757] font-medium">
-                      Hide
-                    </span>
+                    <button onClick={() => setShowNotes(false)} className="text-[10px] font-bold text-red-400 hover:text-red-500 uppercase">
+                      Close
+                    </button>
                   </div>
                   <Textarea
-                    id="notes"
                     name="notes"
                     value={formData.notes}
                     onChange={handleChange}
                     placeholder="E.g. Donated by Walmart, dented packaging..."
-                    className="bg-white border-gray-200 min-h-[80px] text-base resize-none focus-visible:ring-[#d97757]"
+                    className="bg-white border-2 border-gray-100 rounded-xl min-h-[100px] text-sm resize-none focus-visible:ring-0 focus-visible:border-[#d97757]"
                   />
                 </div>
               )}
@@ -374,40 +374,34 @@ export function InventoryFormBar({ isOpen, onOpenChange, item, onItemUpdated }) 
             <div className="h-24"></div>
           </div>
 
-          {/* FOOTER */}
-          <SheetFooter className="px-5 py-5 border-t bg-white flex flex-row items-center justify-between gap-3 z-20 shrink-0 pb-safe">
+          {/* FOOTER (Fixed) */}
+          <SheetFooter className="px-6 py-5 border-t bg-white flex flex-row items-center justify-between gap-3 z-20 shrink-0 pb-safe">
             {item ? (
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
-                className="h-12 w-12 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                className="h-11 px-4 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl font-bold"
                 onClick={handleDelete}
                 disabled={isDeleting || isSaving}
               >
-                {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                <Trash2 className="h-5 w-5 mr-2 md:mr-0" /> <span className="md:hidden">Delete</span>
               </Button>
             ) : (
               <div className="w-2"></div>
             )}
 
             <div className="flex gap-3 flex-1 justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="h-12 px-6 text-base font-medium border-gray-200 hover:bg-gray-50 rounded-xl"
-              >
-                Cancel
-              </Button>
+              <SheetClose asChild>
+                 <Button type="button" variant="outline" className="h-11 px-6 rounded-xl font-bold border-2">Cancel</Button>
+              </SheetClose>
               <Button
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSaving || isDeleting || !pantryId}
-                className="h-12 flex-1 text-base font-semibold bg-[#d97757] hover:bg-[#c06245] text-white shadow-md shadow-[#d97757]/20 transition-all active:scale-[0.98] rounded-xl"
+                className="h-11 flex-1 text-base font-bold bg-[#d97757] hover:bg-[#c06245] text-white shadow-md shadow-[#d97757]/20 transition-all active:scale-[0.98] rounded-xl"
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? 'Saving...' : 'Save Item'}
               </Button>
             </div>
           </SheetFooter>

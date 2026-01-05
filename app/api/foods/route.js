@@ -1,162 +1,122 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import connectDB from '@/lib/db';
 import { FoodItem, BarcodeCache } from '@/lib/models/FoodItemModel';
-import { ChangeLog } from '@/lib/models/ChangeLogModel';
+import { logChange } from '@/lib/logger'; 
 
-// --- HELPER: Log Changes ---
-const logChange = async (actionType, item, changes = null, metadata = {}, pantryId) => {
-  try {
-    let qty = 0;
-    if (actionType === 'added') qty = item.quantity;
-    else if (actionType === 'distributed') qty = metadata.removedQuantity || 0;
+// ----------------------------------------------------------------------
+// 1. HELPER FUNCTIONS (These were missing!)
+// ----------------------------------------------------------------------
 
-    let weight = 0;
-    const unit = (metadata.unit || item.unit || 'units').toLowerCase();
-    if (unit === 'lbs') weight = qty;
-    else if (unit === 'kg') weight = qty * 2.20462;
-    else if (unit === 'oz') weight = qty / 16;
-    else weight = qty * 1;
-
-    const value = weight * 2.50;
-    const familySize = metadata.familySize || 1;
-
-    await ChangeLog.create({
-      pantryId,
-      actionType,
-      itemId: item._id,
-      itemName: item.name,
-      category: item.category,
-      previousQuantity: actionType === 'added' ? 0 : (item.quantity + (actionType === 'distributed' ? qty : 0)),
-      quantityChanged: qty,
-      newQuantity: item.quantity,
-      unit: item.unit,
-      distributionReason: metadata.reason,
-      clientName: metadata.clientName,
-      clientId: metadata.clientId,
-      removedQuantity: qty,
-      impactMetrics: {
-        peopleServed: actionType === 'distributed' ? familySize : 0,
-        estimatedValue: parseFloat(value.toFixed(2)),
-        standardizedWeight: parseFloat(weight.toFixed(2)),
-        wasteDiverted: actionType === 'added'
-      },
-      tags: metadata.reason === 'emergency' ? ['Urgent'] : [],
-      timestamp: new Date()
-    });
-  } catch (e) {
-    console.error("Failed to log change:", e);
-  }
-};
-
-// --- AUTHENTICATION HELPER ---
 async function authenticateRequest(req) {
   const cookieStore = await cookies();
-
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-      },
-    }
+    { cookies: { getAll() { return cookieStore.getAll(); } } }
   );
 
-  // ✅ Use getUser() instead of getSession()
   const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) return { authenticated: false, user: null, supabase: null };
 
-  if (error || !user) {
-    return { authenticated: false, user: null, supabase: null, error: 'Unauthorized' };
-  }
-
-  // 🔥 FIX: RETURN THE SUPABASE CLIENT HERE so POST can use it
-  return { authenticated: true, user, supabase, error: null };
+  return { authenticated: true, user, supabase };
 }
 
-// ----------------------------------------------------------------------------------
-// --- GET: Fetch Inventory ---
-// ----------------------------------------------------------------------------------
+async function verifyPantryMember(supabase, userId, pantryId) {
+  const { data, error } = await supabase
+    .from('pantry_members')
+    .select('is_active, role')
+    .eq('user_id', userId)
+    .eq('pantry_id', pantryId)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}
+
+// ----------------------------------------------------------------------
+// 2. GET: Fetch Inventory
+// ----------------------------------------------------------------------
 export async function GET(req) {
   try {
     const auth = await authenticateRequest(req);
-    if (!auth.authenticated) return NextResponse.json({ message: auth.error }, { status: 401 });
+    if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const pantryId = req.headers.get('x-pantry-id');
     if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+
+    const membership = await verifyPantryMember(auth.supabase, auth.user.id, pantryId);
+    if (!membership) return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
     const sortBy = searchParams.get('sort') || 'expirationDate';
     const order = searchParams.get('order') === 'desc' ? -1 : 1;
 
     await connectDB();
-
-    const foods = await FoodItem.find({ pantryId })
-      .sort({ [sortBy]: order });
+    const foods = await FoodItem.find({ pantryId }).sort({ [sortBy]: order });
 
     return NextResponse.json({ count: foods.length, data: foods });
   } catch (error) {
-    console.error('GET Error:', error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
-// ----------------------------------------------------------------------------------
-// --- POST: Add Item ---
-// ----------------------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// 3. POST: Add Item (WITH LIMIT CHECK)
+// ----------------------------------------------------------------------
 export async function POST(req) {
   try {
-    // ✅ AUTH CHECK
+    // 1. Authenticate
     const auth = await authenticateRequest(req);
-    if (!auth.authenticated) {
-      console.log('❌ POST /api/foods - Unauthorized');
-      return NextResponse.json({ message: auth.error }, { status: 401 });
-    }
+    if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const data = await req.json();
     const pantryId = req.headers.get('x-pantry-id');
+    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    if (!pantryId) {
-      console.log('❌ POST /api/foods - No pantry ID');
-      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
-    }
-
-    // ================================ READ-ONLY USER CHECK ==============================
-    // 🔥 THIS LINE WAS CRASHING BECAUSE AUTH.SUPABASE WAS MISSING
-    // NOW IT WILL WORK
-    const { data: memberData, error: memberError } = await auth.supabase
-      .from('pantry_members')
-      .select('is_active, role')
-      .eq('user_id', auth.user.id)
-      .eq('pantry_id', pantryId)
-      .single();
-
-    if (memberError || !memberData) {
-      return NextResponse.json({ message: 'Membership not found' }, { status: 403 });
-    }
-
+    // 2. Verify Membership
+    const memberData = await verifyPantryMember(auth.supabase, auth.user.id, pantryId);
+    if (!memberData) return NextResponse.json({ message: 'Membership not found' }, { status: 403 });
     if (memberData.is_active === false) {
-      console.log(`⛔ Blocked Read-Only User: ${auth.user.email}`);
-      return NextResponse.json(
-        { message: 'Your account is in Read-Only mode. Ask your Admin to activate you.' },
-        { status: 403 }
-      );
+      return NextResponse.json({ message: 'Account is in Read-Only mode.' }, { status: 403 });
     }
-    // ====================================================================================
 
     if (!data.name || !data.category || !data.quantity) {
-      return NextResponse.json({ message: 'Please provide Name, Category, and Quantity' }, { status: 400 });
+      return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
 
-    console.log('✅ POST /api/foods - User:', auth.user.email, 'Adding:', data.name);
+    // --- 🚨 GATEKEEPER START: CHECK LIMITS 🚨 ---
+    // Fetch subscription details from Supabase
+    const { data: pantrySettings, error: pantryError } = await auth.supabase
+        .from('food_pantries')
+        .select('subscription_tier, total_items_created, max_items_limit')
+        .eq('pantry_id', pantryId)
+        .single();
 
+    if (pantryError || !pantrySettings) {
+        return NextResponse.json({ message: 'Could not verify pantry limits' }, { status: 500 });
+    }
+
+    // Logic: If Free Tier ('pilot') AND they hit the max limit, stop them.
+    if (pantrySettings.subscription_tier === 'pilot') {
+        const limit = pantrySettings.max_items_limit || 50; 
+        
+        // CRITICAL CHECK
+        if (pantrySettings.total_items_created >= limit) {
+            return NextResponse.json({ 
+                error: 'LIMIT_REACHED', 
+                message: `Free Limit Reached (${limit} items).` 
+            }, { status: 403 });
+        }
+    }
+    // --- 🚨 GATEKEEPER END 🚨 ---
+
+
+    // 3. Connect to MongoDB
     await connectDB();
 
-    // 1. Prepare Data
-    const validUnits = ['units', 'lbs', 'kg', 'oz'];
-    const unit = validUnits.includes(data.unit) ? data.unit : 'units';
+    const quantityToAdd = parseFloat(data.quantity);
     let searchDate = null;
     if (data.expirationDate) {
       const d = new Date(data.expirationDate);
@@ -165,113 +125,65 @@ export async function POST(req) {
     }
     const barcode = data.barcode?.trim() || `SYS-${Date.now().toString().slice(-8)}`;
 
-    // 2. CHECK IF BATCH ALREADY EXISTS
-    const existingItem = await FoodItem.findOne({
-      pantryId,
-      barcode: barcode,
-      expirationDate: searchDate ? searchDate : { $exists: false }
-    });
+    // 4. Try to find existing batch (Update) vs Create New
+    let isNewItemCreated = false;
 
-    // 3. CHECK CACHE
-    const isBarcodeRegistered = await BarcodeCache.findOne({
-      barcode: barcode,
-      pantryId
-    });
-
-    // --- 4. GATEKEEPER LOGIC ---
-    if (!existingItem && !isBarcodeRegistered) {
-      // 🔥 FIX: Use Service Role Key for admin queries, not Anon key
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY // Ensure this ENV is set
-      );
-
-      const { data: pantryData, error: pantryError } = await supabaseAdmin
-        .from('food_pantries')
-        .select('max_items_limit')
-        .eq('pantry_id', pantryId)
-        .single();
-
-      if (pantryError || !pantryData) {
-        console.error('❌ Could not fetch pantry limits:', pantryError);
-        return NextResponse.json({ message: 'Could not verify plan limits.' }, { status: 500 });
-      }
-
-      const maxLimit = pantryData.max_items_limit;
-
-      if (maxLimit < 999999) {
-        const currentBarcodeCount = await BarcodeCache.countDocuments({ pantryId });
-        console.log(`📊 Current items: ${currentBarcodeCount}/${maxLimit}`);
-
-        if (currentBarcodeCount >= maxLimit) {
-          console.log('⛔ Plan limit reached');
-          return NextResponse.json(
-            { message: `Plan limit reached (${maxLimit} items). Please upgrade.` },
-            { status: 403 }
-          );
-        }
-      }
-    }
-
-    // 5. EXECUTE ACTION
-    let foodItem;
-    const quantityToAdd = parseFloat(data.quantity);
-
-    if (existingItem) {
-      console.log('📦 Merging with existing batch');
-
-      existingItem.name = data.name;
-      existingItem.category = data.category;
-      existingItem.quantity += quantityToAdd;
-      
-      // ✅ Update fields on merge
-      if (data.storageLocation) existingItem.storageLocation = data.storageLocation;
-      if (data.notes) existingItem.notes = data.notes;
-
-      existingItem.lastModified = new Date();
-
-      foodItem = await existingItem.save();
-    } else {
-      console.log('✨ Creating new batch');
-      const newItemData = {
-        ...data,
+    let foodItem = await FoodItem.findOneAndUpdate(
+      {
         pantryId,
-        unit: unit,
         barcode: barcode,
-        expirationDate: searchDate || data.expirationDate,
-        storageLocation: data.storageLocation || '',
-        notes: data.notes || '',
-        lastModified: new Date(),
-      };
-      foodItem = await FoodItem.create(newItemData);
-
-      await logChange('added', foodItem, null, {}, pantryId);
-    }
-
-    // 6. UPDATE CACHE
-    if (barcode && !barcode.startsWith('INT-') && !barcode.startsWith('SYS-')) {
-      await BarcodeCache.findOneAndUpdate(
-        { barcode: barcode, pantryId },
-        {
+        expirationDate: searchDate ? searchDate : { $exists: false }
+      },
+      {
+        $inc: { quantity: quantityToAdd },
+        $set: {
           name: data.name,
           category: data.category,
-          storageLocation: data.storageLocation || '', // Cache location too
-          lastModified: new Date(),
-          pantryId
-        },
-        { upsert: true, new: true }
+          storageLocation: data.storageLocation || '',
+          lastModified: new Date()
+        }
+      },
+      { new: true }
+    );
+
+    if (!foodItem) {
+      // If not found, CREATE NEW
+      foodItem = await FoodItem.create({
+        ...data,
+        pantryId,
+        barcode,
+        expirationDate: searchDate || data.expirationDate,
+        lastModified: new Date()
+      });
+      isNewItemCreated = true;
+    }
+
+    // --- 💰 SPEND TOKEN: INCREMENT USAGE 💰 ---
+    if (isNewItemCreated) {
+        const { error: rpcError } = await auth.supabase.rpc('increment_pantry_usage', {
+            p_pantry_id: pantryId,
+            p_resource_type: 'item'
+        });
+        
+        if (rpcError) {
+            console.error("Failed to increment item usage counter:", rpcError);
+        }
+    }
+
+    // 5. Logging & Caching
+    await logChange('added', foodItem, {}, pantryId);
+
+    if (barcode && !barcode.startsWith('INT-') && !barcode.startsWith('SYS-')) {
+      await BarcodeCache.findOneAndUpdate(
+        { barcode, pantryId },
+        { name: data.name, category: data.category, lastModified: new Date(), pantryId },
+        { upsert: true }
       );
-      console.log('🧠 Barcode Cache Updated');
     }
 
-    console.log('✅ POST /api/foods - Success');
     return NextResponse.json(foodItem, { status: 201 });
-
   } catch (error) {
-    console.error('❌ POST /api/foods - Error:', error);
-    if (error.code === 11000) {
-      return NextResponse.json({ message: 'Barcode logic error (Duplicate)' }, { status: 400 });
-    }
+    console.error('POST Error:', error);
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 }

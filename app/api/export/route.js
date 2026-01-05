@@ -3,49 +3,73 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import connectDB from '@/lib/db';
 import { FoodItem } from '@/lib/models/FoodItemModel';
-import { Client } from '@/lib/models/ClientModel'; // Ensure this path is correct
+import { Client } from '@/lib/models/ClientModel';
+
+// --- SHARED SECURITY HELPER ---
+async function authenticateAndVerify(req) {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    { cookies: { getAll() { return cookieStore.getAll(); } } }
+  );
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { valid: false, status: 401, message: 'Unauthorized' };
+
+  const pantryId = req.headers.get('x-pantry-id');
+  if (!pantryId) return { valid: false, status: 400, message: 'Pantry ID required' };
+
+  // ✅ ACTION: Verify user belongs to the pantry they are trying to export from
+  const { data: membership, error: memberError } = await supabase
+    .from('pantry_members')
+    .select('is_active, role')
+    .eq('user_id', user.id)
+    .eq('pantry_id', pantryId)
+    .single();
+
+  if (memberError || !membership) {
+    return { valid: false, status: 403, message: 'Access Denied: Not a member' };
+  }
+
+  // Also fetch the subscription tier for gatekeeping
+  const { data: pantry, error: pantryError } = await supabase
+    .from('food_pantries')
+    .select('subscription_tier')
+    .eq('pantry_id', pantryId)
+    .single();
+
+  if (pantryError || !pantry) return { valid: false, status: 404, message: 'Pantry configuration not found' };
+
+  return { 
+    valid: true, 
+    user, 
+    pantryId, 
+    tier: pantry.subscription_tier 
+  };
+}
 
 export async function GET(req) {
   try {
-    const cookieStore = await cookies();
-    const { searchParams } = new URL(req.url);
-    const type = searchParams.get('type'); // 'inventory' or 'clients'
-    const pantryId = req.headers.get('x-pantry-id');
+    const auth = await authenticateAndVerify(req);
+    if (!auth.valid) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-    if (!pantryId) return NextResponse.json({ error: 'Pantry ID required' }, { status: 400 });
-
-    // 1. AUTH & PERMISSION CHECK (Supabase)
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      { cookies: { getAll() { return cookieStore.getAll(); } } }
-    );
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    // Check Subscription Tier
-    const { data: pantry, error: pantryError } = await supabase
-      .from('food_pantries')
-      .select('subscription_tier')
-      .eq('pantry_id', pantryId)
-      .single();
-
-    if (pantryError || !pantry) return NextResponse.json({ error: 'Pantry not found' }, { status: 404 });
-
-    // Gatekeeping: Only Pro or Enterprise can export
+    // 1. GATEKEEPING: Only Pro, Pilot, or Enterprise can export
     const allowedTiers = ['pro', 'pilot', 'enterprise'];
-    if (!allowedTiers.includes(pantry.subscription_tier)) {
+    if (!allowedTiers.includes(auth.tier)) {
       return NextResponse.json({ error: 'Upgrade required to export data.' }, { status: 403 });
     }
 
-    // 2. DATA FETCHING (MongoDB)
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get('type'); // 'inventory' or 'clients'
+    
     await connectDB();
     let csvData = '';
     const filename = `${type}-${new Date().toISOString().split('T')[0]}.csv`;
 
+    // 2. DATA FETCHING (MongoDB)
     if (type === 'inventory') {
-      const items = await FoodItem.find({ pantryId }).lean();
+      const items = await FoodItem.find({ pantryId: auth.pantryId }).lean();
       
       const headers = ['Name', 'Category', 'Quantity', 'Unit', 'Barcode', 'Location', 'Expiration', 'Notes'];
       const rows = items.map(item => [
@@ -62,37 +86,25 @@ export async function GET(req) {
       csvData = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
 
     } else if (type === 'clients') {
-      // 👇 UPDATED CLIENT LOGIC MATCHING YOUR SCHEMA
-      const clients = await Client.find({ pantryId }).lean();
+      const clients = await Client.find({ pantryId: auth.pantryId }).lean();
       
-      // Headers matching ClientSchema
-      const headers = [
-        'Client ID', 
-        'First Name', 
-        'Last Name', 
-        'Family Size', 
-        'Phone', 
-        'Email', 
-        'Address', 
-        'Status', 
-        'Last Visit',
-        'Created At'
-      ];
-
+      const headers = ['Client ID', 'First Name', 'Last Name', 'Family Size', 'Phone', 'Email', 'Address', 'Status', 'Last Visit', 'Created At'];
       const rows = clients.map(c => [
-        `"${c.clientId}"`,           // Matches ClientSchema.clientId
-        `"${c.firstName}"`,          // Matches ClientSchema.firstName
-        `"${c.lastName || ''}"`,     // Matches ClientSchema.lastName
-        c.familySize || 1,           // Matches ClientSchema.familySize
-        `"${c.phone || ''}"`,        // Matches ClientSchema.phone
-        `"${c.email || ''}"`,        // Matches ClientSchema.email
-        `"${c.address || ''}"`,      // Matches ClientSchema.address
-        c.isActive ? 'Active' : 'Inactive', // Derived from ClientSchema.isActive
-        c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : 'Never', // Matches ClientSchema.lastVisit
-        c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''       // Matches ClientSchema.createdAt
+        `"${c.clientId}"`,
+        `"${c.firstName}"`,
+        `"${c.lastName || ''}"`,
+        c.familySize || 1,
+        `"${c.phone || ''}"`,
+        `"${c.email || ''}"`,
+        `"${c.address || ''}"`,
+        c.isActive ? 'Active' : 'Inactive',
+        c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : 'Never',
+        c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''
       ]);
 
       csvData = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    } else {
+        return NextResponse.json({ error: 'Invalid export type' }, { status: 400 });
     }
 
     // 3. RETURN CSV FILE

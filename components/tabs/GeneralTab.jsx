@@ -8,51 +8,61 @@ import { Switch } from '@/components/ui/switch';
 import {
     Loader2, Mail, Shield, User,
     CheckCircle2, Plus, Copy, MapPin, Trash2,
-    BarChart3, Package, Users, Zap, FileDown, Lock
+    BarChart3, FileDown, Lock, Zap, Users
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 
-export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan, refreshPantry, hasProFeatures }) {
+export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan, refreshPantry, hasProFeatures, usageStats }) {
 
     // --- STATE ---
     const [members, setMembers] = useState([]);
     const [invitations, setInvitations] = useState([]);
-    const [usage, setUsage] = useState({ items: 0, clients: 0 });
-    const [loadingStats, setLoadingStats] = useState(true);
+    
+    // UI States
     const [copied, setCopied] = useState(false);
-
-    // --- STATE: Settings ---
     const [isFastMode, setIsFastMode] = useState(false);
     const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
     const [downloading, setDownloading] = useState(null);
 
-    // --- STATE: Invites ---
+    // Invite States
     const [showInviteForm, setShowInviteForm] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState('volunteer');
     const [isInviting, setIsInviting] = useState(false);
 
-    // --- CALCULATIONS ---
+    // --- 1. CALCULATE LIMITS (DB Priority > Plan Fallback) ---
     const isAdmin = userRole === 'admin' || userRole === 'owner';
-    const maxUsers = details?.max_users_limit ?? currentPlan?.limits?.users ?? 1;
-    const maxItems = details?.max_items_limit ?? currentPlan?.limits?.items ?? 100;
-    const maxClients = details?.max_clients_limit ?? currentPlan?.limits?.clients ?? 100;
 
+    // Users
+    const maxUsers = details?.max_users_limit ?? currentPlan?.limits?.users ?? 1;
+    
+    // Items
+    const maxItems = details?.max_items_limit ?? currentPlan?.limits?.items ?? 100;
+    
+    // Clients (Use limit passed from parent, or fallback to DB/Plan)
+    const maxClients = usageStats?.limit ?? (details?.max_clients_limit ?? currentPlan?.limits?.clients ?? 100);
+
+    // --- 2. CALCULATE CURRENT USAGE ---
     const activeCount = members.length;
     const pendingCount = invitations.length;
-    const totalCount = activeCount + pendingCount;
-    const teamPercent = Math.min((totalCount / maxUsers) * 100, 100);
+    const totalTeamCount = activeCount + pendingCount;
+    
+    // Items: Use the DB column 'total_items_created' for instant load
+    const currentItems = details?.total_items_created || 0;
 
-    // --- EFFECT: Init Data ---
+    // Clients: Use the live count passed from Parent
+    const currentClients = usageStats?.current || details?.total_families_created || 0;
+
+    // --- EFFECT: Load Members Only (Stats come from props now) ---
     useEffect(() => {
         if (!pantryId) return;
 
-        // 1. Settings
+        // Settings Sync
         const trackingEnabled = details?.settings?.enable_client_tracking ?? true;
         setIsFastMode(!trackingEnabled);
 
-        // 2. Members
+        // Fetch Members & Invites
         const fetchMembers = async () => {
             const { data: m } = await supabase
                 .from('pantry_members')
@@ -70,32 +80,17 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
             }
         };
 
-        // 3. Stats
-        const fetchStats = async () => {
-            try {
-                const res = await fetch('/api/pantry-stats', {
-                    headers: { 'x-pantry-id': pantryId }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setUsage({
-                        items: data.billing?.totalSkus || 0,
-                        clients: data.billing?.totalClients || 0
-                    });
-                }
-            } catch (error) {
-                console.error("Failed to load stats", error);
-            } finally {
-                setLoadingStats(false);
-            }
-        };
-
         fetchMembers();
-        fetchStats();
     }, [pantryId, isAdmin, supabase, details]);
 
-    // --- ACTIONS ---
+    // --- HELPER: Progress Bar Calculation ---
+    const calculatePercent = (val, max) => {
+        if (max >= 100000) return 0; // Unlimited
+        if (!max || max === 0) return 100; // Prevent divide by zero
+        return Math.min((val / max) * 100, 100);
+    };
 
+    // --- ACTIONS ---
     const handleFastModeToggle = async (checked) => {
         if (!isAdmin) return;
         setIsFastMode(checked);
@@ -121,19 +116,14 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
         }
     };
 
-    // ... inside GeneralTab component
-
     const handleExport = async (type) => {
-        if (!hasProFeatures) return; // UI blocks it, but safety check here too
+        if (!hasProFeatures) return; 
 
         setDownloading(type);
         try {
-            // 1. Request the CSV
             const res = await fetch(`/api/export?type=${type}`, {
                 method: 'GET',
-                headers: {
-                    'x-pantry-id': pantryId
-                }
+                headers: { 'x-pantry-id': pantryId }
             });
 
             if (res.status === 403) {
@@ -143,7 +133,6 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
 
             if (!res.ok) throw new Error("Export failed");
 
-            // 2. Trigger Browser Download
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -161,8 +150,6 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
             setDownloading(null);
         }
     };
-
-    // ... rest of your component
 
     const handleCopyCode = () => {
         if (details?.join_code) {
@@ -183,7 +170,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
         const cleanEmail = inviteEmail.trim().toLowerCase();
         if (!cleanEmail || !cleanEmail.includes('@')) return;
 
-        if (totalCount >= maxUsers) {
+        if (totalTeamCount >= maxUsers) {
             alert(`Limit reached (${maxUsers} users). Please upgrade.`);
             return;
         }
@@ -224,12 +211,6 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
         }
     };
 
-    const calculatePercent = (val, max) => {
-        if (max >= 100000) return 0;
-        if (!max) return 0;
-        return Math.min((val / max) * 100, 100);
-    };
-
     return (
         <div className="space-y-8 max-w-7xl mx-auto pb-10">
 
@@ -261,9 +242,8 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
             {/* --- MAIN GRID LAYOUT --- */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
 
-                {/* --- LEFT COLUMN: Team List (Span 2) --- */}
+                {/* --- LEFT COLUMN: Team List --- */}
                 <div className="xl:col-span-2 space-y-6">
-                    {/* Removed min-h-[400px] to fix white space issue */}
                     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
                         <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
                             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -344,32 +324,24 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                                     </span>
                                 </div>
                             ))}
-
-                            {totalCount === 0 && (
-                                <div className="p-12 text-center flex flex-col items-center justify-center text-gray-400">
-                                    <Users className="h-10 w-10 mb-3 opacity-20" />
-                                    <p className="text-sm">No team members yet.</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
 
                 {/* --- RIGHT COLUMN: Settings Sidebar (Sticky) --- */}
-                {/* 'self-start' prevents it from stretching to match left column height */}
                 <div className="space-y-6 xl:sticky xl:top-6 self-start">
 
-                    {/* 1. LIMITS & USAGE */}
+                    {/* 1. LIMITS & USAGE (RESOURCE AREA) */}
                     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h4 className="font-semibold text-gray-900 flex items-center gap-2">
                                 <Users className="h-4 w-4 text-gray-400" /> Seat Usage
                             </h4>
                             <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
-                                {totalCount} / {maxUsers}
+                                {totalTeamCount} / {maxUsers}
                             </span>
                         </div>
-                        <Progress value={teamPercent} indicatorColor={teamPercent >= 100 ? "bg-red-500" : "bg-green-500"} className="mb-6 h-2" />
+                        <Progress value={calculatePercent(totalTeamCount, maxUsers)} indicatorColor={calculatePercent(totalTeamCount, maxUsers) >= 100 ? "bg-red-500" : "bg-green-500"} className="mb-6 h-2" />
 
                         <div className="h-px bg-gray-100 my-5" />
 
@@ -377,22 +349,30 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                             <BarChart3 className="h-4 w-4 text-gray-400" /> Resource Usage
                         </h4>
 
-                        {/* Item Usage */}
+                        {/* Item Usage (From DB Column) */}
                         <div className="mb-4">
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-xs text-gray-500">Inventory Items</span>
-                                <span className="text-xs font-bold text-gray-900">{usage.items} / {maxItems >= 10000 ? '∞' : maxItems}</span>
+                                <span className="text-xs font-bold text-gray-900">{currentItems} / {maxItems >= 10000 ? '∞' : maxItems}</span>
                             </div>
-                            {maxItems < 10000 && <Progress value={(usage.items / maxItems) * 100} className="h-1.5" indicatorColor="bg-[#d97757]" />}
+                            {maxItems < 10000 && <Progress value={calculatePercent(currentItems, maxItems)} className="h-1.5" indicatorColor="bg-[#d97757]" />}
                         </div>
 
-                        {/* Client Usage */}
+                        {/* Client Usage (From Props/DB Column) */}
                         <div>
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-xs text-gray-500">Client Families</span>
-                                <span className="text-xs font-bold text-gray-900">{usage.clients} / {maxClients >= 10000 ? '∞' : maxClients}</span>
+                                <span className="text-xs font-bold text-gray-900">
+                                    {currentClients} / {usageStats?.isUnlimited ? '∞' : maxClients}
+                                </span>
                             </div>
-                            {maxClients < 10000 && <Progress value={(usage.clients / maxClients) * 100} className="h-1.5" indicatorColor="bg-blue-600" />}
+                            {!usageStats?.isUnlimited && (
+                                <Progress 
+                                    value={calculatePercent(currentClients, maxClients)} 
+                                    className="h-1.5" 
+                                    indicatorColor={calculatePercent(currentClients, maxClients) > 90 ? "bg-red-500" : "bg-blue-600"} 
+                                />
+                            )}
                         </div>
 
                         {isAdmin && (
@@ -451,11 +431,9 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                                     variant="outline"
                                     size="sm"
                                     disabled={!hasProFeatures || downloading}
-                                    // 👇 Change 'history' to 'clients'
                                     onClick={() => handleExport('clients')}
                                     className="flex-1 text-xs h-9 border-gray-200 shadow-sm"
                                 >
-                                    {/* 👇 Update the loading check and the button label */}
                                     {downloading === 'clients' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Client List CSV'}
                                 </Button>
                                 {!hasProFeatures && <Lock className="h-4 w-4 text-gray-300 self-center" />}
@@ -465,7 +443,6 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                             <p className="text-[10px] text-gray-400 mt-3 text-center italic">Upgrade to Pro to export data.</p>
                         )}
                     </div>
-
                 </div>
             </div>
         </div>

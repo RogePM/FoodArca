@@ -6,8 +6,8 @@ export async function GET(request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   
-  // 🔥 Capture the 'next' param (e.g. /onboarding)
-  const next = requestUrl.searchParams.get('next')
+  // 1. Capture the 'next' param (e.g. /onboarding?code=JOIN123)
+  const next = requestUrl.searchParams.get('next') ?? '/dashboard'
 
   if (code) {
     const cookieStore = await cookies()
@@ -17,9 +17,7 @@ export async function GET(request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
+          getAll() { return cookieStore.getAll() },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options)
@@ -29,50 +27,53 @@ export async function GET(request) {
       }
     )
 
-    // 1️⃣ Exchange Code for Session (Critical Step)
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    // 2. Exchange Code for Session
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
     
-    if (error) {
-      console.error('Exchange error:', error.message)
+    if (exchangeError) {
+      console.error('❌ Auth Code Exchange Failed:', exchangeError.message)
       return NextResponse.redirect(new URL('/?error=auth_code_error', requestUrl.origin))
     }
 
-    console.log('✅ Session created successfully!')
-
-    // 2️⃣ PRIORITY: If 'next' exists (from Invite Link), go there immediately
-    // This fixes the invite flow by skipping the profile check logic below
-    if (next) {
-        console.log(`➡️ Redirecting to requested path: ${next}`)
+    // 3. Invite Link Fast-Track
+    // If 'next' contains 'onboarding', we skip profile checks and trust the invite flow.
+    // We also ensure we only redirect to internal paths (Security check).
+    if (next.startsWith('/')) {
+      if (next.includes('onboarding')) {
+        console.log(`🚀 Invite flow detected. Fast-tracking to: ${next}`)
         return NextResponse.redirect(new URL(next, requestUrl.origin))
+      }
     }
 
-    // -------------------------------------------------------------
-    // Standard Login Logic (Fallback if no 'next' param)
-    // -------------------------------------------------------------
+    // 4. Standard Login: Check for Profile
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) throw new Error("User not found after exchange")
 
-    // 3️⃣ Get the logged-in user
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.redirect(new URL('/?error=no_user', requestUrl.origin))
-    }
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single()
 
-    // 4️⃣ Check if profile exists
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .single()
+      // 5. Intelligent Redirection
+      if (profileError || !profile) {
+        console.log("🟡 No profile found → redirecting to onboarding")
+        return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+      }
 
-    // 5️⃣ Redirect based on profile status
-    if (!profile) {
-      console.log("🟡 No profile found → redirecting to onboarding")
+      console.log("🟢 Profile verified → redirect to dashboard")
+      // If 'next' was just '/dashboard', or something else safe, use it.
+      return NextResponse.redirect(new URL(next, requestUrl.origin))
+
+    } catch (err) {
+      console.error("⚠️ Profile check failed:", err.message)
+      // Safety fallback: Onboarding is the safest place for an unknown state
       return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
     }
-
-    console.log("🟢 Existing profile → redirect to dashboard")
-    return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
   }
 
-  // No code in URL — back to landing page
+  // Fallback if no code
   return NextResponse.redirect(new URL('/', requestUrl.origin))
 }

@@ -22,65 +22,74 @@ async function authenticateRequest(req) {
   const { data: { user }, error } = await supabase.auth.getUser();
   
   if (error || !user) {
-    return { authenticated: false, user: null, error: 'Unauthorized' };
+    return { authenticated: false, user: null, supabase: null, error: 'Unauthorized' };
   }
 
-  return { authenticated: true, user, error: null };
+  // ✅ Return supabase client for membership verification
+  return { authenticated: true, user, supabase, error: null };
 }
 
 export async function GET(req) {
   try {
-    // ✅ AUTH CHECK
+    // 1. Auth Check
     const auth = await authenticateRequest(req);
     if (!auth.authenticated) {
-      console.log('❌ GET /api/dashboard - Unauthorized');
       return NextResponse.json({ message: auth.error }, { status: 401 });
     }
 
     const pantryId = req.headers.get('x-pantry-id');
-    
     if (!pantryId) {
-      console.log('❌ GET /api/dashboard - No pantry ID');
       return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
     }
 
-    console.log('✅ GET /api/dashboard - User:', auth.user.email, 'Pantry:', pantryId);
+    // ================================ 🛡️ SECURITY CHECK ================================
+    // ACTION: Verify user membership to prevent header manipulation
+    const { data: membership, error: memberError } = await auth.supabase
+      .from('pantry_members')
+      .select('is_active')
+      .eq('user_id', auth.user.id)
+      .eq('pantry_id', pantryId)
+      .single();
+
+    if (memberError || !membership) {
+      console.error(`🚫 Unauthorized Dashboard Access: User ${auth.user.email} -> Pantry ${pantryId}`);
+      return NextResponse.json({ message: 'Access Denied' }, { status: 403 });
+    }
+    // ====================================================================================
 
     await connectDB();
 
-    // 1. Get Stock Count
-    const totalItemsCount = await FoodItem.countDocuments({ pantryId });
-    console.log('📊 Total items in stock:', totalItemsCount);
-
-    // 2. Get Distribution Stats
-    const distributionStats = await ClientDistribution.aggregate([
-      { 
-        $match: { pantryId: pantryId } 
-      },
-      {
-        $group: {
-          _id: null,
-          totalVisits: { $sum: 1 },
-          totalItemsDistributed: { $sum: "$quantityDistributed" }
+    // 2. Optimized Data Aggregation
+    // Run inventory count and distribution stats in parallel for speed
+    const [totalItemsCount, distributionStats] = await Promise.all([
+      FoodItem.countDocuments({ pantryId }),
+      ClientDistribution.aggregate([
+        { $match: { pantryId: pantryId } },
+        {
+          $group: {
+            _id: null,
+            totalVisits: { $sum: 1 },
+            totalItemsDistributed: { $sum: "$quantityDistributed" }
+          }
         }
-      }
+      ])
     ]);
 
     const distData = distributionStats[0] || { totalVisits: 0, totalItemsDistributed: 0 };
-    console.log('📊 Distribution stats:', distData);
 
-    // 3. Calculate estimates
+    // 3. Logic Cleanup: Ensure math matches your centralized logging (e.g., $1.96 vs $2.50)
+    // Note: If you want these to match the logger exactly, we should eventually pull 
+    // these constants from a config file.
     const estimatedWeight = distData.totalItemsDistributed; 
     const estimatedValue = distData.totalItemsDistributed * 1.96;
 
     const response = {
       inventoryCount: totalItemsCount,
       totalPeopleServed: distData.totalVisits,
-      totalValue: estimatedValue,
-      totalWeight: estimatedWeight
+      totalValue: parseFloat(estimatedValue.toFixed(2)),
+      totalWeight: parseFloat(estimatedWeight.toFixed(2))
     };
 
-    console.log('✅ GET /api/dashboard - Success:', response);
     return NextResponse.json(response);
 
   } catch (error) {

@@ -21,63 +21,65 @@ async function authenticateRequest(req) {
   const { data: { user }, error } = await supabase.auth.getUser();
   
   if (error || !user) {
-    return { authenticated: false, user: null, error: 'Unauthorized' };
+    return { authenticated: false, user: null, supabase: null, error: 'Unauthorized' };
   }
 
-  return { authenticated: true, user, error: null };
+  // ✅ Return supabase client so we can query the database
+  return { authenticated: true, user, supabase, error: null };
 }
 
 export async function GET(req, { params }) {
   try {
-    // ✅ AUTH CHECK
+    // 1. Auth Check
     const auth = await authenticateRequest(req);
     if (!auth.authenticated) {
-      console.log('❌ GET /api/barcode - Unauthorized');
       return NextResponse.json({ message: auth.error }, { status: 401 });
     }
 
-    // 1. Await Params
     const { code } = await params;
-
-    // 2. Get Pantry ID from Header
     const pantryId = req.headers.get('x-pantry-id');
+
     if (!pantryId) {
-      console.log('❌ GET /api/barcode - No pantry ID');
       return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
     }
 
+    // ================================ 🛡️ SECURITY CHECK ================================
+    // ACTION: Verify the user actually belongs to this pantry
+    const { data: membership, error: memberError } = await auth.supabase
+      .from('pantry_members')
+      .select('is_active')
+      .eq('user_id', auth.user.id)
+      .eq('pantry_id', pantryId)
+      .single();
+
+    if (memberError || !membership) {
+      console.log(`🚫 Security Alert: ${auth.user.email} attempted unauthorized access to pantry ${pantryId}`);
+      return NextResponse.json({ message: 'Access Denied: You are not a member of this pantry.' }, { status: 403 });
+    }
+    // ====================================================================================
+
     if (!code) {
-      console.log('❌ GET /api/barcode - No barcode provided');
       return NextResponse.json({ message: 'Barcode is required' }, { status: 400 });
     }
 
-    console.log('✅ GET /api/barcode - User:', auth.user.email, 'Looking up:', code);
-
-    // 3. Connect to DB
     await connectDB();
 
-    // 4. Smart Lookup Logic
-    // First, check the Barcode Cache
-    let cached = await BarcodeCache.findOne({ barcode: code, pantryId });
+    // 2. Smart Lookup Logic
+    // Check Barcode Cache first (optimized for speed)
+    let result = await BarcodeCache.findOne({ barcode: code, pantryId });
 
-    // Second, if not in cache, check main inventory
-    if (!cached) {
-      console.log('🔍 Not in cache, checking inventory...');
+    // If not in cache, check the actual inventory
+    if (!result) {
       const existingItem = await FoodItem.findOne({ barcode: code, pantryId });
       if (existingItem) {
-        console.log('✅ Found in inventory:', existingItem.name);
-        cached = existingItem;
+        result = existingItem;
       }
-    } else {
-      console.log('✅ Found in cache:', cached.name);
     }
 
-    // 5. Return Result
-    if (cached) {
-      return NextResponse.json({ found: true, data: cached });
+    if (result) {
+      return NextResponse.json({ found: true, data: result });
     }
 
-    console.log('ℹ️ Barcode not found');
     return NextResponse.json({ found: false, data: null });
 
   } catch (error) {

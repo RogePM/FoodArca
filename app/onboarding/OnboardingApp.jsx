@@ -16,127 +16,79 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export default function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [intent, setIntent] = useState(null); // 'create' | 'join'
+  const [intent, setIntent] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [session, setSession] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
-  const [verifyingInvite, setVerifyingInvite] = useState(false); // New state for URL code check
+  const [verifyingInvite, setVerifyingInvite] = useState(false);
 
   // --- Form States ---
-  const [createData, setCreateData] = useState({
-    name: '',
-    address: '',
-    type: 'standalone',
-    generatedCode: ''
-  });
-
-  const [invites, setInvites] = useState([]); 
+  const [createData, setCreateData] = useState({ name: '', address: '', type: 'standalone', generatedCode: '' });
+  const [invites, setInvites] = useState([]);
   const [currentInvite, setCurrentInvite] = useState('');
-
-  const [joinData, setJoinData] = useState({
-    code: '',
-    pantryName: '',
-    address: '',
-    pantryId: ''
-  });
-
-  const [profileData, setProfileData] = useState({
-    fullName: '',
-    phone: ''
-  });
+  const [joinData, setJoinData] = useState({ code: '', pantryName: '', address: '', pantryId: '' });
+  const [profileData, setProfileData] = useState({ fullName: '', phone: '' });
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
 
-  // --- 1. CODE LOOKUP LOGIC (Moved up so useEffect can use it) ---
+  // --- 1. CODE LOOKUP ---
   const handleCodeLookup = async (codeOverride = null) => {
     setIsLoading(true);
     setErrorMsg('');
-    
-    // Use the override (from URL) or the state (from Input)
-    const codeToTest = codeOverride || joinData.code;
+    const codeToTest = (codeOverride || joinData.code).trim().toUpperCase();
 
     try {
       if (!codeToTest) throw new Error("No code provided");
 
       const { data, error } = await supabase
-        .rpc('get_pantry_by_code', { code_input: codeToTest.trim().toUpperCase() })
+        .rpc('get_pantry_by_code', { code_input: codeToTest })
         .single();
 
       if (error || !data) throw new Error("Invalid or expired invite code.");
 
-      // Success! Populate data and move to confirmation
-      setJoinData(prev => ({
-        ...prev,
+      setJoinData({
         code: codeToTest,
         pantryName: data.name,
         address: data.address,
         pantryId: data.pantry_id
-      }));
-      
-      setIntent('join');
-      setStep(3); // Jump straight to Confirmation
+      });
 
+      setIntent('join');
+      setStep(3);
     } catch (err) {
-      console.error(err);
       setErrorMsg(err.message);
-      // If URL code failed, send them to manual entry step
-      if (codeOverride) {
-        setIntent('join');
-        setStep(2); 
-      }
+      if (codeOverride) { setIntent('join'); setStep(2); }
     } finally {
       setIsLoading(false);
       setVerifyingInvite(false);
     }
   };
 
-  // --- 2. AUTH & URL CHECK ---
+  // --- 2. AUTH & URL DETECTION ---
   useEffect(() => {
     const initWizard = async () => {
-      // A. Check Session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push('/'); return; }
       setSession(session);
 
-      // B. Pre-fill Name
-      if (session.user?.user_metadata?.full_name) {
+      if (session.user?.user_metadata?.full_name && !profileData.fullName) {
         setProfileData(prev => ({ ...prev, fullName: session.user.user_metadata.full_name }));
       }
 
-      // C. Auto-detect Invite Code from URL
       const params = new URLSearchParams(window.location.search);
       const urlCode = params.get('code') || params.get('invite_code');
-
       if (urlCode) {
-        console.log("🔗 Detected Invite Code:", urlCode);
-        setVerifyingInvite(true); // Show loader
-        handleCodeLookup(urlCode); // Trigger lookup immediately
+        setVerifyingInvite(true);
+        handleCodeLookup(urlCode);
       }
     };
-
     initWizard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, router]);
+  }, []);
 
-
-  // --- HANDLERS ---
-
-  const handleAddInvite = (e) => {
-    e.preventDefault();
-    const cleanEmail = currentInvite.trim().toLowerCase();
-    if (cleanEmail && cleanEmail.includes('@') && !invites.includes(cleanEmail)) {
-      setInvites([...invites, cleanEmail]);
-      setCurrentInvite('');
-    }
-  };
-
-  const removeInvite = (email) => {
-    setInvites(invites.filter(i => i !== email));
-  };
-
+  // --- 3. CREATE PANTRY (ATOMIC LOGIC) ---
   const handleCreatePantry = async () => {
     setIsLoading(true);
     setErrorMsg('');
@@ -144,6 +96,7 @@ export default function OnboardingWizard() {
     try {
       const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
+      // Step A: Create the Pantry
       const { data: pantry, error: pantryError } = await supabase
         .from('food_pantries')
         .insert({
@@ -155,75 +108,70 @@ export default function OnboardingWizard() {
         .select('pantry_id')
         .single();
 
-      if (pantryError) throw new Error(pantryError.message);
+      if (pantryError) throw pantryError;
       const newPantryId = pantry.pantry_id;
 
-      const { error: memberError } = await supabase
-        .from('pantry_members')
-        .insert({
+      // Step B: Multi-table setup (Membership + Profile)
+      const [memberResult, profileResult] = await Promise.all([
+        supabase.from('pantry_members').insert({
           user_id: session.user.id,
           pantry_id: newPantryId,
-          role: 'owner'
-        });
+          role: 'admin', // Consistent with your backend
+          is_active: true
+        }),
+        supabase.from('user_profiles').upsert({
+          user_id: session.user.id,
+          name: profileData.fullName,
+          current_pantry_id: newPantryId,
+          phone: profileData.phone || null
+        })
+      ]);
 
-      if (memberError) {
-        await supabase.from('food_pantries').delete().eq('pantry_id', newPantryId);
-        throw new Error("Failed to assign owner. Please try again.");
+      // ✅ FIX: Check BOTH for errors
+      if (memberResult.error || profileResult.error) {
+        console.error("Setup Error:", memberResult.error || profileResult.error);
+        throw new Error("We created your pantry, but failed to set up your profile. Please refresh and try again.");
       }
 
+      // Step C: Handle Invites (Bulk)
       if (invites.length > 0) {
-        const invitePayload = invites.map(email => ({
-          pantry_id: newPantryId,
-          email: email,
-          role: 'volunteer',
-          invited_by: session.user.id
-        }));
-
-        await supabase.from('pantry_invitations').insert(invitePayload);
-
-        try {
-          await Promise.all(invites.map(email =>
-            fetch('/api/invite', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, pantryId: newPantryId })
-            })
-          ));
-        } catch (apiError) {
-          console.error("Failed to send email invites:", apiError);
-        }
+        // We don't 'await' the email API so the user doesn't have to wait for 10 emails to send
+        fetch('/api/invite/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            emails: invites,
+            pantryId: newPantryId,
+            pantryName: createData.name,
+            joinCode: generatedCode
+          })
+        }).catch(e => console.error("Non-fatal Email Error:", e));
       }
-
-      await supabase.from('user_profiles').upsert({
-        user_id: session.user.id,
-        name: profileData.fullName || 'Admin',
-        current_pantry_id: newPantryId,
-        phone: profileData.phone || null
-      });
 
       setCreateData(prev => ({ ...prev, generatedCode }));
       setStep('success');
 
     } catch (err) {
-      console.error(err);
       setErrorMsg(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // --- 4. JOIN PANTRY ---
   const handleJoinPantry = async () => {
     setIsLoading(true);
     setErrorMsg('');
 
     try {
-      // 1. Insert Membership (Join the team)
+      // Step A: Join Team
       const { error: memberError } = await supabase
         .from('pantry_members')
         .insert({
           user_id: session.user.id,
           pantry_id: joinData.pantryId,
-          role: 'volunteer'
+          role: 'volunteer',
+          is_active: true // Ensure they are active by default
         });
 
       if (memberError) {
@@ -231,7 +179,7 @@ export default function OnboardingWizard() {
         throw memberError;
       }
 
-      // 2. Update User Profile
+      // Step B: Update Profile
       await supabase.from('user_profiles').upsert({
         user_id: session.user.id,
         name: profileData.fullName,
@@ -239,22 +187,14 @@ export default function OnboardingWizard() {
         phone: profileData.phone || null
       });
 
-      // 🔥 3. THE FIX: Remove the "Pending" Invitation
-      // We look for an invitation for this Pantry ID and this User's Email
-      // and delete it so it disappears from the Admin's "Pending" list.
-      const { error: cleanupError } = await supabase
+      // Step C: Cleanup Invitation (Admin's pending list)
+      await supabase
         .from('pantry_invitations')
         .delete()
         .eq('pantry_id', joinData.pantryId)
-        .eq('email', session.user.email); // Matches the logged-in user's email
-
-      if (cleanupError) {
-        console.warn("Could not clean up invitation:", cleanupError);
-        // We don't stop the success flow here, just log the warning
-      }
+        .eq('email', session.user.email);
 
       setStep('success');
-
     } catch (err) {
       setErrorMsg(err.message);
     } finally {
@@ -267,14 +207,12 @@ export default function OnboardingWizard() {
     router.push('/');
   };
 
-  // --- RENDER ---
-
   if (!session || verifyingInvite) {
     return (
-        <div className="h-screen flex flex-col items-center justify-center gap-4 bg-[#FAFAFA]">
-            <Loader2 className="animate-spin h-8 w-8 text-[#d97757]" />
-            {verifyingInvite && <p className="text-gray-500 font-medium animate-pulse">Verifying invite code...</p>}
-        </div>
+      <div className="h-screen flex flex-col items-center justify-center gap-4 bg-[#FAFAFA]">
+        <Loader2 className="animate-spin h-8 w-8 text-[#d97757]" />
+        {verifyingInvite && <p className="text-gray-500 font-medium animate-pulse">Checking invite...</p>}
+      </div>
     );
   }
 
@@ -496,7 +434,7 @@ export default function OnboardingWizard() {
                 </div>
               )}
 
-              <Button onClick={() => {window.location.href = '/dashboard';}} className="w-full h-14 bg-[#d97757] hover:bg-[#c06245] text-white text-lg shadow-xl font-bold">
+              <Button onClick={() => { window.location.href = '/dashboard'; }} className="w-full h-14 bg-[#d97757] hover:bg-[#c06245] text-white text-lg shadow-xl font-bold">
                 Enter Dashboard
               </Button>
             </motion.div>

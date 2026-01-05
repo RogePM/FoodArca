@@ -18,12 +18,19 @@ export default function SuccessPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 2. Handle the Redirect (Only when count hits 0)
+  // 2. Handle the Redirect with a Refresh
   useEffect(() => {
     if (count === 0) {
-      router.push('/dashboard/settings'); // Or wherever you want them to land
+      // ✅ ACTION: Force a router refresh so the layout fetches the new subscription status
+      router.refresh(); 
+      router.push('/dashboard/settings?upgrade=success');
     }
   }, [count, router]);
+
+  const handleManualRedirect = () => {
+    router.refresh();
+    router.push('/dashboard/settings?upgrade=success');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -37,7 +44,7 @@ export default function SuccessPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-gray-900">Payment Successful!</h1>
           <p className="text-gray-500">
-            Thank you for upgrading. We are updating your account limits now.
+            Thank you for upgrading. We are updating your pantry's limits and features now.
           </p>
         </div>
 
@@ -45,16 +52,20 @@ export default function SuccessPage() {
         <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex items-center justify-center gap-3">
           <Loader2 className="h-4 w-4 animate-spin text-[#d97757]" />
           <span className="text-sm font-medium text-gray-600">
-            Redirecting in {count} seconds...
+            Finalizing setup... {count}s
           </span>
         </div>
 
         <Button 
-          onClick={() => router.push('/dashboard/settings')}
-          className="w-full bg-gray-900 text-white hover:bg-black"
+          onClick={handleManualRedirect}
+          className="w-full bg-gray-900 text-white hover:bg-black transition-all"
         >
           Go to Dashboard <ArrowRight className="h-4 w-4 ml-2" />
         </Button>
+        
+        <p className="text-[10px] text-gray-400 uppercase tracking-widest">
+          Transaction Complete
+        </p>
       </div>
     </div>
   );

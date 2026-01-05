@@ -1,208 +1,240 @@
 import { NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import connectDB from '@/lib/db';
 import { ClientDistribution } from '@/lib/models/ClientDistributionModel';
-import { ChangeLog } from '@/lib/models/ChangeLogModel';
 import { Client } from '@/lib/models/ClientModel';
+import { FoodItem } from '@/lib/models/FoodItemModel'; 
+import { logChange } from '@/lib/logger';
 
-// --- FIXED Helper: Log Changes ---
-const logChange = async (actionType, item, changes = null, metadata = {}, pantryId) => {
-  try {
-    const qty = metadata.removedQuantity || 0;
-    const unit = (metadata.unit || 'units').toLowerCase();
+// --- AUTHENTICATION & SECURITY HELPER ---
+async function authenticateAndVerify(req) {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    { cookies: { getAll() { return cookieStore.getAll(); } } }
+  );
 
-    // Calculate Metrics
-    let weight = 0;
-    if (unit === 'lbs') weight = qty;
-    else if (unit === 'kg') weight = qty * 2.20462;
-    else if (unit === 'oz') weight = qty / 16;
-    else weight = qty * 1;
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return { valid: false, status: 401, message: 'Unauthorized', supabase }; // Return supabase client
 
-    const value = weight * 2.50;
+  const pantryId = req.headers.get('x-pantry-id');
+  if (!pantryId) return { valid: false, status: 400, message: 'Pantry ID required', supabase };
 
-    await ChangeLog.create({
-      pantryId,
-      actionType,
-      itemId: item._id,
-      itemName: item.name,
-      category: item.category,
-      changes,
+  const { data: membership, error: memberError } = await supabase
+    .from('pantry_members')
+    .select('is_active, role')
+    .eq('user_id', user.id)
+    .eq('pantry_id', pantryId)
+    .single();
 
-      // Quantity Data
-      quantityChanged: qty,
-      unit: metadata.unit,
+  if (memberError || !membership) return { valid: false, status: 403, message: 'Access Denied', supabase };
 
-      // Metadata
-      distributionReason: metadata.reason,
-      clientName: metadata.clientName,
-      clientId: metadata.clientId,
-      removedQuantity: qty,
-
-      // Impact Data
-      impactMetrics: {
-        peopleServed: 1,
-        estimatedValue: parseFloat(value.toFixed(2)),
-        standardizedWeight: parseFloat(weight.toFixed(2)),
-        wasteDiverted: false
-      },
-
-      timestamp: new Date()
-    });
-  } catch (e) {
-    console.error("Failed to log change:", e);
-  }
-};
+  return {
+    valid: true,
+    user,
+    pantryId,
+    isActive: membership.is_active,
+    role: membership.role,
+    supabase // Pass this back so we can query limits!
+  };
+}
 
 // --- GET: List All Distributions ---
 export async function GET(req) {
   try {
-    const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+    const auth = await authenticateAndVerify(req);
+    if (!auth.valid) return NextResponse.json({ message: auth.message }, { status: auth.status });
 
     await connectDB();
-
-    const distributions = await ClientDistribution.find({ pantryId })
+    const distributions = await ClientDistribution.find({ pantryId: auth.pantryId })
       .sort({ distributionDate: -1 })
       .limit(100);
 
     return NextResponse.json({ count: distributions.length, data: distributions });
   } catch (error) {
-    console.error("GET Error:", error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
-// --- POST: Create New Distribution ---
+// --- POST: Create Distribution & Handle Client Profile ---
 export async function POST(req) {
   try {
-    const data = await req.json();
-    const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+    const auth = await authenticateAndVerify(req);
+    if (!auth.valid) return NextResponse.json({ message: auth.message }, { status: auth.status });
+    if (!auth.isActive) return NextResponse.json({ message: 'Read-only account' }, { status: 403 });
 
+    const data = await req.json();
     await connectDB();
 
-    // 🔥 SENIOR FIX: DEFAULT VALUES
-    const safeClientName = data.clientName || 'General Inventory Adjustment';
-    const safeClientId = data.clientId || 'SYS';
+    const {
+      clientName, clientId, isNewClient, address,
+      childrenCount, adultCount, seniorCount,
+      cart 
+    } = data;
+    
+    // ---------------------------------------------------------
+    // 🚨 GATEKEEPER: CHECK FAMILY LIMITS (Only if Creating New) 🚨
+    // ---------------------------------------------------------
+    if (isNewClient && clientName && clientName !== 'Walk-in') {
+        const { data: pantrySettings, error: pantryError } = await auth.supabase
+            .from('food_pantries')
+            .select('subscription_tier, total_families_created, max_clients_limit')
+            .eq('pantry_id', auth.pantryId)
+            .single();
 
-    // ---------------------------------------------------------
-    // 🚀 NEW: AUTO-UPDATE CLIENT DIRECTORY
-    // ---------------------------------------------------------
-    // We only create a client record if this is a real person (not "SYS")
-    // and not an internal adjustment.
-    if (safeClientId !== 'SYS' && safeClientId !== 'anonymous') {
-      try {
-        // "Upsert" = Update if exists, Insert if new
-        await Client.findOneAndUpdate(
-          {
-            pantryId: pantryId,
-            // Case-insensitive search to prevent "John Doe" vs "john doe" duplicates
-            clientId: { $regex: new RegExp(`^${safeClientId}$`, 'i') }
-          },
-          {
-            $set: {
-              // Always update these fields to keep them fresh
-              firstName: safeClientName.split(' ')[0],
-              lastName: safeClientName.split(' ').slice(1).join(' ') || '',
-              lastVisit: new Date(),
-              isActive: true
-            },
-            $setOnInsert: {
-              // Only set these ONCE when creating a new client
-              pantryId,
-              clientId: safeClientId, // Keep original casing or normalize here
-              createdAt: new Date(),
-              familySize: 1 // Default, can be updated later via Profile page
+        if (!pantryError && pantrySettings && pantrySettings.subscription_tier === 'pilot') {
+            const limit = pantrySettings.max_clients_limit || 100;
+            
+            // If they hit the limit, BLOCK the distribution until they fix the client issue
+            if (pantrySettings.total_families_created >= limit) {
+                return NextResponse.json({ 
+                    error: 'LIMIT_REACHED', 
+                    message: `Client Limit Reached (${limit}). Please select an existing client or upgrade.` 
+                }, { status: 403 });
             }
-          },
-          { upsert: true, new: true }
-        );
-        console.log(`✅ Client Directory tracked: ${safeClientName}`);
-      } catch (clientErr) {
-        console.error("⚠️ Failed to track client (Non-fatal):", clientErr);
-        // We swallow this error so the Distribution itself doesn't fail.
-      }
+        }
     }
     // ---------------------------------------------------------
 
-    // 1. Create Distribution Record (Business as usual)
-    const distribution = await ClientDistribution.create({
-      ...data,
-      clientName: safeClientName,
-      clientId: safeClientId,
-      pantryId,
-      distributionDate: new Date(),
-    });
+    // 1. IDENTITY & HOUSEHOLD LOGIC
+    let finalClientId = clientId || 'SYS';
+    let familySize = (childrenCount || 0) + (adultCount || 1) + (seniorCount || 0);
 
-    // 2. Log to History
-    await logChange('distributed', {
-      _id: data.itemId,
-      name: data.itemName,
-      category: data.category
-    }, null, {
-      reason: data.reason,
-      clientName: safeClientName,
-      clientId: safeClientId,
-      removedQuantity: data.quantityDistributed,
-      unit: data.unit
-    }, pantryId);
+    if (clientName && finalClientId !== 'SYS' && clientName !== 'Walk-in') {
+      try {
+        if (isNewClient) {
+          const newClient = await Client.create({
+            pantryId: auth.pantryId,
+            clientId: finalClientId,
+            firstName: clientName.split(' ')[0],
+            lastName: clientName.split(' ').slice(1).join(' ') || '',
+            address: address || '',
+            childrenCount: childrenCount || 0,
+            adultCount: adultCount || 1,
+            seniorCount: seniorCount || 0,
+            familySize: familySize,
+            lastVisit: new Date(),
+          });
+          finalClientId = newClient.clientId;
 
-    return NextResponse.json(distribution, { status: 201 });
+          // --- 💰 SPEND TOKEN: INCREMENT COUNTER 💰 ---
+          if (newClient) {
+             const { error: rpcError } = await auth.supabase.rpc('increment_pantry_usage', {
+                p_pantry_id: auth.pantryId,
+                p_resource_type: 'family' 
+             });
+             if (rpcError) console.error("Failed to increment family counter:", rpcError);
+          }
+
+        } else {
+          // Updating existing client does NOT cost a token
+          await Client.findOneAndUpdate(
+            { pantryId: auth.pantryId, clientId: finalClientId },
+            {
+              $set: {
+                lastVisit: new Date(),
+                isActive: true,
+                childrenCount: childrenCount || 0,
+                adultCount: adultCount || 1,
+                seniorCount: seniorCount || 0,
+                familySize: familySize
+              }
+            }
+          );
+        }
+      } catch (err) { console.error("Client update failed:", err); }
+    }
+
+    // 2. DISTRIBUTION & INVENTORY LOGIC
+    const itemsToProcess = cart || [data];
+    const timestamp = new Date();
+
+    const results = await Promise.all(itemsToProcess.map(async (item) => {
+      const qty = item.quantityDistributed;
+
+      // A. Update Food Inventory
+      const updatedFood = await FoodItem.findOneAndUpdate(
+        { _id: item.itemId, pantryId: auth.pantryId },
+        { $inc: { quantity: -qty }, $set: { lastModified: timestamp } },
+        { new: true }
+      );
+
+      // B. Auto-delete if stock is empty
+      if (updatedFood && updatedFood.quantity <= 0) {
+        await FoodItem.findByIdAndDelete(item.itemId);
+      }
+
+      // C. Create Distribution Record
+      const distribution = await ClientDistribution.create({
+        pantryId: auth.pantryId,
+        clientName: clientName,
+        clientId: finalClientId,
+        itemId: item.itemId,
+        itemName: item.itemName,
+        category: item.category,
+        quantityDistributed: qty,
+        unit: item.unit || 'units',
+        reason: item.reason || 'distribution-regular',
+        distributionDate: timestamp,
+      });
+
+      // D. Log to History
+      await logChange('distributed',
+        {
+          _id: item.itemId,
+          name: item.itemName,
+          category: item.category,
+          quantity: updatedFood?.quantity || 0
+        },
+        {
+          reason: item.reason || 'distribution-regular',
+          clientName,
+          clientId: finalClientId,
+          removedQuantity: qty,
+          unit: item.unit,
+          familySize
+        },
+        auth.pantryId
+      );
+
+      return distribution;
+    }));
+
+    return NextResponse.json({
+      message: 'Distribution successful',
+      itemsProcessed: results.length
+    }, { status: 201 });
 
   } catch (error) {
-    console.error("POST Error:", error);
+    console.error("POST Distribution Error:", error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
-// --- PUT: Update Distribution ---
+// --- PUT & DELETE (Standard) ---
 export async function PUT(req) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-    const data = await req.json();
-    const pantryId = req.headers.get('x-pantry-id');
+  const auth = await authenticateAndVerify(req);
+  if (!auth.valid || !auth.isActive) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
-    if (!id) return NextResponse.json({ message: 'ID required' }, { status: 400 });
-    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  const data = await req.json();
 
-    await connectDB();
-
-    const result = await ClientDistribution.findOneAndUpdate(
-      { _id: id, pantryId },
-      data,
-      { new: true }
-    );
-
-    if (!result) return NextResponse.json({ message: 'Record not found' }, { status: 404 });
-
-    return NextResponse.json({ message: 'Updated', data: result });
-
-  } catch (error) {
-    console.error("PUT Error:", error);
-    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
-  }
+  await connectDB();
+  const result = await ClientDistribution.findOneAndUpdate({ _id: id, pantryId: auth.pantryId }, data, { new: true });
+  return result ? NextResponse.json(result) : NextResponse.json({ message: 'Not found' }, { status: 404 });
 }
 
-// --- DELETE: Remove Distribution ---
 export async function DELETE(req) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-    const pantryId = req.headers.get('x-pantry-id');
+  const auth = await authenticateAndVerify(req);
+  if (!auth.valid || !auth.isActive) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
-    if (!id) return NextResponse.json({ message: 'ID required' }, { status: 400 });
-    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
 
-    await connectDB();
-
-    const result = await ClientDistribution.findOneAndDelete({ _id: id, pantryId });
-
-    if (!result) return NextResponse.json({ message: 'Record not found' }, { status: 404 });
-
-    return NextResponse.json({ message: 'Deleted' });
-
-  } catch (error) {
-    console.error("DELETE Error:", error);
-    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
-  }
+  await connectDB();
+  const result = await ClientDistribution.findOneAndDelete({ _id: id, pantryId: auth.pantryId });
+  return result ? NextResponse.json({ message: 'Deleted' }) : NextResponse.json({ message: 'Not found' }, { status: 404 });
 }
