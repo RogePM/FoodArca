@@ -8,7 +8,7 @@ import {
   Menu, X, Check, ArrowRight, Leaf,
   Users, Timer, ScanBarcode, RefreshCw, Smartphone,
   LockIcon, Package2Icon, UserCircle, ArrowUp,
-  Mail, MapPin, AlertCircle, FileText, XCircle, ShieldCheck, Layout
+  Mail, MapPin, AlertCircle, FileText, XCircle, ShieldCheck, Layout, ChevronDown 
 } from 'lucide-react';
 import Link from 'next/link';
 import NavBar from '@/app/frontNav/NavBar'; // Adjust path if your folder is different
@@ -321,10 +321,11 @@ export default function LandingPage() {
         </div>
       </main>
       {/* --- SECTION 2: INVENTORY (Concise Copy & Animated) --- */}
+    {/* --- SECTION 2: INVENTORY (Concise Copy & Animated) --- */}
       <section id="inventory" className="fade-section min-h-screen py-24 bg-[#F5F5F4] flex flex-col justify-center scroll-mt-20">
         <div className="container mx-auto px-6">
-
-          {/* 1. CENTERED HEADER */}
+        
+          {/* --- 1. HEADER --- */}
           <div className="mb-20 text-center max-w-3xl mx-auto">
             <h2 className="text-4xl md:text-5xl font-serif text-[#1C1917] mb-6">
               Add inventory in seconds.
@@ -335,60 +336,93 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-
-            {/* Left: Dynamic Image Display */}
-            {/* Added ID for GSAP target */}
+          
+            {/* --- 2. LEFT COLUMN: IMPROVED DYNAMIC IMAGES --- */}
             <div id="inventory-image-container" className="lg:col-span-5 relative group order-2 lg:order-1">
+              {/* Ambient Glow */}
               <div className="absolute -inset-1 bg-gradient-to-r from-[#D97757]/20 to-purple-500/20 rounded-[2.5rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
-              <div className="relative bg-white rounded-[2.5rem] p-3 shadow-2xl shadow-[#D6D3D1]/50 overflow-hidden h-[500px] flex flex-col border border-[#E7E5E4] transition-all duration-500">
+            
+              <div className="relative bg-white rounded-[2.5rem] p-3 shadow-2xl shadow-[#D6D3D1]/50 overflow-hidden h-[500px] border border-[#E7E5E4]">
                 <div className="relative w-full h-full rounded-[2rem] overflow-hidden">
-                  <Image
-                    src={inventoryTabs[activeInventoryTab].image}
-                    alt="Feature Demo"
-                    fill
-                    className="object-cover transition-opacity duration-500"
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                  />
+                  {inventoryTabs.map((tab, index) => (
+                    <div
+                      key={index}
+                      className={`absolute inset-0 transition-all duration-700 ease-in-out ${
+                        activeInventoryTab === index 
+                          ? 'opacity-100 scale-100 translate-y-0 z-10' 
+                          : 'opacity-0 scale-105 translate-y-4 z-0'
+                      }`}
+                    >
+                      <Image
+                        src={tab.image}
+                        alt={tab.title}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 1024px) 100vw, 40vw"
+                        priority={index === 0}
+                      />
+                      {/* Subtle Overlay for depth */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#1C1917]/20 to-transparent" />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Right: Tabs (Short & Actionable) */}
-            <div className="lg:col-span-7 flex flex-col justify-center h-full space-y-4 order-1 lg:order-2">
-              {inventoryTabs.map((tab, index) => (
-                <div
-                  key={index}
-                  onClick={() => setActiveInventoryTab(index)}
-                  /* Added 'inventory-item' class for GSAP stagger */
-                  className={`inventory-item group p-6 rounded-3xl cursor-pointer transition-all duration-300 border ${activeInventoryTab === index
-                    ? 'bg-white shadow-xl shadow-[#D6D3D1]/20 border-[#E7E5E4]'
-                    : 'bg-transparent border-transparent hover:bg-white/50'
+            {/* --- 3. RIGHT COLUMN: ACCORDION TABS --- */}
+            <div className="lg:col-span-7 flex flex-col justify-center h-full order-1 lg:order-2">
+              <div className="space-y-2">
+                {inventoryTabs.map((tab, index) => (
+                  <div
+                    key={index}
+                    className={`inventory-item group rounded-3xl transition-all duration-300 border ${
+                      activeInventoryTab === index
+                        ? 'bg-white shadow-xl shadow-[#D6D3D1]/30 border-[#E7E5E4]'
+                        : 'bg-transparent border-transparent hover:bg-white/40'
                     }`}
-                >
-                  <div className="flex items-start gap-6">
-                    {/* Icon Box */}
-                    <div className={`shrink-0 p-3 rounded-2xl transition-colors duration-300 ${activeInventoryTab === index
-                      ? 'bg-[#D97757] text-white shadow-lg shadow-[#D97757]/20'
-                      : 'bg-[#E7E5E4]/50 text-[#A8A29E] group-hover:text-[#D97757] group-hover:bg-[#D97757]/10'
+                  >
+                    <button
+                      onClick={() => setActiveInventoryTab(index)}
+                      className="w-full flex items-start gap-6 p-6 text-left focus:outline-none"
+                    >
+                      {/* Icon Box */}
+                      <div className={`shrink-0 p-3 rounded-2xl transition-all duration-300 ${
+                        activeInventoryTab === index
+                          ? 'bg-[#D97757] text-white shadow-lg shadow-[#D97757]/20'
+                          : 'bg-[#E7E5E4]/50 text-[#A8A29E] group-hover:text-[#D97757]'
                       }`}>
-                      <tab.icon size={24} />
-                    </div>
+                        <tab.icon size={24} />
+                      </div>
 
-                    {/* Text Content */}
-                    <div>
-                      <h3 className={`text-xl font-serif mb-2 transition-colors ${activeInventoryTab === index ? 'text-[#1C1917]' : 'text-[#78716C] group-hover:text-[#1C1917]'
+                      <div className="flex-1 pt-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className={`text-xl font-serif transition-colors ${
+                            activeInventoryTab === index ? 'text-[#1C1917]' : 'text-[#78716C] group-hover:text-[#1C1917]'
+                          }`}>
+                            {tab.title}
+                          </h3>
+                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${
+                            activeInventoryTab === index ? 'rotate-180 text-[#D97757]' : 'text-[#A8A29E]'
+                          }`} />
+                        </div>
+
+                        {/* Animated Height Description */}
+                        <div className={`grid transition-[grid-template-rows,opacity] duration-500 ease-in-out ${
+                          activeInventoryTab === index ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'
                         }`}>
-                        {tab.title}
-                      </h3>
-                      <p className={`text-base font-light leading-relaxed transition-colors ${activeInventoryTab === index ? 'text-[#57534E]' : 'text-[#A8A29E]'
-                        }`}>
-                        {tab.desc}
-                      </p>
-                    </div>
+                          <div className="overflow-hidden">
+                            <p className="text-base font-light leading-relaxed text-[#57534E] pb-2">
+                              {tab.desc}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+
           </div>
         </div>
       </section>

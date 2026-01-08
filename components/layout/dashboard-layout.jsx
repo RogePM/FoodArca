@@ -21,8 +21,10 @@ export function DashboardLayout({ activeView, setActiveView, children }) {
       {/* Main Content Area */}
       {/* FIX 1: Ensure md:pl-64 matches Sidebar width exactly */}
       <div className="flex-1 flex flex-col md:pl-64 transition-all duration-300 ease-in-out">
-        <TopBar
+       <TopBar
           activeView={activeView}
+          // 👇 ADD THIS LINE HERE:
+          setActiveView={setActiveView} 
           onMenuClick={() => setIsSidebarOpen(true)}
         />
         

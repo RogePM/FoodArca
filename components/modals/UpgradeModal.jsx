@@ -1,78 +1,95 @@
 'use client';
 
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Check, Sparkles } from "lucide-react";
+import React, { useState } from 'react';
+import { X, Check, Loader2, Sparkles, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { PLANS } from '@/lib/plans';
 
-export function UpgradeModal({ isOpen, onClose }) {
-  
-  const handleUpgradeClick = () => {
-    onClose(); 
-    
-    // 1. Set the URL hash first
-    window.location.hash = 'billing';
+export function UpgradeModal({ isOpen, onClose, currentTier }) {
+    const [loadingTier, setLoadingTier] = useState(null);
 
-    // 2. Click the sidebar button to ensure we are on the right view
-    const settingsBtn = document.getElementById('sidebar-settings-btn');
-    
-    if (settingsBtn) {
-        settingsBtn.click();
-    } else {
-        // Fallback: Hard reload if sidebar button isn't found
-        window.location.href = '/dashboard#billing';
-        window.location.reload();
-    }
-  };
+    if (!isOpen) return null;
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
-        className="sm:max-w-[400px] p-0 border-0 shadow-2xl bg-white rounded-3xl overflow-hidden gap-0" 
-        aria-describedby="upgrade-desc"
-      >
-        <div className="bg-gradient-to-b from-orange-50/80 to-white pt-12 pb-6 px-6 flex flex-col items-center text-center relative">
-            <div className="h-16 w-16 bg-white rounded-2xl shadow-lg shadow-orange-500/10 flex items-center justify-center mb-6 ring-1 ring-black/5">
-                <Sparkles className="h-8 w-8 text-[#d97757]" strokeWidth={1.5} />
-            </div>
-            <DialogTitle className="text-2xl font-serif font-medium text-gray-900 tracking-tight mb-2 text-center">
-                Unlock Potential
-            </DialogTitle>
-            <DialogDescription id="upgrade-desc" className="text-sm text-gray-500 leading-relaxed max-w-[260px] text-center">
-                You have reached the limits of the Pilot plan. Upgrade to expand your impact.
-            </DialogDescription>
-        </div>
-        
-        <div className="px-8 pb-8 space-y-8">
-            <div className="space-y-4">
-                <FeatureItem text="Up to 3,000 Inventory Items" />
-                <FeatureItem text="Track 1,500 Client Families" />
-                <FeatureItem text="10 Staff Seats Included" />
-                <FeatureItem text="CSV Data Exports" />
-            </div>
+    const handleUpgrade = async (tierKey) => {
+        setLoadingTier(tierKey);
+        try {
+            const res = await fetch('/api/stripe/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tier: tierKey })
+            });
+            const data = await res.json();
+            if (data.url) window.location.href = data.url;
+            else alert("Failed to start checkout.");
+        } catch (error) {
+            console.error(error);
+            alert("An error occurred.");
+        } finally {
+            setLoadingTier(null);
+        }
+    };
 
-            <Button 
-                className="w-full bg-[#d97757] hover:bg-[#c06245] text-white h-14 rounded-full text-base font-medium shadow-xl shadow-orange-500/20 hover:shadow-orange-500/30 transition-all active:scale-[0.98]"
-                onClick={handleUpgradeClick} 
-            >
-                Upgrade to Pro &mdash; $30
-            </Button>
-
-            <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest font-medium">
-                Cancel Anytime • Secure Stripe Payment
-            </p>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function FeatureItem({ text }) {
     return (
-        <div className="flex items-start gap-3">
-            <div className="h-5 w-5 rounded-full bg-green-100/50 flex items-center justify-center shrink-0 mt-0.5">
-                <Check className="h-3 w-3 text-green-700" strokeWidth={3} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                
+                {/* Header */}
+                <div className="bg-gray-50 border-b border-gray-100 p-6 flex justify-between items-center">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-[#d97757]" fill="#d97757" /> Upgrade your Team
+                        </h2>
+                        <p className="text-sm text-gray-500 mt-1">Unlock more seats and features to grow your impact.</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                        <X className="h-5 w-5 text-gray-500" />
+                    </button>
+                </div>
+
+                {/* Plans Grid */}
+                <div className="p-6 md:p-8 grid md:grid-cols-2 gap-6">
+                    {['basic', 'pro'].map((tier) => {
+                        const plan = PLANS[tier];
+                        const isPro = tier === 'pro';
+                        
+                        return (
+                            <div key={tier} className={`relative border rounded-xl p-6 transition-all ${isPro ? 'border-[#d97757] bg-orange-50/10 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
+                                {isPro && (
+                                    <div className="absolute -top-3 right-4 bg-[#d97757] text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                        Recommended
+                                    </div>
+                                )}
+                                
+                                <h3 className="font-bold text-lg capitalize text-gray-900">{plan.name}</h3>
+                                <div className="flex items-baseline gap-1 mt-2 mb-4">
+                                    <span className="text-3xl font-bold">${plan.price}</span>
+                                    <span className="text-gray-500 text-sm">/mo</span>
+                                </div>
+
+                                <ul className="space-y-3 mb-6">
+                                    <li className="flex items-center gap-2 text-sm text-gray-600">
+                                        <Check className="h-4 w-4 text-green-600" /> {plan.limits.users} Team Seats
+                                    </li>
+                                    <li className="flex items-center gap-2 text-sm text-gray-600">
+                                        <Check className="h-4 w-4 text-green-600" /> {plan.limits.items >= 10000 ? 'Unlimited' : plan.limits.items} Items
+                                    </li>
+                                    <li className="flex items-center gap-2 text-sm text-gray-600">
+                                        <Check className="h-4 w-4 text-green-600" /> {plan.limits.clients >= 10000 ? 'Unlimited' : plan.limits.clients} Clients
+                                    </li>
+                                </ul>
+
+                                <Button 
+                                    onClick={() => handleUpgrade(tier)}
+                                    disabled={!!loadingTier}
+                                    className={`w-full ${isPro ? 'bg-[#d97757] hover:bg-[#c06245] text-white' : 'bg-gray-900 text-white hover:bg-black'}`}
+                                >
+                                    {loadingTier === tier ? <Loader2 className="animate-spin h-4 w-4" /> : `Upgrade to ${plan.name}`}
+                                </Button>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
-            <span className="text-sm text-gray-600 font-medium">{text}</span>
         </div>
     );
 }

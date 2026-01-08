@@ -124,7 +124,8 @@ export function AddItemForm({ initialCategory, onClose }) {
   const focusClass = `focus-visible:ring-[#d97757] focus-visible:border-[#d97757]`;
 
   return (
-    <div className="flex flex-col h-full bg-gray-50/50 relative">
+    // FIX: Main Container locked to viewport height (h-[100dvh]) and overflow-hidden
+    <div className="flex flex-col h-[100dvh] md:h-full bg-gray-50/50 relative overflow-hidden">
       <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
       {/* SCANNER OVERLAY */}
@@ -149,7 +150,8 @@ export function AddItemForm({ initialCategory, onClose }) {
       </SheetHeader>
 
       {/* SCROLLABLE BODY */}
-      <div className="flex-1 overflow-y-auto px-5 py-6 space-y-6">
+      {/* FIX: 'overscroll-none' prevents bounce, 'pb-32' ensures content isn't hidden behind footer */}
+      <div className="flex-1 overflow-y-auto overscroll-none px-5 py-6 space-y-6 pb-32">
 
         {/* 1. BARCODE */}
         <section className="space-y-2">
@@ -161,11 +163,12 @@ export function AddItemForm({ initialCategory, onClose }) {
           </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
+              {/* FIX: Added 'text-base md:text-sm' to Input */}
               <Input
                 value={barcode}
                 onChange={(e) => { setBarcode(e.target.value); setIsInternalBarcode(false); }}
                 placeholder="Scan or enter code..."
-                className={`h-11 pl-3 pr-3 bg-white ${focusClass}`}
+                className={`h-11 pl-3 pr-3 bg-white text-base md:text-sm ${focusClass}`}
               />
               {isLoadingBarcode && <Loader2 className="absolute right-3 top-3 h-5 w-5 animate-spin text-[#d97757]" />}
             </div>
@@ -181,11 +184,12 @@ export function AddItemForm({ initialCategory, onClose }) {
           {/* Product Name */}
           <div className="space-y-1.5">
             <Label className="text-xs font-bold text-gray-400 uppercase">Item Name</Label>
+            {/* FIX: Added 'text-base md:text-sm' */}
             <Input
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
               placeholder="e.g. Canned Beans"
-              className={`h-11 bg-gray-50 border-gray-200 ${focusClass}`}
+              className={`h-11 bg-gray-50 border-gray-200 text-base md:text-sm ${focusClass}`}
             />
           </div>
 
@@ -194,10 +198,11 @@ export function AddItemForm({ initialCategory, onClose }) {
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-gray-400 uppercase">Category</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className={`bg-gray-50 border-gray-200 ${focusClass}`}>
+                {/* FIX: Added 'text-base md:text-sm' to Trigger */}
+                <SelectTrigger className={`bg-gray-50 border-gray-200 text-base md:text-sm ${focusClass}`}>
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-gray-200"> {/* Added bg-white */}
+                <SelectContent className="bg-white border-gray-200">
                   {categories.map(c => (
                     <SelectItem key={c.value} value={c.value}>
                       {c.name}
@@ -210,9 +215,10 @@ export function AddItemForm({ initialCategory, onClose }) {
             {/* Expiration */}
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-gray-400 uppercase">Expires</Label>
+              {/* FIX: Added 'text-base md:text-sm' */}
               <Input
                 type="date"
-                className={`h-11 bg-gray-50 border-gray-200 text-gray-600 ${focusClass}`}
+                className={`h-11 bg-gray-50 border-gray-200 text-gray-600 text-base md:text-sm ${focusClass}`}
                 value={expirationDate}
                 onChange={(e) => setExpirationDate(e.target.value)}
               />
@@ -223,11 +229,12 @@ export function AddItemForm({ initialCategory, onClose }) {
           <div className="space-y-1.5">
             <Label className="text-xs font-bold text-gray-400 uppercase">Storage Location</Label>
             <div className="relative">
+              {/* FIX: Added 'text-base md:text-sm' */}
               <Input
                 value={storageLocation}
                 onChange={(e) => setStorageLocation(e.target.value)}
                 placeholder="e.g. Aisle 3, Shelf B"
-                className={`h-11 bg-gray-50 border-gray-200 ${focusClass}`}
+                className={`h-11 bg-gray-50 border-gray-200 text-base md:text-sm ${focusClass}`}
               />
               <MapPin className="absolute right-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
             </div>
@@ -243,13 +250,15 @@ export function AddItemForm({ initialCategory, onClose }) {
               placeholder="0"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
+              // Already large text, but adding text-base ensures no zoom issues
               className={`h-14 text-xl font-bold pl-4 border-0 rounded-none focus-visible:ring-inset focus-visible:ring-[#d97757] relative flex-1`}
             />
 
             {/* Unit Selector - NEW SELECT */}
             <div className="w-32 shrink-0 bg-gray-50 border-l border-gray-200">
               <Select value={unit} onValueChange={setUnit}>
-                <SelectTrigger className="h-14 w-full border-0 bg-transparent focus:ring-0 focus:ring-offset-0 rounded-none px-3">
+                {/* FIX: Added 'text-base md:text-sm' */}
+                <SelectTrigger className="h-14 w-full border-0 bg-transparent focus:ring-0 focus:ring-offset-0 rounded-none px-3 text-base md:text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
@@ -285,22 +294,22 @@ export function AddItemForm({ initialCategory, onClose }) {
                 Notes
                 <span onClick={() => setShowNotes(false)} className="cursor-pointer text-[#d97757] lowercase font-normal">cancel</span>
               </Label>
+              {/* FIX: Added 'text-base md:text-sm' */}
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g. Donated by Walmart, Dented box..."
-                className="bg-white border-gray-200 min-h-[60px]"
+                className="bg-white border-gray-200 min-h-[60px] text-base md:text-sm"
               />
             </div>
           )}
         </section>
 
-        {/* Spacer */}
-        <div className="h-20"></div>
       </div>
 
       {/* FOOTER */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t z-10 pb-safe">
+      {/* FIX: Fixed positioning on mobile to pin to bottom */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t z-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <Button
           size="lg"
           className="w-full h-12 text-base font-semibold bg-[#d97757] hover:bg-[#c06245] shadow-lg shadow-[#d97757]/25 transition-all active:scale-[0.98]"

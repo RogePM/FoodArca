@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+// ✅ Import from the file right next to this one
 import OnboardingApp from './OnboardingApp'
 
 export default async function OnboardingPage({ searchParams }) {
@@ -23,11 +24,12 @@ export default async function OnboardingPage({ searchParams }) {
     }
   )
 
-  // 1. Re-validate user (Better security than getSession)
+  // 1. Re-validate user (Server-side check)
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) redirect('/')
 
   // 2. Parallel Check: Profile & Existing Memberships
+  // We check if they already have a profile or are in a pantry
   const [profileResult, membershipResult] = await Promise.all([
     supabase.from('user_profiles').select('user_id').eq('user_id', user.id).maybeSingle(),
     supabase.from('pantry_members').select('pantry_id').eq('user_id', user.id).maybeSingle()
@@ -36,21 +38,12 @@ export default async function OnboardingPage({ searchParams }) {
   const profile = profileResult.data
   const isAlreadyInAPantry = !!membershipResult.data
 
-  // 3. Logic: Where do they go?
-  
-  // CASE A: User exists and is already in a pantry, and NO invite code is being used.
+  // 3. Logic: If they are fully set up and NOT using a new invite code, send to dashboard.
   if (profile && isAlreadyInAPantry && !inviteCode) {
-    console.log("🟢 User fully onboarded -> Dashboard")
     redirect('/dashboard')
   }
 
-  // CASE B: User exists, but they have a NEW invite code.
-  // We let them through to OnboardingApp so they can join the new team.
-  if (inviteCode) {
-    console.log("✨ Joining new team with code:", inviteCode)
-  }
-
-  // 4. Render the Wizard
-  // Pass the user and the code to the client component
+  // 4. Render the Client Component
+  // We pass the 'user' object here, which fixes the white screen error.
   return <OnboardingApp user={user} inviteCode={inviteCode} />
 }

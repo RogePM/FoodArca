@@ -65,13 +65,8 @@ const SheetContent = React.forwardRef(({ className, children, side = 'right', ..
       <div className="flex h-full flex-col relative">
         {children}
         
-        {/* 3. The "X" Button now works because it calls context */}
-        <button 
-                    onClick={() => onOpenChange(false)}
-                    className="h-8 w-8 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+        {/* REMOVED THE HARDCODED X BUTTON HERE */}
+        
       </div>
     </motion.div>
   );

@@ -5,7 +5,7 @@ import { PLANS } from '@/lib/plans';
 
 // --- SHARED SECURITY & ROLE HELPER ---
 async function verifyAdminAccess(supabase, userId) {
-  // ✅ ACTION: Find the pantry and verify the user is an ADMIN
+  // ✅ ACTION: Find the pantry and verify the user is an ADMIN or OWNER
   const { data: membership, error } = await supabase
     .from('pantry_members')
     .select('pantry_id, role, is_active')
@@ -14,8 +14,9 @@ async function verifyAdminAccess(supabase, userId) {
 
   if (error || !membership) return null;
   
-  // Only admins should be allowed to spend money/change plans
-  if (membership.role !== 'admin' || !membership.is_active) return null;
+  // FIX: Allow both 'admin' and 'owner' roles to manage billing
+  const allowedRoles = ['admin', 'owner'];
+  if (!allowedRoles.includes(membership.role) || !membership.is_active) return null;
 
   return membership.pantry_id;
 }
@@ -29,11 +30,11 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. SECURITY: Ensure the user belongs to a pantry and IS AN ADMIN
+    // 1. SECURITY: Ensure the user belongs to a pantry and IS AUTHORIZED
     const pantryId = await verifyAdminAccess(supabase, user.id);
     if (!pantryId) {
       return NextResponse.json({ 
-        error: 'Forbidden: Only an active Admin can manage subscriptions.' 
+        error: 'Forbidden: Only an active Admin or Owner can manage subscriptions.' 
       }, { status: 403 });
     }
 
@@ -68,7 +69,7 @@ export async function POST(req) {
     if (!customerId) {
       const newCustomer = await stripe.customers.create({
         email: user.email,
-        name: pantry?.name || 'Pantry Admin',
+        name: pantry?.name || 'Pantry Owner',
         metadata: {
           supabaseUUID: user.id,
           pantryId: pantryId

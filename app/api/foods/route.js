@@ -5,8 +5,12 @@ import connectDB from '@/lib/db';
 import { FoodItem, BarcodeCache } from '@/lib/models/FoodItemModel';
 import { logChange } from '@/lib/logger'; 
 
+// --- UTILITY: Round to 3 Decimals ---
+// simple math trick to round to 3 places safely
+const formatQty = (num) => Math.round((num + Number.EPSILON) * 1000) / 1000;
+
 // ----------------------------------------------------------------------
-// 1. HELPER FUNCTIONS (These were missing!)
+// 1. HELPER FUNCTIONS
 // ----------------------------------------------------------------------
 
 async function authenticateRequest(req) {
@@ -36,7 +40,7 @@ async function verifyPantryMember(supabase, userId, pantryId) {
 }
 
 // ----------------------------------------------------------------------
-// 2. GET: Fetch Inventory
+// 2. GET: Fetch Inventory (FIXED)
 // ----------------------------------------------------------------------
 export async function GET(req) {
   try {
@@ -54,16 +58,23 @@ export async function GET(req) {
     const order = searchParams.get('order') === 'desc' ? -1 : 1;
 
     await connectDB();
-    const foods = await FoodItem.find({ pantryId }).sort({ [sortBy]: order });
+    // Use .lean() to get plain JS objects, making them easier to modify
+    const foods = await FoodItem.find({ pantryId }).sort({ [sortBy]: order }).lean();
 
-    return NextResponse.json({ count: foods.length, data: foods });
+    // [FIX] Map over results and fix decimals before sending to frontend
+    const cleanedFoods = foods.map(item => ({
+        ...item,
+        quantity: formatQty(item.quantity)
+    }));
+
+    return NextResponse.json({ count: cleanedFoods.length, data: cleanedFoods });
   } catch (error) {
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
 // ----------------------------------------------------------------------
-// 3. POST: Add Item (WITH LIMIT CHECK)
+// 3. POST: Add Item (FIXED)
 // ----------------------------------------------------------------------
 export async function POST(req) {
   try {
@@ -87,7 +98,6 @@ export async function POST(req) {
     }
 
     // --- 🚨 GATEKEEPER START: CHECK LIMITS 🚨 ---
-    // Fetch subscription details from Supabase
     const { data: pantrySettings, error: pantryError } = await auth.supabase
         .from('food_pantries')
         .select('subscription_tier, total_items_created, max_items_limit')
@@ -98,11 +108,8 @@ export async function POST(req) {
         return NextResponse.json({ message: 'Could not verify pantry limits' }, { status: 500 });
     }
 
-    // Logic: If Free Tier ('pilot') AND they hit the max limit, stop them.
     if (pantrySettings.subscription_tier === 'pilot') {
         const limit = pantrySettings.max_items_limit || 50; 
-        
-        // CRITICAL CHECK
         if (pantrySettings.total_items_created >= limit) {
             return NextResponse.json({ 
                 error: 'LIMIT_REACHED', 
@@ -112,11 +119,12 @@ export async function POST(req) {
     }
     // --- 🚨 GATEKEEPER END 🚨 ---
 
-
     // 3. Connect to MongoDB
     await connectDB();
 
-    const quantityToAdd = parseFloat(data.quantity);
+    // [FIX] Sanitize Input: Force input to max 3 decimals to prevent introducing new float errors
+    const quantityToAdd = formatQty(parseFloat(data.quantity));
+    
     let searchDate = null;
     if (data.expirationDate) {
       const d = new Date(data.expirationDate);
@@ -135,6 +143,8 @@ export async function POST(req) {
         expirationDate: searchDate ? searchDate : { $exists: false }
       },
       {
+        // [NOTE] $inc can still cause float artifacts if the DB value is already dirty.
+        // We will clean the RESPONSE below to hide it from the UI.
         $inc: { quantity: quantityToAdd },
         $set: {
           name: data.name,
@@ -143,18 +153,22 @@ export async function POST(req) {
           lastModified: new Date()
         }
       },
-      { new: true }
+      { new: true, lean: true } // lean: true gives us a plain object
     );
 
     if (!foodItem) {
       // If not found, CREATE NEW
+      // [FIX] Use sanitized quantityToAdd here
       foodItem = await FoodItem.create({
         ...data,
+        quantity: quantityToAdd, 
         pantryId,
         barcode,
         expirationDate: searchDate || data.expirationDate,
         lastModified: new Date()
       });
+      // Convert to object if created (mongoose doc -> js object)
+      foodItem = foodItem.toObject();
       isNewItemCreated = true;
     }
 
@@ -180,6 +194,10 @@ export async function POST(req) {
         { upsert: true }
       );
     }
+
+    // [FIX] Clean the result before sending back to frontend
+    // If $inc created a float artifact (e.g. 0.300000004), this fixes it for the immediate UI update
+    foodItem.quantity = formatQty(foodItem.quantity);
 
     return NextResponse.json(foodItem, { status: 201 });
   } catch (error) {

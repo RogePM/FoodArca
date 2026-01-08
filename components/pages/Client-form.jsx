@@ -106,8 +106,6 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
 
     setIsSubmitting(true);
     try {
-      // Auto-calculate Total Family Size logic is duplicated on backend,
-      // but we send clean numbers here to be safe.
       const kids = Number(formData.childrenCount) || 0;
       const adults = Number(formData.adultCount) || 0;
       const seniors = Number(formData.seniorCount) || 0;
@@ -117,8 +115,6 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
         childrenCount: kids,
         adultCount: adults,
         seniorCount: seniors,
-        // Backend recalculates familySize, so we don't strictly need to send it,
-        // but it doesn't hurt.
       };
 
       const isEditing = !!client;
@@ -160,12 +156,18 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
     } catch(e) { setIsSubmitting(false); }
   };
 
+  // Common input class for consistency + No Zoom
+  const inputClass = "h-11 border-2 border-gray-100 rounded-xl focus:border-[#d97757] focus:ring-0 transition-all text-base md:text-sm";
+
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col h-full p-0 bg-white shadow-2xl border-l border-gray-200">
+      {/* FIX: Added h-[100dvh] to force full viewport height on mobile.
+          overflow-hidden ensures no body scroll.
+      */}
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col h-[100dvh] md:h-full p-0 bg-white shadow-2xl border-l border-gray-200 overflow-hidden">
         
         {/* Header with Explicit Close Button */}
-        <SheetHeader className="px-6 py-5 border-b bg-gray-50/50 flex flex-row items-center justify-between space-y-0">
+        <SheetHeader className="px-6 py-5 border-b bg-gray-50/50 flex flex-row items-center justify-between space-y-0 shrink-0">
           <div className="flex flex-col gap-1">
             <SheetTitle className="text-xl font-black text-gray-900 flex items-center gap-2">
               <User className="h-5 w-5 text-[#d97757]" strokeWidth={3} />
@@ -178,7 +180,6 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
             )}
           </div>
           
-          {/* Custom X Button for better mobile UX */}
           <button 
             onClick={() => onOpenChange(false)}
             className="h-8 w-8 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
@@ -187,41 +188,67 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
           </button>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+        {/* Scrollable Body - Added overscroll-none */}
+        <div className="flex-1 overflow-y-auto overscroll-none px-6 py-6 space-y-8">
+          
           {/* Identity Inputs */}
           <section className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label className="text-[10px] font-black text-gray-400 uppercase">First Name</Label>
-                <Input value={formData.firstName} onChange={(e) => handleChange('firstName', e.target.value)} className="h-11 border-2 border-gray-100 rounded-xl focus:border-[#d97757] focus:ring-0 transition-all" />
+                <Input 
+                    value={formData.firstName} 
+                    onChange={(e) => handleChange('firstName', e.target.value)} 
+                    className={inputClass} 
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] font-black text-gray-400 uppercase">Last Name</Label>
-                <Input value={formData.lastName} onChange={(e) => handleChange('lastName', e.target.value)} className="h-11 border-2 border-gray-100 rounded-xl focus:border-[#d97757] focus:ring-0 transition-all" />
+                <Input 
+                    value={formData.lastName} 
+                    onChange={(e) => handleChange('lastName', e.target.value)} 
+                    className={inputClass} 
+                />
               </div>
             </div>
+            
             <div className="space-y-1">
               <Label className="text-[10px] font-black text-gray-400 uppercase">Client ID</Label>
-              {/* ✅ ENABLED INPUT: Removed disabled prop */}
               <Input 
                 value={formData.clientId} 
                 onChange={(e) => handleChange('clientId', e.target.value)} 
-                className="h-11 border-2 border-gray-100 rounded-xl font-mono text-gray-600 focus:border-[#d97757] focus:ring-0 transition-all" 
+                className={`${inputClass} font-mono text-gray-600`} 
                 placeholder={client ? client.clientId : "Auto-generated if empty"}
               />
             </div>
+            
             <div className="space-y-1">
                 <Label className="text-[10px] font-black text-gray-400 uppercase">Address / Zip</Label>
                 <div className="relative">
                     <MapPin className="absolute left-3 top-3.5 h-4 w-4 text-gray-300" />
-                    <Input value={formData.address} onChange={(e) => handleChange('address', e.target.value)} className="h-11 pl-9 border-2 border-gray-100 rounded-xl focus:border-[#d97757] focus:ring-0 transition-all" />
+                    <Input 
+                        value={formData.address} 
+                        onChange={(e) => handleChange('address', e.target.value)} 
+                        className={`${inputClass} pl-9`} 
+                    />
                 </div>
             </div>
+            
             <div className="space-y-1">
                <Label className="text-[10px] font-black text-gray-400 uppercase">Contact (Optional)</Label>
                <div className="grid grid-cols-2 gap-2">
-                  <Input value={formData.email} onChange={(e) => handleChange('email', e.target.value)} placeholder="Email" className="h-10 text-xs border-gray-100 rounded-xl" />
-                  <Input value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="Phone" className="h-10 text-xs border-gray-100 rounded-xl" />
+                  <Input 
+                    value={formData.email} 
+                    onChange={(e) => handleChange('email', e.target.value)} 
+                    placeholder="Email" 
+                    className={`${inputClass} text-xs h-10`} 
+                  />
+                  <Input 
+                    value={formData.phone} 
+                    onChange={(e) => handleChange('phone', e.target.value)} 
+                    placeholder="Phone" 
+                    className={`${inputClass} text-xs h-10`} 
+                  />
                </div>
             </div>
           </section>
@@ -243,9 +270,9 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
             </div>
           </section>
 
-          {/* Visit History (Grouped by Date) */}
+          {/* Visit History */}
           {client && (
-            <section className="space-y-4 pt-4 border-t border-gray-100">
+            <section className="space-y-4 pt-4 border-t border-gray-100 pb-20">
               <div className="flex justify-between items-end">
                   <Label className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-2">
                     <HistoryIcon className="h-3.5 w-3.5" /> Visit History
@@ -268,14 +295,14 @@ export function ClientFormDrawer({ isOpen, onOpenChange, client, onClientUpdated
           )}
         </div>
 
-        <SheetFooter className="p-6 border-t bg-gray-50 flex flex-row justify-between items-center gap-3">
+        {/* Footer - Fixed with Safe Area Padding */}
+        <SheetFooter className="p-6 border-t bg-gray-50 flex flex-row justify-between items-center gap-3 shrink-0 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {client && (
             <Button variant="ghost" className="text-red-500 hover:bg-red-50 hover:text-red-600 font-bold h-11 px-4" onClick={handleDelete} disabled={isSubmitting}>
               <Trash2 className="h-4 w-4 mr-2" /> Delete
             </Button>
           )}
           <div className="flex gap-2 flex-1 justify-end">
-            {/* Standard Close Button */}
             <SheetClose asChild>
                 <Button variant="outline" className="rounded-xl font-bold h-11 border-2">Cancel</Button>
             </SheetClose>
@@ -296,7 +323,6 @@ function VisitHistoryCard({ visit }) {
 
     return (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm transition-all hover:border-gray-300">
-            {/* Clickable Header */}
             <button 
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full bg-gray-50/50 px-3 py-3 flex justify-between items-center hover:bg-gray-100/80 transition-colors"
@@ -317,7 +343,6 @@ function VisitHistoryCard({ visit }) {
                 </div>
             </button>
 
-            {/* Collapsible Content */}
             {isOpen && (
                 <div className="p-2 space-y-1 bg-white border-t border-gray-100 animate-in slide-in-from-top-1 duration-200">
                     {visit.items.map((item, idx) => (

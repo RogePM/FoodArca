@@ -22,7 +22,7 @@ export async function GET(req) {
 
     let alerts = [];
 
-    // --- CHECK 1: SUPABASE LIMITS (Clients & Items) ---
+    // --- CHECK 1: SUPABASE LIMITS ---
     const { data: pantry, error: dbError } = await supabase
       .from('food_pantries')
       .select('max_clients_limit, total_families_created, max_items_limit, total_items_created, subscription_tier')
@@ -30,18 +30,18 @@ export async function GET(req) {
       .single();
 
     if (!dbError && pantry) {
-      // Client/Family Limit Check
       const clientLimit = pantry.max_clients_limit;
       const currentClients = pantry.total_families_created;
       
-      // If within 90% of limit or exceeded
       if (currentClients >= clientLimit) {
         alerts.push({
           id: 'limit-clients-crit',
           type: 'critical',
           title: 'Client Limit Reached',
           message: `You have reached the limit of ${clientLimit} families. Upgrade to add more.`,
-          action: 'billing'
+          action: 'Upgrade', // Button text
+          // 👇 MATCHES Sidebar 'view' exactly
+          targetView: 'Settings' 
         });
       } else if (currentClients >= clientLimit * 0.9) {
         alerts.push({
@@ -49,11 +49,11 @@ export async function GET(req) {
           type: 'warning',
           title: 'Client Limit Near',
           message: `You are at ${currentClients}/${clientLimit} families.`,
-          action: 'billing'
+          action: 'Upgrade',
+          targetView: 'Settings'
         });
       }
 
-      // Item Limit Check (Only for Pilot/Free tier usually)
       if (pantry.subscription_tier === 'pilot') {
          const itemLimit = pantry.max_items_limit;
          const currentItems = pantry.total_items_created;
@@ -64,7 +64,8 @@ export async function GET(req) {
                 type: 'critical',
                 title: 'Item Limit Reached',
                 message: `You reached the ${itemLimit} item limit. Upgrade to Pro.`,
-                action: 'billing'
+                action: 'Upgrade',
+                targetView: 'Settings'
             });
          }
       }
@@ -77,7 +78,6 @@ export async function GET(req) {
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(today.getDate() + 7);
 
-    // Find items expiring in the next 7 days that have quantity > 0
     const expiringItems = await FoodItem.find({
       pantryId: pantryId,
       quantity: { $gt: 0 },
@@ -92,12 +92,13 @@ export async function GET(req) {
         id: 'expiry-alert',
         type: 'warning',
         title: 'Expiring Soon',
-        message: `${expiringItems.length} items expire this week (e.g., ${expiringItems[0].name}).`,
-        action: 'inventory'
+        message: `${expiringItems.length} items expire this week.`,
+        action: 'Check Stock',
+        // 👇 MATCHES Sidebar 'view' exactly
+        targetView: 'View Inventory' 
       });
     }
 
-    // Check for ALREADY Expired items
     const expiredItems = await FoodItem.countDocuments({
         pantryId: pantryId,
         quantity: { $gt: 0 },
@@ -109,8 +110,10 @@ export async function GET(req) {
             id: 'expired-crit',
             type: 'critical',
             title: 'Expired Stock',
-            message: `${expiredItems} items in stock are past their expiration date.`,
-            action: 'inventory'
+            message: `${expiredItems} items are past expiration.`,
+            action: 'Remove Items',
+            // 👇 MATCHES Sidebar 'view' exactly
+            targetView: 'View Inventory'
         });
     }
 

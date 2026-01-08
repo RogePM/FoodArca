@@ -18,10 +18,13 @@ async function authenticateAndVerify(req) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return { valid: false, status: 401, message: 'Unauthorized' };
 
-  const { pantryId } = await req.clone().json(); // Clone so we don't consume the stream
+  // Use a temporary clone to read the body for the security check
+  const body = await req.clone().json();
+  const { pantryId } = body;
+  
   if (!pantryId) return { valid: false, status: 400, message: 'Pantry ID required' };
 
-  // ✅ ACTION: Only Admins should be allowed to send invites
+  // ✅ FIX: Check for BOTH 'admin' OR 'owner' roles
   const { data: membership, error: memberError } = await supabase
     .from('pantry_members')
     .select('role, is_active')
@@ -29,8 +32,8 @@ async function authenticateAndVerify(req) {
     .eq('pantry_id', pantryId)
     .single();
 
-  if (memberError || !membership || membership.role !== 'admin') {
-    return { valid: false, status: 403, message: 'Forbidden: Only Admins can invite users' };
+  if (memberError || !membership || !['admin', 'owner'].includes(membership.role)) {
+    return { valid: false, status: 403, message: 'Forbidden: Insufficient permissions' };
   }
 
   return { valid: true, user, pantryId };
@@ -42,10 +45,6 @@ export async function POST(req) {
     const auth = await authenticateAndVerify(req);
     if (!auth.valid) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-    }
-
     const { email, pantryId, role, pantryName, joinCode } = await req.json();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -56,23 +55,27 @@ export async function POST(req) {
     );
 
     // 2. Logic: Create Redirect Path
+    // This ensures that AFTER they sign up/log in, they land exactly where the code is processed
     const targetPath = `/onboarding?code=${joinCode}`;
     const encodedRedirect = `${siteUrl}/auth/callback?next=${encodeURIComponent(targetPath)}`;
 
     let inviteLink = null;
     
-    // Generate the magic link
+    // 3. Generate the magic link (Sign-up + Join combo)
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'invite',
       email: email,
       options: {
         redirectTo: encodedRedirect,
-        data: { invited_to_pantry: pantryId, role: role || 'volunteer' }
+        // We attach metadata to the user object itself in Supabase Auth
+        data: { initial_pantry: pantryId, initial_role: role || 'volunteer' }
       }
     });
 
     if (linkError) {
-      if (linkError.code === 'email_exists' || linkError.message.includes('already registered')) {
+      // CASE: User already has an account. 
+      // We don't need a magic link, just a direct link to the onboarding wizard.
+      if (linkError.status === 422 || linkError.message.includes('already registered')) {
         inviteLink = `${siteUrl}/onboarding?code=${joinCode}`;
       } else {
         return NextResponse.json({ error: linkError.message }, { status: 400 });
@@ -81,22 +84,28 @@ export async function POST(req) {
       inviteLink = linkData.properties.action_link;
     }
 
-    // 3. Send the Email
+    // 4. Send the Email via Resend
     await resend.emails.send({
       from: 'Food Arca <invites@foodarca.com>', 
       to: email, 
       subject: `You've been invited to join ${pantryName}`,
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Join ${pantryName} on Food Arca</h2>
-          <p>You have been invited to join the team as a <strong>${role}</strong>.</p>
-          <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
-            <p style="margin: 0 0 10px; color: #666;">Your Organization Join Code:</p>
-            <code style="font-size: 24px; font-weight: bold; letter-spacing: 2px;">${joinCode}</code>
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+          <h2 style="color: #d97757;">Join ${pantryName}</h2>
+          <p>You have been invited to help track food waste and support your community as a <strong>${role}</strong>.</p>
+          
+          <div style="background: #fdf2f0; border: 1px solid #f9d8d0; padding: 20px; border-radius: 12px; margin: 25px 0; text-align: center;">
+            <p style="margin: 0 0 10px; font-size: 12px; color: #d97757; font-weight: bold; uppercase; letter-spacing: 1px;">Your Join Code</p>
+            <code style="font-size: 32px; font-family: monospace; font-weight: bold; color: #1a1a1a;">${joinCode}</code>
           </div>
-          <a href="${inviteLink}" style="display: inline-block; background: #d97757; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-            Accept Invitation
+
+          <a href="${inviteLink}" style="display: block; background: #d97757; color: white; padding: 14px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; text-align: center; font-size: 16px;">
+            Accept Invitation & Get Started
           </a>
+          
+          <p style="margin-top: 30px; font-size: 12px; color: #999; text-align: center;">
+            If you already have an account, simply click the link and enter the code.
+          </p>
         </div>
       `
     });

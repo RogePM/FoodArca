@@ -35,27 +35,28 @@ export async function GET(request) {
       return NextResponse.redirect(new URL('/?error=auth_code_error', requestUrl.origin))
     }
 
-    // 3. Invite Link Fast-Track
-    // If 'next' contains 'onboarding', we skip profile checks and trust the invite flow.
-    // We also ensure we only redirect to internal paths (Security check).
+    // 3. Invite Link Fast-Track & Security Check
+    // We only redirect if 'next' is an internal path (starts with /)
     if (next.startsWith('/')) {
       if (next.includes('onboarding')) {
         console.log(`🚀 Invite flow detected. Fast-tracking to: ${next}`)
         return NextResponse.redirect(new URL(next, requestUrl.origin))
       }
+    } else {
+      // If someone injected an external URL, reset to safe default
+      return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
     }
 
     // 4. Standard Login: Check for Profile
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      
       if (!user) throw new Error("User not found after exchange")
 
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('user_id')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle() // Use maybeSingle to avoid 406 errors if empty
 
       // 5. Intelligent Redirection
       if (profileError || !profile) {
@@ -64,12 +65,10 @@ export async function GET(request) {
       }
 
       console.log("🟢 Profile verified → redirect to dashboard")
-      // If 'next' was just '/dashboard', or something else safe, use it.
       return NextResponse.redirect(new URL(next, requestUrl.origin))
 
     } catch (err) {
       console.error("⚠️ Profile check failed:", err.message)
-      // Safety fallback: Onboarding is the safest place for an unknown state
       return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
     }
   }

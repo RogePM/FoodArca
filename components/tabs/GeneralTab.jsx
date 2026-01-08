@@ -6,12 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
-    Loader2, Mail, Shield, User,
-    CheckCircle2, Plus, Copy, MapPin, Trash2,
-    BarChart3, FileDown, Lock, Zap, Users
+    Loader2, Mail, User, CheckCircle2, Plus, Copy, MapPin, Trash2,
+    BarChart3, Zap, Users, Crown, Building2, MoreHorizontal, Lock
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+// Import the new modal
+import { UpgradeModal } from '@/components/modals/UpgradeModal';
 
 export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan, refreshPantry, hasProFeatures, usageStats }) {
 
@@ -23,7 +24,9 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
     const [copied, setCopied] = useState(false);
     const [isFastMode, setIsFastMode] = useState(false);
     const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
-    const [downloading, setDownloading] = useState(null);
+    
+    // Modal State
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
     // Invite States
     const [showInviteForm, setShowInviteForm] = useState(false);
@@ -31,39 +34,37 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
     const [inviteRole, setInviteRole] = useState('volunteer');
     const [isInviting, setIsInviting] = useState(false);
 
-    // --- 1. CALCULATE LIMITS (DB Priority > Plan Fallback) ---
+    // --- LOGIC ---
     const isAdmin = userRole === 'admin' || userRole === 'owner';
+    // ✅ Check if on Pilot Plan
+    const isPilot = details?.subscription_tier === 'pilot';
 
-    // Users
-    const maxUsers = details?.max_users_limit ?? currentPlan?.limits?.users ?? 1;
-    
-    // Items
+    // SEAT TOKENS
+    const maxSeats = details?.max_users_limit ?? currentPlan?.limits?.users ?? 5;
+    const currentSeats = details?.total_seats_used ?? 1;
+    const isSeatsFull = currentSeats >= maxSeats;
+
+    // RESOURCE TOKENS
     const maxItems = details?.max_items_limit ?? currentPlan?.limits?.items ?? 100;
-    
-    // Clients (Use limit passed from parent, or fallback to DB/Plan)
-    const maxClients = usageStats?.limit ?? (details?.max_clients_limit ?? currentPlan?.limits?.clients ?? 100);
-
-    // --- 2. CALCULATE CURRENT USAGE ---
-    const activeCount = members.length;
-    const pendingCount = invitations.length;
-    const totalTeamCount = activeCount + pendingCount;
-    
-    // Items: Use the DB column 'total_items_created' for instant load
     const currentItems = details?.total_items_created || 0;
+    const maxClients = usageStats?.limit ?? (details?.max_clients_limit ?? 100);
+    const currentClients = usageStats?.current || 0;
 
-    // Clients: Use the live count passed from Parent
-    const currentClients = usageStats?.current || details?.total_families_created || 0;
+    // --- HELPERS ---
+    const calculatePercent = (val, max) => {
+        if (max >= 100000) return 0;
+        if (!max || max === 0) return 100;
+        return Math.min((val / max) * 100, 100);
+    };
 
-    // --- EFFECT: Load Members Only (Stats come from props now) ---
+    // --- EFFECT ---
     useEffect(() => {
         if (!pantryId) return;
 
-        // Settings Sync
         const trackingEnabled = details?.settings?.enable_client_tracking ?? true;
         setIsFastMode(!trackingEnabled);
 
-        // Fetch Members & Invites
-        const fetchMembers = async () => {
+        const fetchLists = async () => {
             const { data: m } = await supabase
                 .from('pantry_members')
                 .select('*, user:user_profiles(name, email)')
@@ -80,89 +81,17 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
             }
         };
 
-        fetchMembers();
+        fetchLists();
     }, [pantryId, isAdmin, supabase, details]);
 
-    // --- HELPER: Progress Bar Calculation ---
-    const calculatePercent = (val, max) => {
-        if (max >= 100000) return 0; // Unlimited
-        if (!max || max === 0) return 100; // Prevent divide by zero
-        return Math.min((val / max) * 100, 100);
-    };
-
     // --- ACTIONS ---
-    const handleFastModeToggle = async (checked) => {
-        if (!isAdmin) return;
-        setIsFastMode(checked);
-        setIsUpdatingSettings(true);
-        const newTrackingStatus = !checked;
-
-        try {
-            const currentSettings = details?.settings || {};
-            const updatedSettings = { ...currentSettings, enable_client_tracking: newTrackingStatus };
-            const { error } = await supabase
-                .from('food_pantries')
-                .update({ settings: updatedSettings })
-                .eq('pantry_id', pantryId);
-
-            if (error) throw error;
-            await refreshPantry();
-        } catch (error) {
-            console.error("Failed to update settings:", error);
-            setIsFastMode(!checked);
-            alert("Failed to save setting.");
-        } finally {
-            setIsUpdatingSettings(false);
+    const handleInviteClick = () => {
+        // ✅ Intercept click if on Pilot plan
+        if (isPilot) {
+            setShowUpgradeModal(true);
+            return;
         }
-    };
-
-    const handleExport = async (type) => {
-        if (!hasProFeatures) return; 
-
-        setDownloading(type);
-        try {
-            const res = await fetch(`/api/export?type=${type}`, {
-                method: 'GET',
-                headers: { 'x-pantry-id': pantryId }
-            });
-
-            if (res.status === 403) {
-                alert("You must upgrade to Pro to export data.");
-                return;
-            }
-
-            if (!res.ok) throw new Error("Export failed");
-
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${type}-${new Date().toISOString().split('T')[0]}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-        } catch (error) {
-            console.error("Download error:", error);
-            alert("Failed to download file. Please try again.");
-        } finally {
-            setDownloading(null);
-        }
-    };
-
-    const handleCopyCode = () => {
-        if (details?.join_code) {
-            navigator.clipboard.writeText(details.join_code);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        }
-    };
-
-    const handleRevokeInvite = async (inviteId) => {
-        if (!confirm("Are you sure you want to cancel this invitation?")) return;
-        const { error } = await supabase.from('pantry_invitations').delete().eq('id', inviteId);
-        if (!error) setInvitations(prev => prev.filter(i => i.id !== inviteId));
+        setShowInviteForm(true);
     };
 
     const handleSendInvite = async (e) => {
@@ -170,14 +99,14 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
         const cleanEmail = inviteEmail.trim().toLowerCase();
         if (!cleanEmail || !cleanEmail.includes('@')) return;
 
-        if (totalTeamCount >= maxUsers) {
-            alert(`Limit reached (${maxUsers} users). Please upgrade.`);
+        if (isSeatsFull) {
+            alert(`Seat limit reached (${maxSeats}). Please upgrade your plan.`);
             return;
         }
 
         setIsInviting(true);
         try {
-            const { data: newInvite, error } = await supabase
+            const { data: newInvite, error: dbError } = await supabase
                 .from('pantry_invitations')
                 .insert({
                     pantry_id: pantryId,
@@ -187,7 +116,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                 })
                 .select().single();
 
-            if (error) throw error;
+            if (dbError) throw dbError;
 
             await fetch('/api/invite', {
                 method: 'POST',
@@ -204,68 +133,143 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
             setInvitations(prev => [...prev, newInvite]);
             setInviteEmail('');
             setShowInviteForm(false);
+            await refreshPantry();
+
         } catch (err) {
-            alert("Failed to invite.");
+            console.error(err);
+            alert("Failed to send invitation.");
         } finally {
             setIsInviting(false);
         }
     };
 
+    const handleRevokeInvite = async (inviteId) => {
+        if (!confirm("Cancel this invitation?")) return;
+        const { error } = await supabase.from('pantry_invitations').delete().eq('id', inviteId);
+        if (!error) {
+            setInvitations(prev => prev.filter(i => i.id !== inviteId));
+            await refreshPantry();
+        }
+    };
+
+    const handleFastModeToggle = async (checked) => {
+        if (!isAdmin) return;
+        setIsFastMode(checked);
+        setIsUpdatingSettings(true);
+        try {
+            const currentSettings = details?.settings || {};
+            const updatedSettings = { ...currentSettings, enable_client_tracking: !checked };
+            const { error } = await supabase.from('food_pantries').update({ settings: updatedSettings }).eq('pantry_id', pantryId);
+            if (error) throw error;
+            await refreshPantry();
+        } catch (error) {
+            setIsFastMode(!checked);
+        } finally {
+            setIsUpdatingSettings(false);
+        }
+    };
+
+    const handleCopyCode = () => {
+        if (details?.join_code) {
+            navigator.clipboard.writeText(details.join_code);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
     return (
-        <div className="space-y-8 max-w-7xl mx-auto pb-10">
-
-            {/* --- HEADER: Identity & Code --- */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-start justify-between gap-6">
-                    <div className="space-y-1">
-                        <h2 className="text-3xl font-bold text-gray-900 tracking-tight">{details?.name}</h2>
-                        {details?.address && (
-                            <div className="flex items-center gap-2 text-gray-500">
-                                <MapPin className="h-4 w-4" />
-                                <span>{details.address}</span>
-                            </div>
-                        )}
-                    </div>
-
-                    <div onClick={handleCopyCode} className="cursor-pointer group self-start flex items-center gap-4 px-5 py-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 transition-all hover:shadow-sm">
-                        <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Team Join Code</p>
-                            <p className="font-mono text-xl font-bold text-gray-900 tracking-wider">{details?.join_code}</p>
+        <div className="max-w-7xl mx-auto space-y-6 pb-20">
+            {/* ✅ MODAL INJECTION */}
+            <UpgradeModal 
+                isOpen={showUpgradeModal} 
+                onClose={() => setShowUpgradeModal(false)} 
+                currentTier={details?.subscription_tier} 
+            />
+            
+            {/* HERO: IDENTITY CARD */}
+            <div className="relative bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm flex flex-col lg:flex-row justify-between lg:items-center gap-6 overflow-hidden">
+                <div className="absolute -top-10 -right-10 w-64 h-64 bg-orange-50 rounded-full blur-3xl opacity-50 pointer-events-none" />
+                <div className="relative z-10 space-y-2">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-[#d97757]/10 text-[#d97757] rounded-lg flex items-center justify-center">
+                            <Building2 className="h-6 w-6" />
                         </div>
-                        <div className="pl-4 border-l border-gray-200">
-                            {copied ? <CheckCircle2 className="h-6 w-6 text-green-600" /> : <Copy className="h-6 w-6 text-gray-400 group-hover:text-gray-600" />}
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-900 tracking-tight leading-none">{details?.name}</h2>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 capitalize">
+                                    {details?.subscription_tier || 'Pilot'} Plan
+                                </span>
+                                <span className="text-gray-300">•</span>
+                                <div className="flex items-center gap-1 text-sm text-gray-500">
+                                    <MapPin className="h-3 w-3" />
+                                    <span>{details?.address || "No address set"}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <div onClick={handleCopyCode} className="relative z-10 group cursor-pointer bg-white border border-dashed border-gray-300 hover:border-[#d97757] hover:bg-orange-50/30 rounded-xl p-1 pr-4 pl-4 flex items-center gap-4 transition-all duration-300">
+                    <div className="flex flex-col items-start py-2">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest group-hover:text-[#d97757]/70 transition-colors">Join Code</p>
+                        <p className="font-mono text-xl font-bold text-gray-900 tracking-widest">{details?.join_code}</p>
+                    </div>
+                    <div className="h-8 w-px bg-gray-200 group-hover:bg-[#d97757]/20 transition-colors" />
+                    {copied ? (
+                        <div className="flex items-center gap-1.5 text-green-600 animate-in fade-in zoom-in">
+                            <CheckCircle2 className="h-5 w-5" /> <span className="text-xs font-bold">Copied</span>
+                        </div>
+                    ) : (
+                        <Copy className="h-5 w-5 text-gray-400 group-hover:text-[#d97757] transition-colors" />
+                    )}
+                </div>
             </div>
 
-            {/* --- MAIN GRID LAYOUT --- */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-
-                {/* --- LEFT COLUMN: Team List --- */}
-                <div className="xl:col-span-2 space-y-6">
-                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
-                        <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
-                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                                <User className="h-4 w-4 text-gray-500" /> Team Members
-                            </h3>
+            {/* MAIN GRID */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+                {/* LEFT: Team Management */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
+                        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/30">
+                            <div>
+                                <h3 className="font-bold text-gray-900 flex items-center gap-2 text-lg">Team Members</h3>
+                                <p className="text-sm text-gray-500 mt-0.5">Manage access and roles.</p>
+                            </div>
+                            
                             {isAdmin && !showInviteForm && (
-                                <Button onClick={() => setShowInviteForm(true)} size="sm" className="w-full sm:w-auto bg-[#d97757] hover:bg-[#c06245] text-white gap-2 shadow-sm">
-                                    <Plus className="h-4 w-4" /> Invite New
+                                <Button 
+                                    onClick={handleInviteClick} 
+                                    disabled={isSeatsFull && !isPilot} // Don't disable if Pilot (we want them to click to upgrade)
+                                    className={`shadow-sm transition-all ${isSeatsFull && !isPilot
+                                        ? 'bg-gray-100 text-gray-400 border border-gray-200' 
+                                        : 'bg-white text-gray-900 border border-gray-200 hover:border-[#d97757] hover:text-[#d97757]'}`}
+                                >
+                                    {isPilot ? <Lock className="h-4 w-4 mr-2 text-orange-500" /> : <Plus className="h-4 w-4 mr-2" />}
+                                    {isSeatsFull && !isPilot ? 'Seat Limit Reached' : 'Invite Member'}
                                 </Button>
                             )}
                         </div>
 
                         {showInviteForm && (
-                            <div className="p-6 bg-orange-50/40 border-b border-orange-100 animate-in slide-in-from-top-2">
+                            <div className="p-6 bg-orange-50/30 border-b border-orange-100 animate-in slide-in-from-top-2">
                                 <form onSubmit={handleSendInvite} className="flex flex-col gap-4">
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                        <div className="sm:col-span-2">
-                                            <Input placeholder="colleague@email.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} className="bg-white border-gray-300 focus:border-orange-500" autoFocus />
+                                    <div className="flex flex-col md:flex-row gap-3">
+                                        <div className="flex-1 space-y-1">
+                                            <Label className="text-xs font-semibold text-gray-500 uppercase">Email Address</Label>
+                                            <Input 
+                                                placeholder="colleague@example.com" 
+                                                value={inviteEmail} 
+                                                onChange={e => setInviteEmail(e.target.value)} 
+                                                className="bg-white border-gray-200 focus-visible:ring-[#d97757]" 
+                                                autoFocus 
+                                            />
                                         </div>
-                                        <div>
+                                        <div className="w-full md:w-40 space-y-1">
+                                            <Label className="text-xs font-semibold text-gray-500 uppercase">Role</Label>
+                                            {/* ✅ FIX: Added bg-white and z-50 to SelectContent */}
                                             <Select value={inviteRole} onValueChange={setInviteRole}>
-                                                <SelectTrigger className="w-full bg-white border-gray-300"><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className="bg-white border-gray-200"><SelectValue /></SelectTrigger>
                                                 <SelectContent className="bg-white z-50 shadow-lg border-gray-200">
                                                     <SelectItem value="volunteer">Volunteer</SelectItem>
                                                     <SelectItem value="admin">Admin</SelectItem>
@@ -274,177 +278,130 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                                         </div>
                                     </div>
                                     <div className="flex gap-3 justify-end pt-2">
-                                        <Button type="button" variant="ghost" onClick={() => setShowInviteForm(false)} size="sm">Cancel</Button>
-                                        <Button type="submit" disabled={isInviting} size="sm" className="bg-gray-900 text-white hover:bg-black">
-                                            {isInviting ? <Loader2 className="animate-spin h-3 w-3 mr-2" /> : <Mail className="h-3 w-3 mr-2" />} Send Invitation
+                                        <Button type="button" variant="ghost" onClick={() => setShowInviteForm(false)} className="text-gray-500 hover:text-gray-900">Cancel</Button>
+                                        <Button type="submit" disabled={isInviting} className="bg-[#d97757] hover:bg-[#c06245] text-white min-w-[100px]">
+                                            {isInviting ? <Loader2 className="animate-spin h-4 w-4" /> : 'Send Invite'}
                                         </Button>
                                     </div>
                                 </form>
                             </div>
                         )}
 
-                        <div className="divide-y divide-gray-100 flex-1">
+                        <div className="divide-y divide-gray-50">
                             {invitations.map(invite => (
-                                <div key={invite.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-orange-50/20 hover:bg-orange-50/40 transition-colors">
-                                    <div className="flex items-start gap-3">
-                                        <div className="mt-1.5 h-2.5 w-2.5 rounded-full bg-orange-500 ring-4 ring-orange-100 shrink-0" />
+                                <div key={invite.id} className="p-4 sm:p-5 flex items-center justify-between hover:bg-gray-50 transition-colors group">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center"><Mail className="h-5 w-5 text-orange-600" /></div>
                                         <div>
-                                            <p className="text-sm font-medium text-gray-900">{invite.email}</p>
+                                            <p className="font-medium text-gray-900">{invite.email}</p>
                                             <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-[10px] font-bold uppercase tracking-wider text-orange-700">Pending Invite</span>
-                                                <span className="text-[10px] text-gray-400">•</span>
-                                                <span className="text-xs text-gray-500 capitalize">{invite.role}</span>
+                                                <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wide border border-orange-100">Pending Invite</span>
+                                                <span className="text-xs text-gray-400">• {invite.role}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    {isAdmin && <Button variant="ghost" size="sm" onClick={() => handleRevokeInvite(invite.id)} className="text-gray-400 hover:text-red-600 hover:bg-red-50 self-end sm:self-center"><Trash2 className="h-4 w-4" /></Button>}
+                                    <Button variant="ghost" size="icon" onClick={() => handleRevokeInvite(invite.id)} className="text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="h-4 w-4" /></Button>
                                 </div>
                             ))}
 
                             {members.map(member => (
-                                <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group">
+                                <div key={member.id} className="p-4 sm:p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                     <div className="flex items-center gap-4">
-                                        <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold 
-                                            ${member.role === 'owner' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                                            {member.user?.name?.[0]?.toUpperCase() || 'U'}
-                                        </div>
-                                        <div className="flex flex-col gap-0.5">
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-semibold text-gray-900">{member.user?.name}</p>
-                                                {member.role === 'owner' && <Shield className="h-3 w-3 text-[#d97757]" />}
-                                            </div>
+                                        <AvatarPlaceholder name={member.user?.name} role={member.role} />
+                                        <div>
+                                            <p className="font-medium text-gray-900">{member.user?.name}</p>
                                             <p className="text-xs text-gray-500">{member.user?.email}</p>
                                         </div>
                                     </div>
-                                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border 
-                                        ${member.role === 'owner' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                                            member.role === 'admin' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                                        {member.role}
-                                    </span>
+                                    <div className="flex items-center gap-4">
+                                        <RoleBadge role={member.role} />
+                                        {isAdmin && <Button variant="ghost" size="icon" disabled className="text-gray-200"><MoreHorizontal className="h-4 w-4" /></Button>}
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                {/* --- RIGHT COLUMN: Settings Sidebar (Sticky) --- */}
-                <div className="space-y-6 xl:sticky xl:top-6 self-start">
-
-                    {/* 1. LIMITS & USAGE (RESOURCE AREA) */}
-                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                                <Users className="h-4 w-4 text-gray-400" /> Seat Usage
-                            </h4>
-                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
-                                {totalTeamCount} / {maxUsers}
-                            </span>
+                {/* RIGHT: Stats */}
+                <div className="space-y-6">
+                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-gray-50 rounded-lg"><BarChart3 className="h-5 w-5 text-gray-700" /></div>
+                            <h3 className="font-bold text-gray-900">Plan Usage</h3>
                         </div>
-                        <Progress value={calculatePercent(totalTeamCount, maxUsers)} indicatorColor={calculatePercent(totalTeamCount, maxUsers) >= 100 ? "bg-red-500" : "bg-green-500"} className="mb-6 h-2" />
-
-                        <div className="h-px bg-gray-100 my-5" />
-
-                        <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <BarChart3 className="h-4 w-4 text-gray-400" /> Resource Usage
-                        </h4>
-
-                        {/* Item Usage (From DB Column) */}
-                        <div className="mb-4">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs text-gray-500">Inventory Items</span>
-                                <span className="text-xs font-bold text-gray-900">{currentItems} / {maxItems >= 10000 ? '∞' : maxItems}</span>
+                        <div className="space-y-6">
+                            <div>
+                                <div className="flex justify-between items-end mb-2">
+                                    <span className="text-sm font-medium text-gray-600">Seat Tokens</span>
+                                    <span className={`text-sm font-bold ${isSeatsFull ? 'text-red-600' : 'text-gray-900'}`}>{currentSeats}<span className="text-gray-400 font-normal">/{maxSeats}</span></span>
+                                </div>
+                                <Progress value={calculatePercent(currentSeats, maxSeats)} className="h-2" indicatorColor={isSeatsFull ? "bg-red-500" : "bg-gray-900"} />
                             </div>
-                            {maxItems < 10000 && <Progress value={calculatePercent(currentItems, maxItems)} className="h-1.5" indicatorColor="bg-[#d97757]" />}
-                        </div>
-
-                        {/* Client Usage (From Props/DB Column) */}
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs text-gray-500">Client Families</span>
-                                <span className="text-xs font-bold text-gray-900">
-                                    {currentClients} / {usageStats?.isUnlimited ? '∞' : maxClients}
-                                </span>
+                            <div className="h-px bg-gray-100" />
+                            <div className="space-y-4">
+                                <StatRow label="Inventory Items" current={currentItems} max={maxItems} color="bg-[#d97757]" />
+                                <StatRow label="Registered Families" current={currentClients} max={maxClients} color="bg-blue-600" />
                             </div>
-                            {!usageStats?.isUnlimited && (
-                                <Progress 
-                                    value={calculatePercent(currentClients, maxClients)} 
-                                    className="h-1.5" 
-                                    indicatorColor={calculatePercent(currentClients, maxClients) > 90 ? "bg-red-500" : "bg-blue-600"} 
-                                />
-                            )}
                         </div>
-
-                        {isAdmin && (
-                            <Button variant="ghost" size="sm" className="w-full mt-5 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50 h-8 font-medium" onClick={() => document.querySelector('[data-tab="billing"]')?.click()}>
-                                Increase Limits &rarr;
-                            </Button>
-                        )}
                     </div>
 
-                    {/* 2. WORKFLOW SETTINGS */}
-                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-                        <div className="flex items-center gap-2 text-gray-900 mb-4">
-                            <Zap className="h-4 w-4 text-[#d97757]" />
-                            <h3 className="font-semibold text-sm">Workflow Settings</h3>
+                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="p-2 bg-[#d97757]/10 rounded-lg"><Zap className="h-5 w-5 text-[#d97757]" /></div>
+                            <h3 className="font-bold text-gray-900">Workflow</h3>
                         </div>
-
                         <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium text-gray-700">Fast Speed Mode</Label>
-                            <div className="flex items-center gap-2">
-                                {isUpdatingSettings && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
-                                <Switch
-                                    checked={isFastMode}
-                                    onCheckedChange={handleFastModeToggle}
-                                    disabled={!isAdmin || isUpdatingSettings}
-                                    className="data-[state=checked]:bg-[#d97757]"
-                                />
+                            <div className="space-y-1">
+                                <Label className="text-sm font-semibold text-gray-900 cursor-pointer" htmlFor="fast-mode">Fast Check-in</Label>
+                                <p className="text-xs text-gray-500 leading-tight pr-4">Skips data collection. Best for high-traffic days.</p>
                             </div>
+                            <Switch id="fast-mode" checked={isFastMode} onCheckedChange={handleFastModeToggle} disabled={!isAdmin || isUpdatingSettings} className="data-[state=checked]:bg-[#d97757]" />
                         </div>
-
-                        <p className="text-xs text-gray-500 mt-2 leading-relaxed">
-                            Hides client tracking to speed up distribution.
-                        </p>
-
-                        <div className={`mt-4 px-3 py-2 rounded-lg text-[10px] font-medium border flex items-center gap-2 ${isFastMode ? 'bg-orange-50 text-orange-800 border-orange-100' : 'bg-gray-50 text-gray-600 border-gray-100'}`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${isFastMode ? 'bg-orange-500 animate-pulse' : 'bg-gray-400'}`} />
-                            {isFastMode ? "Client Tracking HIDDEN" : "Client Tracking VISIBLE"}
-                        </div>
-                    </div>
-
-                    {/* 3. DATA EXPORTS */}
-                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-                        <div className="flex items-center gap-2 text-gray-900 mb-4">
-                            <FileDown className="h-4 w-4 text-[#d97757]" />
-                            <h3 className="font-semibold text-sm">Data Exports</h3>
-                        </div>
-
-                        <div className="space-y-3">
-                            <div className="flex gap-2">
-                                <Button variant="outline" size="sm" disabled={!hasProFeatures || downloading} onClick={() => handleExport('inventory')} className="flex-1 text-xs h-9 border-gray-200 shadow-sm">
-                                    {downloading === 'inventory' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Inventory CSV'}
-                                </Button>
-                                {!hasProFeatures && <Lock className="h-4 w-4 text-gray-300 self-center" />}
-                            </div>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={!hasProFeatures || downloading}
-                                    onClick={() => handleExport('clients')}
-                                    className="flex-1 text-xs h-9 border-gray-200 shadow-sm"
-                                >
-                                    {downloading === 'clients' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Client List CSV'}
-                                </Button>
-                                {!hasProFeatures && <Lock className="h-4 w-4 text-gray-300 self-center" />}
-                            </div>
-                        </div>
-                        {!hasProFeatures && (
-                            <p className="text-[10px] text-gray-400 mt-3 text-center italic">Upgrade to Pro to export data.</p>
-                        )}
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+// --- SUB-COMPONENTS ---
+
+function AvatarPlaceholder({ name, role }) {
+    const initial = name?.[0]?.toUpperCase() || 'U';
+    const isOwner = role === 'owner';
+    const isAdmin = role === 'admin';
+    const bgClass = isOwner ? 'bg-purple-100 text-purple-700' : isAdmin ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600';
+    return (
+        <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${bgClass}`}>
+            {isOwner ? <Crown className="h-4 w-4" /> : initial}
+        </div>
+    );
+}
+
+function RoleBadge({ role }) {
+    const styles = {
+        owner: "bg-purple-50 text-purple-700 border-purple-100",
+        admin: "bg-gray-100 text-gray-700 border-gray-200",
+        volunteer: "bg-green-50 text-green-700 border-green-100"
+    };
+    return (
+        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${styles[role] || styles.volunteer}`}>
+            {role}
+        </span>
+    );
+}
+
+function StatRow({ label, current, max, color }) {
+    const isUnlimited = max >= 100000;
+    const percent = isUnlimited ? 0 : Math.min((current / max) * 100, 100);
+    return (
+        <div>
+            <div className="flex justify-between items-end mb-1.5">
+                <span className="text-xs text-gray-500 font-medium">{label}</span>
+                <span className="text-xs font-bold text-gray-700">{current} / {isUnlimited ? '∞' : max}</span>
+            </div>
+            {!isUnlimited && <Progress value={percent} className="h-1.5 bg-gray-100" indicatorColor={color} />}
         </div>
     );
 }
