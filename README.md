@@ -1,108 +1,138 @@
-Certainly! Here’s a professional, clear, and modern **README.md** for your project, tailored for your WebVerse freelance web development app, with instructions for both users and developers.
+# 🍎 Food Arca
 
-# WebVerse
+**Modern Inventory & Client Management for Food Pantries.**
 
-**WebVerse** is a modern, full-stack freelance web development platform built with Next.js (App Router), React, Tailwind CSS, and Vercel serverless functions. It features a high-performance, mobile-friendly frontend, a customizable contact form powered by Resend, and a developer-friendly, scalable architecture.
+Food Arca is a comprehensive SaaS platform designed to streamline operations for food banks and pantries. It combines real-time inventory tracking, client distribution management, and automated alerts into a unified, easy-to-use dashboard.
 
-## 🚀 Features
+Built with **Next.js 14**, it leverages a hybrid database architecture (Supabase + MongoDB) to offer robust authentication, scalable data storage, and seamless subscription billing via Stripe.
 
-- **Modern Next.js App Router architecture**
-- **Mobile-first, responsive design** (Tailwind CSS)
-- **Animated UI** with Framer Motion
-- **Dynamic template showcase** with modern blue gradients
-- **Contact form** with email delivery via [Resend](https://resend.com/)
-- **SEO optimized** with full meta tags and Open Graph
-- **Dark/light mode toggle** (supports system preference)
-- **Serverless API** for secure form handling
+---
 
-- **Frontend:** Next.js (App Router), React, Tailwind CSS, Framer Motion
-- **Backend/API:** Vercel Serverless Functions (Next.js API routes)
-- **Email:** Resend transactional email API
-- **Deployment:** Vercel
+## ✨ Key Features
 
-## ⚡️ Getting Started
+### 📦 Inventory Management
 
-### 1. **Clone the Repository**
+* **Real-time Tracking:** Monitor stock levels, expiration dates, and categories.
+* **Barcode Scanning:** Integrated scanner for quick item lookups and additions.
+* **Smart Alerts:** Automated notifications for low stock and expiring items.
+
+### 👥 Client & Distribution
+
+* **Family Tracking:** Manage client profiles, family sizes, and visit history.
+* **Digital Distribution:** streamlined "checkout" process for logging food distributions.
+* **Limits & Quotas:** Enforce visit limits based on pantry rules.
+
+### ⚙️ Organization & Billing
+
+* **Multi-Tenancy:** Switch between different pantry organizations easily.
+* **Role-Based Access:** Secure permissions for admins and volunteers.
+* **Subscription Management:** Integrated Stripe billing for Pilot vs. Pro tiers.
+
+---
+
+## 🛠 Tech Stack
+
+* **Framework:** [Next.js 14](https://nextjs.org/) (App Router)
+* **Styling:** [Tailwind CSS](https://tailwindcss.com/) & [Shadcn UI](https://ui.shadcn.com/)
+* **Authentication:** [Supabase Auth](https://supabase.com/)
+* **Databases:**
+* **PostgreSQL (Supabase):** User auth, organizations, and relational data.
+* **MongoDB:** High-volume inventory and distribution logs.
+
+
+* **Payments:** [Stripe](https://stripe.com/)
+* **Animations:** [Framer Motion](https://www.framer.com/motion/)
+
+---
+
+## 🚀 Getting Started
+
+Follow these steps to set up the project locally.
+
+### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/webverse.git
-cd webverse
+git clone https://github.com/your-username/food-arca.git
+cd food-arca
+
 ```
 
-### 2. **Install Dependencies**
+### 2. Install Dependencies
 
 ```bash
 npm install
-```
-
-### 3. **Set Up Environment Variables**
-
-Create a `.env.local` file in the root directory and add your Resend API key:
 
 ```
-RESEND_API_KEY=your_resend_api_key_here
+
+### 3. Configure Environment Variables
+
+Create a `.env.local` file in the root directory and add the following keys:
+
+```env
+# Supabase (Auth & Core Data)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# MongoDB (Inventory Data)
+MONGODB_URI=your_mongodb_connection_string
+
+# Stripe (Billing)
+STRIPE_SECRET_KEY=your_stripe_secret_key
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+
+# App URL
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
 ```
 
-### 4. **Run the Development Server**
+### 4. Run the Development Server
 
 ```bash
 npm run dev
-```
-
-Visit [http://localhost:3000](http://localhost:3000) to view the app.
-
-## 📬 Contact Form API
-
-- The contact form submits to `/api/send-email` (Next.js App Router API route).
-- The API route is located at:  
-  ```
-  app/api/send-email/route.js
-  ```
-- Uses [Resend](https://resend.com/) to deliver form submissions to your email.
-
-## 🏗️ Project Structure
 
 ```
-app/
-  api/
-    send-email/
-      route.js      # Serverless API for contact form
-  page.js           # Main entry page
-  layout.js         # App layout
-components/
-  ...               # Reusable UI components
-public/
-  ...               # Static assets
-tailwind.config.js
-```
 
-## 🌐 Deployment
+Open [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) with your browser to see the result.
 
-### Deploy to [Vercel](https://vercel.com/)
+---
 
-1. **Push your code to GitHub** (or GitLab/Bitbucket).
-2. **Import your repo on Vercel**.
-3. **Set the environment variable** (`RESEND_API_KEY`) in the Vercel dashboard.
-4. **Deploy!**  
-   Vercel will automatically build and serve both your frontend and API routes.
+## 📂 Project Structure
 
-## ✨ Customization
+Here is a quick overview of the top-level directory structure:
 
-- **Templates:**  
-  Edit the `templates` array in your code to showcase your own website templates or protocols.
-- **Contact Email:**  
-  Update the `to:` field in `app/api/send-email/route.js` to your preferred email address.
-- **Branding:**  
-  Replace logos, colors, and images in the `/public` folder and Tailwind config.
-
-## 🧑‍💻 About the Developer
-
-Created by [WebVerse]a freelance web developer specializing in custom, high-performance websites for small businesses, e-commerce, and sustainable brands in North Carolina and beyond.[1]
+* **`/app`**: Next.js App Router pages and API routes.
+* **`/api`**: Backend endpoints (Notifications, Barcode, Stripe, etc.).
+* **`/dashboard`**: Protected main application views.
+* **`/auth`**: Authentication handlers.
 
 
-**Questions?**  
-Open an issue or [contact me directly]
+* **`/components`**: Reusable UI components.
+* **`/layout`**: Sidebar, TopBar, and layout wrappers.
+* **`/pages`**: Specific views for Inventory, Clients, and Settings.
+* **`/ui`**: Base UI elements (Buttons, Inputs, Modals).
 
-Let me know if you'd like to add badges, more screenshots, or a section for FAQ!
 
-[1] work.freelance_web_development
+* **`/lib`**: Backend utilities.
+* `db.js`: MongoDB connection logic.
+* `models/`: Mongoose schemas (FoodItem, Client, etc.).
+
+
+* **`/utils`**: Helper functions and Supabase client generators.
+
+---
+
+## 🔔 Notification System
+
+Food Arca features an intelligent notification center located in the TopBar. It aggregates critical alerts from multiple sources:
+
+1. **Inventory Health:** Warns when items are expiring (MongDB).
+2. **Usage Limits:** Alerts when client or item quotas are reached (Supabase).
+3. **Billing Status:** Prompts for upgrades when subscription tiers are exceeded.
+
+---
+
+## 📄 License
+
+This project is proprietary software. All rights reserved.
