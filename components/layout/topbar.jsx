@@ -337,7 +337,7 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                                                 >
                                                     <div className="flex gap-3 items-start">
                                                         <div className={`mt-0.5 h-9 w-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm border 
-                              ${isCritical ? 'bg-red-50 border-red-100 text-red-600' : 'bg-orange-50 border-orange-100 text-orange-600'}`}>
+                                            ${isCritical ? 'bg-red-50 border-red-100 text-red-600' : 'bg-orange-50 border-orange-100 text-orange-600'}`}>
                                                             <Icon className="h-4 w-4" />
                                                         </div>
                                                         <div>
@@ -351,7 +351,7 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                                                 {/* X Button - Positioned Absolute */}
                                                 <button
                                                     onClick={(e) => handleDismiss(e, note.id)}
-                                                    className="absolute top-3 right-3 z-50 p-1.5 rounded-full text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-all opacity-0 group-hover:opacity-100"
+                                                    className="absolute top-3 right-3 z-50 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
                                                 >
                                                     <XIcon className="h-3.5 w-3.5" />
                                                 </button>

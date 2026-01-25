@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
     Loader2, Mail, User, CheckCircle2, Plus, Copy, MapPin, Trash2,
-    BarChart3, Zap, Users, Crown, Building2, MoreHorizontal, Lock
+    BarChart3, Zap, Users, Crown, Building2, MoreHorizontal, Lock,
+    FileText, Download // ✅ Added Icons
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
@@ -19,12 +20,15 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
     // --- STATE ---
     const [members, setMembers] = useState([]);
     const [invitations, setInvitations] = useState([]);
-    
+
     // UI States
     const [copied, setCopied] = useState(false);
     const [isFastMode, setIsFastMode] = useState(false);
     const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
-    
+
+    // ✅ NEW: Export State
+    const [isExporting, setIsExporting] = useState(false);
+
     // Modal State
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
@@ -36,7 +40,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
 
     // --- LOGIC ---
     const isAdmin = userRole === 'admin' || userRole === 'owner';
-    // ✅ Check if on Pilot Plan
+    // Check if on Pilot Plan
     const isPilot = details?.subscription_tier === 'pilot';
 
     // SEAT TOKENS
@@ -86,7 +90,6 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
 
     // --- ACTIONS ---
     const handleInviteClick = () => {
-        // ✅ Intercept click if on Pilot plan
         if (isPilot) {
             setShowUpgradeModal(true);
             return;
@@ -177,16 +180,55 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
         }
     };
 
+    // ✅ NEW: Handle CSV Export
+    // ✅ UPDATED: Accepts 'inventory' or 'clients'
+    const handleExportReport = async (type) => {
+        if (!isAdmin) return;
+
+        if (!hasProFeatures) {
+            setShowUpgradeModal(true);
+            return;
+        }
+
+        setIsExporting(true);
+        try {
+            // ✅ Dynamic URL based on button click
+            const response = await fetch(`/api/export?type=${type}`, {
+                method: 'GET',
+                headers: { 'x-pantry-id': pantryId }
+            });
+
+            if (!response.ok) throw new Error('Failed to generate report');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            // ✅ Filename matches the type (e.g. Clients-2023-10-25.csv)
+            a.download = `${type.charAt(0).toUpperCase() + type.slice(1)}_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+        } catch (error) {
+            console.error(error);
+            alert("Error exporting report. Please try again.");
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-20">
-            {/* ✅ MODAL INJECTION */}
-            <UpgradeModal 
-                isOpen={showUpgradeModal} 
-                onClose={() => setShowUpgradeModal(false)} 
-                currentTier={details?.subscription_tier} 
+            {/* MODAL INJECTION */}
+            <UpgradeModal
+                isOpen={showUpgradeModal}
+                onClose={() => setShowUpgradeModal(false)}
+                currentTier={details?.subscription_tier}
             />
-            
-            {/* HERO: IDENTITY CARD */}
+
+            {/* HERO: IDENTITY CARD (No Changes) */}
             <div className="relative bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm flex flex-col lg:flex-row justify-between lg:items-center gap-6 overflow-hidden">
                 <div className="absolute -top-10 -right-10 w-64 h-64 bg-orange-50 rounded-full blur-3xl opacity-50 pointer-events-none" />
                 <div className="relative z-10 space-y-2">
@@ -228,7 +270,8 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
 
             {/* MAIN GRID */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                {/* LEFT: Team Management */}
+
+                {/* LEFT: Team Management (No Changes) */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
                         <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/30">
@@ -236,13 +279,13 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                                 <h3 className="font-bold text-gray-900 flex items-center gap-2 text-lg">Team Members</h3>
                                 <p className="text-sm text-gray-500 mt-0.5">Manage access and roles.</p>
                             </div>
-                            
+
                             {isAdmin && !showInviteForm && (
-                                <Button 
-                                    onClick={handleInviteClick} 
-                                    disabled={isSeatsFull && !isPilot} // Don't disable if Pilot (we want them to click to upgrade)
+                                <Button
+                                    onClick={handleInviteClick}
+                                    disabled={isSeatsFull && !isPilot}
                                     className={`shadow-sm transition-all ${isSeatsFull && !isPilot
-                                        ? 'bg-gray-100 text-gray-400 border border-gray-200' 
+                                        ? 'bg-gray-100 text-gray-400 border border-gray-200'
                                         : 'bg-white text-gray-900 border border-gray-200 hover:border-[#d97757] hover:text-[#d97757]'}`}
                                 >
                                     {isPilot ? <Lock className="h-4 w-4 mr-2 text-orange-500" /> : <Plus className="h-4 w-4 mr-2" />}
@@ -257,17 +300,16 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                                     <div className="flex flex-col md:flex-row gap-3">
                                         <div className="flex-1 space-y-1">
                                             <Label className="text-xs font-semibold text-gray-500 uppercase">Email Address</Label>
-                                            <Input 
-                                                placeholder="colleague@example.com" 
-                                                value={inviteEmail} 
-                                                onChange={e => setInviteEmail(e.target.value)} 
-                                                className="bg-white border-gray-200 focus-visible:ring-[#d97757]" 
-                                                autoFocus 
+                                            <Input
+                                                placeholder="colleague@example.com"
+                                                value={inviteEmail}
+                                                onChange={e => setInviteEmail(e.target.value)}
+                                                className="bg-white border-gray-200 focus-visible:ring-[#d97757]"
+                                                autoFocus
                                             />
                                         </div>
                                         <div className="w-full md:w-40 space-y-1">
                                             <Label className="text-xs font-semibold text-gray-500 uppercase">Role</Label>
-                                            {/* ✅ FIX: Added bg-white and z-50 to SelectContent */}
                                             <Select value={inviteRole} onValueChange={setInviteRole}>
                                                 <SelectTrigger className="bg-white border-gray-200"><SelectValue /></SelectTrigger>
                                                 <SelectContent className="bg-white z-50 shadow-lg border-gray-200">
@@ -354,19 +396,60 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                         <div className="flex items-center justify-between">
                             <div className="space-y-1">
                                 <Label className="text-sm font-semibold text-gray-900 cursor-pointer" htmlFor="fast-mode">Fast Check-in</Label>
-                                <p className="text-xs text-gray-500 leading-tight pr-4">Skips data collection. Best for high-traffic days.</p>
+                                <p className="text-xs text-gray-500 leading-tight pr-4">Skips Client Registration. Best for high-traffic days.</p>
                             </div>
                             <Switch id="fast-mode" checked={isFastMode} onCheckedChange={handleFastModeToggle} disabled={!isAdmin || isUpdatingSettings} className="data-[state=checked]:bg-[#d97757]" />
                         </div>
                     </div>
+
+                    {/* ✅ NEW: Grant Reporting Card (Only for Admins) */}
+                    {/* ✅ NEW: Grant Reporting Card (Two Buttons) */}
+                    {isAdmin && (
+                        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="p-2 bg-blue-50 rounded-lg"><FileText className="h-5 w-5 text-blue-600" /></div>
+                                <h3 className="font-bold text-gray-900">Grant Compliance</h3>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                                Export your data for federal and state grant reporting.
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* BUTTON 1: CLIENTS */}
+                                <Button
+                                    onClick={() => handleExportReport('clients')} // <--- Passes 'clients'
+                                    disabled={isExporting}
+                                    variant={hasProFeatures ? "outline" : "default"}
+                                    className={`w-full group ${!hasProFeatures && 'bg-[#1C1917] hover:bg-[#000]'}`}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        {isExporting ? <Loader2 className="animate-spin h-4 w-4" /> : hasProFeatures ? <Users className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                                        {hasProFeatures ? 'Clients' : 'Unlock'}
+                                    </span>
+                                </Button>
+
+                                {/* BUTTON 2: INVENTORY */}
+                                <Button
+                                    onClick={() => handleExportReport('inventory')} // <--- Passes 'inventory'
+                                    disabled={isExporting}
+                                    variant={hasProFeatures ? "outline" : "default"}
+                                    className={`w-full group ${!hasProFeatures && 'bg-[#1C1917] hover:bg-[#000]'}`}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        {isExporting ? <Loader2 className="animate-spin h-4 w-4" /> : hasProFeatures ? <Download className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                                        {hasProFeatures ? 'Inventory' : 'Unlock'}
+                                    </span>
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 }
 
-// --- SUB-COMPONENTS ---
-
+// ... Sub-components remain the same ...
 function AvatarPlaceholder({ name, role }) {
     const initial = name?.[0]?.toUpperCase() || 'U';
     const isOwner = role === 'owner';

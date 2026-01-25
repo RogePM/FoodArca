@@ -32,7 +32,7 @@ export async function GET(req) {
     if (!dbError && pantry) {
       const clientLimit = pantry.max_clients_limit;
       const currentClients = pantry.total_families_created;
-      
+
       if (currentClients >= clientLimit) {
         alerts.push({
           id: 'limit-clients-crit',
@@ -41,7 +41,7 @@ export async function GET(req) {
           message: `You have reached the limit of ${clientLimit} families. Upgrade to add more.`,
           action: 'Upgrade', // Button text
           // 👇 MATCHES Sidebar 'view' exactly
-          targetView: 'Settings' 
+          targetView: 'Settings'
         });
       } else if (currentClients >= clientLimit * 0.9) {
         alerts.push({
@@ -55,38 +55,40 @@ export async function GET(req) {
       }
 
       if (pantry.subscription_tier === 'pilot') {
-         const itemLimit = pantry.max_items_limit;
-         const currentItems = pantry.total_items_created;
+        const itemLimit = pantry.max_items_limit;
+        const currentItems = pantry.total_items_created;
 
-         if (currentItems >= itemLimit) {
-            alerts.push({
-                id: 'limit-items-crit',
-                type: 'critical',
-                title: 'Item Limit Reached',
-                message: `You reached the ${itemLimit} item limit. Upgrade to Pro.`,
-                action: 'Upgrade',
-                targetView: 'Settings'
-            });
-         }
+        if (currentItems >= itemLimit) {
+          alerts.push({
+            id: 'limit-items-crit',
+            type: 'critical',
+            title: 'Item Limit Reached',
+            message: `You reached the ${itemLimit} item limit. Upgrade to Pro.`,
+            action: 'Upgrade',
+            targetView: 'Settings'
+          });
+        }
       }
     }
 
     // --- CHECK 2: MONGODB (Expiring Goods) ---
     await connectDB();
-    
+
     const today = new Date();
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(today.getDate() + 7);
 
+    // Fetch the actual items
     const expiringItems = await FoodItem.find({
       pantryId: pantryId,
       quantity: { $gt: 0 },
-      expirationDate: { 
-        $gte: today, 
-        $lte: sevenDaysFromNow 
+      expirationDate: {
+        $gte: today,
+        $lte: sevenDaysFromNow
       }
-    }).select('name expirationDate').limit(5);
+    }).select('name quantity unit expirationDate').limit(5).lean(); // Added .lean() for performance
 
+    // Create the alert summary
     if (expiringItems.length > 0) {
       alerts.push({
         id: 'expiry-alert',
@@ -94,31 +96,29 @@ export async function GET(req) {
         title: 'Expiring Soon',
         message: `${expiringItems.length} items expire this week.`,
         action: 'Check Stock',
-        // 👇 MATCHES Sidebar 'view' exactly
-        targetView: 'View Inventory' 
+        targetView: 'View Inventory'
       });
     }
 
     const expiredItems = await FoodItem.countDocuments({
-        pantryId: pantryId,
-        quantity: { $gt: 0 },
-        expirationDate: { $lt: today }
+      pantryId: pantryId,
+      quantity: { $gt: 0 },
+      expirationDate: { $lt: today }
     });
 
     if (expiredItems > 0) {
-        alerts.push({
-            id: 'expired-crit',
-            type: 'critical',
-            title: 'Expired Stock',
-            message: `${expiredItems} items are past expiration.`,
-            action: 'Remove Items',
-            // 👇 MATCHES Sidebar 'view' exactly
-            targetView: 'View Inventory'
-        });
+      alerts.push({
+        id: 'expired-crit',
+        type: 'critical',
+        title: 'Expired Stock',
+        message: `${expiredItems} items are past expiration.`,
+        action: 'Remove Items',
+        // 👇 MATCHES Sidebar 'view' exactly
+        targetView: 'View Inventory'
+      });
     }
 
-    return NextResponse.json({ alerts });
-
+    return NextResponse.json({ alerts, expiringItems });
   } catch (error) {
     console.error('Notification API Error:', error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });

@@ -8,12 +8,12 @@ import {
   Menu, X, Check, ArrowRight, Leaf,
   Users, Timer, ScanBarcode, RefreshCw, Smartphone,
   LockIcon, Package2Icon, UserCircle, ArrowUp,
-  Mail, MapPin, AlertCircle, FileText, XCircle, ShieldCheck, Layout, ChevronDown 
+  Mail, MapPin, AlertCircle, FileText, XCircle, ShieldCheck, Layout, ChevronDown
 } from 'lucide-react';
 import Link from 'next/link';
 import NavBar from '@/app/frontNav/NavBar'; // Adjust path if your folder is different
 import DevicesSection from '@/app/Frontend/DevicesSection';
-
+import { PLANS } from '@/lib/plans'; // <--- Import this
 
 
 // --- Animation Imports ---
@@ -30,6 +30,9 @@ const GoogleIcon = () => (
     <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.23-2.22,4.143-4.162,5.571l6.19,5.238C42.012,35.319,44,30.02,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
   </svg>
 );
+// Helper to format numbers (e.g. 1000 -> 1,000)
+const fmt = (n) => n.toLocaleString();
+
 
 export default function LandingPage() {
   const router = useRouter();
@@ -321,10 +324,10 @@ export default function LandingPage() {
         </div>
       </main>
       {/* --- SECTION 2: INVENTORY (Concise Copy & Animated) --- */}
-    {/* --- SECTION 2: INVENTORY (Concise Copy & Animated) --- */}
+      {/* --- SECTION 2: INVENTORY (Concise Copy & Animated) --- */}
       <section id="inventory" className="fade-section min-h-screen py-24 bg-[#F5F5F4] flex flex-col justify-center scroll-mt-20">
         <div className="container mx-auto px-6">
-        
+
           {/* --- 1. HEADER --- */}
           <div className="mb-20 text-center max-w-3xl mx-auto">
             <h2 className="text-4xl md:text-5xl font-serif text-[#1C1917] mb-6">
@@ -336,22 +339,21 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-          
+
             {/* --- 2. LEFT COLUMN: IMPROVED DYNAMIC IMAGES --- */}
             <div id="inventory-image-container" className="lg:col-span-5 relative group order-2 lg:order-1">
               {/* Ambient Glow */}
               <div className="absolute -inset-1 bg-gradient-to-r from-[#D97757]/20 to-purple-500/20 rounded-[2.5rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
-            
+
               <div className="relative bg-white rounded-[2.5rem] p-3 shadow-2xl shadow-[#D6D3D1]/50 overflow-hidden h-[500px] border border-[#E7E5E4]">
                 <div className="relative w-full h-full rounded-[2rem] overflow-hidden">
                   {inventoryTabs.map((tab, index) => (
                     <div
                       key={index}
-                      className={`absolute inset-0 transition-all duration-700 ease-in-out ${
-                        activeInventoryTab === index 
-                          ? 'opacity-100 scale-100 translate-y-0 z-10' 
+                      className={`absolute inset-0 transition-all duration-700 ease-in-out ${activeInventoryTab === index
+                          ? 'opacity-100 scale-100 translate-y-0 z-10'
                           : 'opacity-0 scale-105 translate-y-4 z-0'
-                      }`}
+                        }`}
                     >
                       <Image
                         src={tab.image}
@@ -375,41 +377,36 @@ export default function LandingPage() {
                 {inventoryTabs.map((tab, index) => (
                   <div
                     key={index}
-                    className={`inventory-item group rounded-3xl transition-all duration-300 border ${
-                      activeInventoryTab === index
+                    className={`inventory-item group rounded-3xl transition-all duration-300 border ${activeInventoryTab === index
                         ? 'bg-white shadow-xl shadow-[#D6D3D1]/30 border-[#E7E5E4]'
                         : 'bg-transparent border-transparent hover:bg-white/40'
-                    }`}
+                      }`}
                   >
                     <button
                       onClick={() => setActiveInventoryTab(index)}
                       className="w-full flex items-start gap-6 p-6 text-left focus:outline-none"
                     >
                       {/* Icon Box */}
-                      <div className={`shrink-0 p-3 rounded-2xl transition-all duration-300 ${
-                        activeInventoryTab === index
+                      <div className={`shrink-0 p-3 rounded-2xl transition-all duration-300 ${activeInventoryTab === index
                           ? 'bg-[#D97757] text-white shadow-lg shadow-[#D97757]/20'
                           : 'bg-[#E7E5E4]/50 text-[#A8A29E] group-hover:text-[#D97757]'
-                      }`}>
+                        }`}>
                         <tab.icon size={24} />
                       </div>
 
                       <div className="flex-1 pt-1">
                         <div className="flex items-center justify-between">
-                          <h3 className={`text-xl font-serif transition-colors ${
-                            activeInventoryTab === index ? 'text-[#1C1917]' : 'text-[#78716C] group-hover:text-[#1C1917]'
-                          }`}>
+                          <h3 className={`text-xl font-serif transition-colors ${activeInventoryTab === index ? 'text-[#1C1917]' : 'text-[#78716C] group-hover:text-[#1C1917]'
+                            }`}>
                             {tab.title}
                           </h3>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${
-                            activeInventoryTab === index ? 'rotate-180 text-[#D97757]' : 'text-[#A8A29E]'
-                          }`} />
+                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${activeInventoryTab === index ? 'rotate-180 text-[#D97757]' : 'text-[#A8A29E]'
+                            }`} />
                         </div>
 
                         {/* Animated Height Description */}
-                        <div className={`grid transition-[grid-template-rows,opacity] duration-500 ease-in-out ${
-                          activeInventoryTab === index ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'
-                        }`}>
+                        <div className={`grid transition-[grid-template-rows,opacity] duration-500 ease-in-out ${activeInventoryTab === index ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'
+                          }`}>
                           <div className="overflow-hidden">
                             <p className="text-base font-light leading-relaxed text-[#57534E] pb-2">
                               {tab.desc}
@@ -658,24 +655,28 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* 0. UNIVERSAL FEATURES (Subtle) */}
+          {/* 0. UNIVERSAL FEATURES */}
           <div className="flex flex-wrap justify-center gap-4 md:gap-8 mb-16 text-sm text-[#78716C] font-light">
             <span className="flex items-center gap-2"><Smartphone size={16} /> Mobile Camera Scanning</span>
             <span className="flex items-center gap-2"><RefreshCw size={16} /> Real-Time Sync</span>
             <span className="flex items-center gap-2"><LockIcon size={16} /> Secure Cloud Storage</span>
           </div>
 
-          {/* 1. THE PILOT BANNER (The Hook) */}
+          {/* 1. THE PILOT BANNER (Dynamic) */}
           <div className="pricing-card max-w-4xl mx-auto bg-[#1C1917] rounded-[2rem] p-8 md:p-10 text-white shadow-2xl mb-16 relative overflow-hidden group hover:scale-[1.01] transition-transform duration-500">
             <div className="absolute top-0 right-0 w-64 h-64 bg-[#D97757]/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="text-center md:text-left">
                 <div className="inline-block bg-[#D97757] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4">Free Forever</div>
-                <h3 className="text-3xl md:text-4xl font-serif mb-2">Food Arca Pilot</h3>
-                <p className="text-[#A8A29E] font-light text-lg mb-4">Manage your first 50 items with <span className="text-white font-medium">ALL Pro Features</span>.</p>
+                <h3 className="text-3xl md:text-4xl font-serif mb-2">Food Arca {PLANS.pilot.name}</h3>
+                <p className="text-[#A8A29E] font-light text-lg mb-4">
+                  Manage your first {PLANS.pilot.limits.items} items with <span className="text-white font-medium">ALL Pro Features</span>.
+                </p>
                 <ul className="flex flex-wrap gap-4 justify-center md:justify-start text-sm text-[#D6D3D1]">
-                  <li className="flex items-center gap-2"><Check size={16} className="text-[#D97757]" /> CSV Exports</li>
-                  <li className="flex items-center gap-2"><Check size={16} className="text-[#D97757]" /> 10 Team Users</li>
+                  {PLANS.pilot.features.csv_export && (
+                    <li className="flex items-center gap-2"><Check size={16} className="text-[#D97757]" /> CSV Exports</li>
+                  )}
+                  <li className="flex items-center gap-2"><Check size={16} className="text-[#D97757]" /> {PLANS.pilot.limits.users} Team Users</li>
                   <li className="flex items-center gap-2"><Check size={16} className="text-[#D97757]" /> Client History</li>
                 </ul>
               </div>
@@ -688,37 +689,46 @@ export default function LandingPage() {
           {/* 2. THE CARDS (Grid) */}
           <div id="pricing-cards" className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch mb-24">
 
-            {/* Basic ($15) */}
+            {/* Basic Plan */}
             <div className="pricing-card bg-white/60 backdrop-blur-xl rounded-[2rem] p-8 border border-[#E7E5E4] flex flex-col h-full hover:border-[#D97757] transition-colors">
               <div className="mb-4"><span className="bg-[#E7E5E4] text-[#57534E] px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Starter</span></div>
-              <h3 className="text-2xl font-serif font-medium mb-2">Basic</h3>
-              <div className="mb-6"><span className="text-4xl font-serif">$15</span><span className="text-sm text-[#78716C]">/mo</span></div>
+              <h3 className="text-2xl font-serif font-medium mb-2">{PLANS.basic.name}</h3>
+              <div className="mb-6"><span className="text-4xl font-serif">${PLANS.basic.price}</span><span className="text-sm text-[#78716C]">/mo</span></div>
 
               <div className="space-y-4 mb-8 flex-1">
-                <div className="flex items-center gap-3 text-sm text-[#57534E]"><Package2Icon size={16} /> <strong>300</strong> Item Barcodes</div>
-                <div className="flex items-center gap-3 text-sm text-[#57534E]"><Users size={16} /> <strong>2</strong> Users (Admin+1)</div>
-                <div className="flex items-center gap-3 text-sm text-[#57534E]"><UserCircle size={16} /> <strong>100</strong> Family Profiles</div>
-                <div className="flex items-center gap-3 text-sm text-[#A8A29E] line-through decoration-[#D97757]"><XCircle size={16} /> View-Only (No Export)</div>
+                <div className="flex items-center gap-3 text-sm text-[#57534E]"><Package2Icon size={16} /> <strong>{fmt(PLANS.basic.limits.items)}</strong> Item Barcodes</div>
+                <div className="flex items-center gap-3 text-sm text-[#57534E]"><Users size={16} /> <strong>{PLANS.basic.limits.users}</strong> Users (Admin+1)</div>
+                <div className="flex items-center gap-3 text-sm text-[#57534E]"><UserCircle size={16} /> <strong>{fmt(PLANS.basic.limits.clients)}</strong> Family Profiles</div>
+
+                {PLANS.basic.features.csv_export ? (
+                  <div className="flex items-center gap-3 text-sm text-[#57534E]"><Check size={16} /> Data Export</div>
+                ) : (
+                  <div className="flex items-center gap-3 text-sm text-[#A8A29E] line-through decoration-[#D97757]"><XCircle size={16} /> View-Only (No Export)</div>
+                )}
               </div>
-              <button className="w-full py-3 rounded-xl border border-[#E7E5E4] hover:bg-[#1C1917] hover:text-white transition-all font-medium">Select Basic</button>
+              <button
+                onClick={handleSignIn}
+                className="w-full py-3 rounded-xl border border-[#E7E5E4] hover:bg-[#1C1917] hover:text-white transition-all font-medium">Select {PLANS.basic.name}</button>
             </div>
 
-            {/* Pro ($30) */}
+            {/* Pro Plan */}
             <div className="pricing-card bg-white rounded-[2rem] p-8 border-2 border-[#D97757] shadow-xl flex flex-col h-full relative transform md:-translate-y-4 z-10">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#D97757] text-white px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg">Most Popular</div>
-              <h3 className="text-2xl font-serif font-medium mb-2 mt-2">Pro</h3>
-              <div className="mb-6"><span className="text-4xl font-serif">$30</span><span className="text-sm text-[#78716C]">/mo</span></div>
+              <h3 className="text-2xl font-serif font-medium mb-2 mt-2">{PLANS.pro.name}</h3>
+              <div className="mb-6"><span className="text-4xl font-serif">${PLANS.pro.price}</span><span className="text-sm text-[#78716C]">/mo</span></div>
 
               <div className="space-y-4 mb-8 flex-1">
-                <div className="flex items-center gap-3 text-sm font-medium text-[#1C1917]"><Package2Icon size={16} className="text-[#D97757]" /> <strong>2,000</strong> Item Barcodes</div>
-                <div className="flex items-center gap-3 text-sm font-medium text-[#1C1917]"><Users size={16} className="text-[#D97757]" /> <strong>10</strong> Team Size</div>
-                <div className="flex items-center gap-3 text-sm font-medium text-[#1C1917]"><UserCircle size={16} className="text-[#D97757]" /> <strong>1,500</strong> Family Profiles</div>
+                <div className="flex items-center gap-3 text-sm font-medium text-[#1C1917]"><Package2Icon size={16} className="text-[#D97757]" /> <strong>{fmt(PLANS.pro.limits.items)}</strong> Item Barcodes</div>
+                <div className="flex items-center gap-3 text-sm font-medium text-[#1C1917]"><Users size={16} className="text-[#D97757]" /> <strong>{PLANS.pro.limits.users}</strong> Team Size</div>
+                <div className="flex items-center gap-3 text-sm font-medium text-[#1C1917]"><UserCircle size={16} className="text-[#D97757]" /> <strong>{fmt(PLANS.pro.limits.clients)}</strong> Family Profiles</div>
                 <div className="flex items-center gap-3 text-sm font-medium text-[#1C1917]"><Check size={16} className="text-[#D97757]" /> One-Click CSV Exports</div>
               </div>
-              <button className="w-full py-3 rounded-xl bg-[#D97757] text-white hover:bg-[#C26245] transition-all shadow-lg font-medium">Select Pro</button>
+              <button
+                onClick={handleSignIn}
+                className="w-full py-3 rounded-xl bg-[#D97757] text-white hover:bg-[#C26245] transition-all shadow-lg font-medium">Select {PLANS.pro.name}</button>
             </div>
 
-            {/* Enterprise */}
+            {/* Enterprise (Static) */}
             <div className="pricing-card bg-white/60 backdrop-blur-xl rounded-[2rem] p-8 border border-[#E7E5E4] flex flex-col h-full hover:border-[#D97757] transition-colors">
               <div className="mb-4"><span className="bg-[#1C1917] text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Network</span></div>
               <h3 className="text-2xl font-serif font-medium mb-2">Enterprise</h3>
@@ -730,63 +740,55 @@ export default function LandingPage() {
                 <div className="flex items-center gap-3 text-sm text-[#57534E]"><Check size={16} /> Unlimited Capacity</div>
                 <div className="flex items-center gap-3 text-sm text-[#57534E]"><Check size={16} /> Dedicated Support</div>
               </div>
-              <button className="w-full py-3 rounded-xl border border-[#E7E5E4] hover:bg-[#1C1917] hover:text-white transition-all font-medium">Contact Sales</button>
+              <a
+                href="mailto:support@foodarca.com"
+                className="w-full block text-center py-3 rounded-xl border border-[#E7E5E4] hover:bg-[#1C1917] hover:text-white transition-all font-medium"
+              >
+                Contact Sales
+              </a>
+
             </div>
 
           </div>
 
-          {/* 3. COMPARISON SECTION (Mobile Cards / Desktop Table) */}
+          {/* 3. COMPARISON SECTION (Linked to Data) */}
           <div className="max-w-5xl mx-auto">
             <h3 className="text-center font-serif text-2xl mb-8 text-[#1C1917]">Feature Comparison</h3>
 
             {/* --- MOBILE VIEW: Vertical Feature Lists --- */}
             <div className="md:hidden space-y-6">
-              {/* Free Pilot Card */}
+
+              {/* Pilot */}
               <div className="bg-white rounded-2xl p-6 border border-[#E7E5E4] shadow-sm">
-                <h4 className="font-serif text-lg text-[#1C1917] mb-4 border-b border-[#E7E5E4] pb-2">Free Pilot</h4>
+                <h4 className="font-serif text-lg text-[#1C1917] mb-4 border-b border-[#E7E5E4] pb-2">{PLANS.pilot.name}</h4>
                 <div className="space-y-3 text-sm text-[#57534E]">
-                  <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-medium">50 Items</span></div>
-                  <div className="flex justify-between"><span>Client Profiles</span> <span className="font-medium">Unlimited</span></div>
-                  <div className="flex justify-between"><span>Team Size</span> <span className="font-medium">10 Users</span></div>
-                  <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]" /></div>
-                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]" /></div>
+                  <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-medium">{fmt(PLANS.pilot.limits.items)} Items</span></div>
+                  <div className="flex justify-between"><span>Client Profiles</span> <span className="font-medium">{fmt(PLANS.pilot.limits.clients)}</span></div>
+                  <div className="flex justify-between"><span>Team Size</span> <span className="font-medium">{PLANS.pilot.limits.users} Users</span></div>
+                  <div className="flex justify-between items-center"><span>Data Exports</span> {PLANS.pilot.features.csv_export ? <Check size={16} className="text-[#D97757]" /> : <XCircle size={16} className="text-[#A8A29E]" />}</div>
                 </div>
               </div>
 
-              {/* Basic Card */}
+              {/* Basic */}
               <div className="bg-white rounded-2xl p-6 border border-[#E7E5E4] shadow-sm">
-                <h4 className="font-serif text-lg text-[#1C1917] mb-4 border-b border-[#E7E5E4] pb-2">Basic</h4>
+                <h4 className="font-serif text-lg text-[#1C1917] mb-4 border-b border-[#E7E5E4] pb-2">{PLANS.basic.name}</h4>
                 <div className="space-y-3 text-sm text-[#57534E]">
-                  <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-medium">300 Items</span></div>
-                  <div className="flex justify-between"><span>Client Profiles</span> <span className="font-medium">100 Families</span></div>
-                  <div className="flex justify-between"><span>Team Size</span> <span className="font-medium">2 Users</span></div>
-                  <div className="flex justify-between items-center"><span>Data Exports</span> <XCircle size={16} className="text-[#A8A29E]" /></div>
-                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]" /></div>
+                  <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-medium">{fmt(PLANS.basic.limits.items)} Items</span></div>
+                  <div className="flex justify-between"><span>Client Profiles</span> <span className="font-medium">{fmt(PLANS.basic.limits.clients)} Families</span></div>
+                  <div className="flex justify-between"><span>Team Size</span> <span className="font-medium">{PLANS.basic.limits.users} Users</span></div>
+                  <div className="flex justify-between items-center"><span>Data Exports</span> {PLANS.basic.features.csv_export ? <Check size={16} className="text-[#D97757]" /> : <XCircle size={16} className="text-[#A8A29E]" />}</div>
                 </div>
               </div>
 
-              {/* Pro Card (Highlighted) */}
+              {/* Pro */}
               <div className="bg-[#FAFAF9] rounded-2xl p-6 border-2 border-[#D97757] shadow-md relative">
                 <div className="absolute top-0 right-0 bg-[#D97757] text-white text-[10px] px-2 py-1 rounded-bl-lg font-bold uppercase">Best Value</div>
-                <h4 className="font-serif text-lg text-[#1C1917] mb-4 border-b border-[#D97757]/20 pb-2">Pro</h4>
+                <h4 className="font-serif text-lg text-[#1C1917] mb-4 border-b border-[#D97757]/20 pb-2">{PLANS.pro.name}</h4>
                 <div className="space-y-3 text-sm text-[#57534E]">
-                  <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-bold text-[#1C1917]">2,000 Items</span></div>
-                  <div className="flex justify-between"><span>Client Profiles</span> <span className="font-bold text-[#1C1917]">1,500 Families</span></div>
-                  <div className="flex justify-between"><span>Team Size</span> <span className="font-bold text-[#1C1917]">10 Users</span></div>
+                  <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-bold text-[#1C1917]">{fmt(PLANS.pro.limits.items)} Items</span></div>
+                  <div className="flex justify-between"><span>Client Profiles</span> <span className="font-bold text-[#1C1917]">{fmt(PLANS.pro.limits.clients)} Families</span></div>
+                  <div className="flex justify-between"><span>Team Size</span> <span className="font-bold text-[#1C1917]">{PLANS.pro.limits.users} Users</span></div>
                   <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]" /></div>
-                  <div className="flex justify-between items-center"><span>Multi-Location</span> <XCircle size={16} className="text-[#A8A29E]" /></div>
-                </div>
-              </div>
-
-              {/* Enterprise Card */}
-              <div className="bg-white rounded-2xl p-6 border border-[#E7E5E4] shadow-sm">
-                <h4 className="font-serif text-lg text-[#1C1917] mb-4 border-b border-[#E7E5E4] pb-2">Enterprise</h4>
-                <div className="space-y-3 text-sm text-[#57534E]">
-                  <div className="flex justify-between"><span>Inventory Limit</span> <span className="font-medium">Unlimited</span></div>
-                  <div className="flex justify-between"><span>Client Profiles</span> <span className="font-medium">Unlimited</span></div>
-                  <div className="flex justify-between"><span>Team Size</span> <span className="font-medium">Unlimited</span></div>
-                  <div className="flex justify-between items-center"><span>Data Exports</span> <Check size={16} className="text-[#D97757]" /></div>
-                  <div className="flex justify-between items-center"><span>Multi-Location</span> <Check size={16} className="text-[#D97757]" /></div>
                 </div>
               </div>
             </div>
@@ -797,38 +799,38 @@ export default function LandingPage() {
                 <thead>
                   <tr className="border-b border-[#E7E5E4]">
                     <th className="py-4 pl-4 font-serif text-lg bg-[#FAFAF9] sticky left-0 z-10">Feature</th>
-                    <th className="py-4 px-4 font-medium text-[#78716C]">Free Pilot</th>
-                    <th className="py-4 px-4 font-medium text-[#78716C]">Basic</th>
-                    <th className="py-4 px-4 font-bold text-[#D97757]">Pro</th>
+                    <th className="py-4 px-4 font-medium text-[#78716C]">{PLANS.pilot.name}</th>
+                    <th className="py-4 px-4 font-medium text-[#78716C]">{PLANS.basic.name}</th>
+                    <th className="py-4 px-4 font-bold text-[#D97757]">{PLANS.pro.name}</th>
                     <th className="py-4 px-4 font-medium text-[#78716C]">Enterprise</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm text-[#57534E]">
                   <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
                     <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Inventory Limit</td>
-                    <td className="px-4">50 Items</td>
-                    <td className="px-4">300 Items</td>
-                    <td className="px-4 font-bold text-[#1C1917]">2,000 Items</td>
+                    <td className="px-4">{fmt(PLANS.pilot.limits.items)} Items</td>
+                    <td className="px-4">{fmt(PLANS.basic.limits.items)} Items</td>
+                    <td className="px-4 font-bold text-[#1C1917]">{fmt(PLANS.pro.limits.items)} Items</td>
                     <td className="px-4">Unlimited</td>
                   </tr>
                   <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
                     <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Client Profiles</td>
-                    <td className="px-4">1,500 Families</td>
-                    <td className="px-4">100 Families</td>
-                    <td className="px-4 font-bold text-[#1C1917]">1,500 Families</td>
+                    <td className="px-4">{fmt(PLANS.pilot.limits.clients)} Families</td>
+                    <td className="px-4">{fmt(PLANS.basic.limits.clients)} Families</td>
+                    <td className="px-4 font-bold text-[#1C1917]">{fmt(PLANS.pro.limits.clients)} Families</td>
                     <td className="px-4">Unlimited</td>
                   </tr>
                   <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50">
                     <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Team Size</td>
-                    <td className="px-4">10 Users</td>
-                    <td className="px-4">2 Users</td>
-                    <td className="px-4 font-bold text-[#1C1917]">10 Users</td>
+                    <td className="px-4">{PLANS.pilot.limits.users} Users</td>
+                    <td className="px-4">{PLANS.basic.limits.users} Users</td>
+                    <td className="px-4 font-bold text-[#1C1917]">{PLANS.pro.limits.users} Users</td>
                     <td className="px-4">Unlimited</td>
                   </tr>
                   <tr className="border-b border-[#E7E5E4]/50 hover:bg-white/50 bg-[#D97757]/5">
                     <td className="py-4 pl-4 font-medium bg-[#FAFAF9] sticky left-0">Data Exports (CSV)</td>
-                    <td className="px-4 text-[#D97757]"><Check size={18} /></td>
-                    <td className="px-4 text-[#A8A29E]"><XCircle size={18} /></td>
+                    <td className="px-4 text-[#D97757]">{PLANS.pilot.features.csv_export ? <Check size={18} /> : <XCircle size={18} className="text-[#A8A29E]" />}</td>
+                    <td className="px-4 text-[#D97757]">{PLANS.basic.features.csv_export ? <Check size={18} /> : <XCircle size={18} className="text-[#A8A29E]" />}</td>
                     <td className="px-4 text-[#D97757]"><Check size={18} /></td>
                     <td className="px-4 text-[#D97757]"><Check size={18} /></td>
                   </tr>
@@ -844,7 +846,6 @@ export default function LandingPage() {
             </div>
 
           </div>
-
         </div>
       </section>
 
@@ -946,7 +947,7 @@ export default function LandingPage() {
               <ul className="space-y-4 text-sm text-[#78716C] mb-8">
                 <li className="flex items-center gap-2">
                   <Mail size={16} className="text-[#D97757] shrink-0" />
-                  <a href="mailto:rogeliopmdev@gmail.com" className="hover:text-[#D97757] transition-colors break-all">rogeliopmdev@gmail.com</a>
+                  <a href="mailto:support@foodarca.com" className="hover:text-[#D97757] transition-colors break-all">support@foodarca.com</a>
                 </li>
                 <li className="flex items-start gap-2">
                   <MapPin size={16} className="text-[#D97757] shrink-0 mt-0.5" />

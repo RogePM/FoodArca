@@ -20,7 +20,7 @@ async function authenticateAndVerify(req) {
   const pantryId = req.headers.get('x-pantry-id');
   if (!pantryId) return { valid: false, status: 400, message: 'Pantry ID required' };
 
-  // ✅ ACTION: Verify user belongs to the pantry they are trying to export from
+  // Verify membership
   const { data: membership, error: memberError } = await supabase
     .from('pantry_members')
     .select('is_active, role')
@@ -32,7 +32,7 @@ async function authenticateAndVerify(req) {
     return { valid: false, status: 403, message: 'Access Denied: Not a member' };
   }
 
-  // Also fetch the subscription tier for gatekeeping
+  // Fetch subscription tier
   const { data: pantry, error: pantryError } = await supabase
     .from('food_pantries')
     .select('subscription_tier')
@@ -41,11 +41,11 @@ async function authenticateAndVerify(req) {
 
   if (pantryError || !pantry) return { valid: false, status: 404, message: 'Pantry configuration not found' };
 
-  return { 
-    valid: true, 
-    user, 
-    pantryId, 
-    tier: pantry.subscription_tier 
+  return {
+    valid: true,
+    user,
+    pantryId,
+    tier: pantry.subscription_tier
   };
 }
 
@@ -54,7 +54,7 @@ export async function GET(req) {
     const auth = await authenticateAndVerify(req);
     if (!auth.valid) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-    // 1. GATEKEEPING: Only Pro, Pilot, or Enterprise can export
+    // 1. GATEKEEPING
     const allowedTiers = ['pro', 'pilot', 'enterprise'];
     if (!allowedTiers.includes(auth.tier)) {
       return NextResponse.json({ error: 'Upgrade required to export data.' }, { status: 403 });
@@ -62,49 +62,60 @@ export async function GET(req) {
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type'); // 'inventory' or 'clients'
-    
+
     await connectDB();
     let csvData = '';
     const filename = `${type}-${new Date().toISOString().split('T')[0]}.csv`;
 
-    // 2. DATA FETCHING (MongoDB)
+    // 2. DATA FETCHING
     if (type === 'inventory') {
       const items = await FoodItem.find({ pantryId: auth.pantryId }).lean();
-      
-      const headers = ['Name', 'Category', 'Quantity', 'Unit', 'Barcode', 'Location', 'Expiration', 'Notes'];
+
+      // ✅ UPDATED HEADERS to match your new model
+      const headers = ['Name', 'Category', 'Quantity', 'Unit', 'Weight/Unit', 'Barcode', 'Location', 'Expiration', 'Notes'];
+
       const rows = items.map(item => [
-        `"${item.name}"`,
+        `"${item.name.replace(/"/g, '""')}"`, // Escape quotes in names
         item.category,
         item.quantity,
         item.unit,
-        item.barcode || '',
+        item.weightPerUnit || 0, // ✅ NEW FIELD
+        item.barcode ? `"${item.barcode}"` : '', // Force string for barcodes
         `"${item.storageLocation || ''}"`,
         item.expirationDate ? new Date(item.expirationDate).toLocaleDateString() : '',
-        `"${item.notes || ''}"`
+        `"${(item.notes || '').replace(/"/g, '""')}"` // ✅ NEW FIELD (Escaped)
       ]);
-      
+
       csvData = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
 
     } else if (type === 'clients') {
       const clients = await Client.find({ pantryId: auth.pantryId }).lean();
-      
-      const headers = ['Client ID', 'First Name', 'Last Name', 'Family Size', 'Phone', 'Email', 'Address', 'Status', 'Last Visit', 'Created At'];
+
+      // ✅ FIX: Added Kids, Adults, Seniors to the Header
+      const headers = [
+        'Client ID', 'First Name', 'Last Name',
+        'Family Size', 'Children', 'Adults', 'Seniors', // <--- NEW FIELDS
+        'Phone', 'Email', 'Address', 'Status', 'Last Visit'
+      ];
+
       const rows = clients.map(c => [
         `"${c.clientId}"`,
         `"${c.firstName}"`,
         `"${c.lastName || ''}"`,
         c.familySize || 1,
+        c.childrenCount || 0, // <--- MAP NEW FIELD
+        c.adultCount || 1,    // <--- MAP NEW FIELD
+        c.seniorCount || 0,   // <--- MAP NEW FIELD
         `"${c.phone || ''}"`,
         `"${c.email || ''}"`,
-        `"${c.address || ''}"`,
+        `"${(c.address || '').replace(/"/g, '""')}"`,
         c.isActive ? 'Active' : 'Inactive',
-        c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : 'Never',
-        c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''
+        c.lastVisit ? new Date(c.lastVisit).toLocaleDateString() : 'Never'
       ]);
 
       csvData = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
     } else {
-        return NextResponse.json({ error: 'Invalid export type' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid export type. Use ?type=inventory or ?type=clients' }, { status: 400 });
     }
 
     // 3. RETURN CSV FILE
