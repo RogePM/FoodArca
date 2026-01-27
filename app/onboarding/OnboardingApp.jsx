@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, Users, ArrowRight, Check, Loader2,
-  LogOut, Leaf, ArrowLeft, Plus, X, Mail, MapPin, AlertCircle
+  LogOut, Leaf, ArrowLeft, X, MapPin, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,8 +30,6 @@ export default function OnboardingApp({ user, inviteCode }) {
   const [session, setSession] = useState(null);
   const [createData, setCreateData] = useState({ name: '', address: '', type: 'standalone', generatedCode: '' });
   const [joinData, setJoinData] = useState({ code: '', pantryName: '', address: '', pantryId: '' });
-  // Invites state is kept for potential future use or logic compatibility, but stays empty for Pilot creation
-  const [invites, setInvites] = useState([]); 
   
   // Pre-fill name from Auth User if available
   const [profileData, setProfileData] = useState({ 
@@ -48,7 +46,6 @@ export default function OnboardingApp({ user, inviteCode }) {
   const validateField = (field, value) => {
     let error = "";
     const val = value ? value.trim() : "";
-
     const safeTextRegex = /^[a-zA-Z0-9\s\.,'\-&]+$/;
     const cityStateRegex = /^[a-zA-Z\s\.-]+,\s*[a-zA-Z]{2}$/;
 
@@ -84,7 +81,7 @@ export default function OnboardingApp({ user, inviteCode }) {
     }
   };
 
-  // --- 1. HANDLE INVITE CODE (Auto-Join) ---
+  // --- 1. HANDLE INVITE CODE (Lookup Only) ---
   const handleCodeLookup = async (codeOverride = null) => {
     setIsLoading(true);
     setGlobalError('');
@@ -93,9 +90,11 @@ export default function OnboardingApp({ user, inviteCode }) {
     try {
       if (!codeToTest) throw new Error("No code provided");
 
+      // ✅ FIX: Use the secure helper function to preview details
+      // Simple 'select' would fail because of RLS (you aren't a member yet)
       const { data, error } = await supabase
-        .rpc('get_pantry_by_code', { code_input: codeToTest })
-        .single();
+        .rpc('get_pantry_details_by_code', { lookup_code: codeToTest })
+        .maybeSingle();
 
       if (error || !data) throw new Error("Invalid or expired invite code.");
 
@@ -110,7 +109,7 @@ export default function OnboardingApp({ user, inviteCode }) {
       setStep(3); // Skip to confirmation
     } catch (err) {
       setGlobalError(err.message);
-      if (codeOverride) { setIntent('join'); setStep(2); } // Fallback to manual entry
+      if (codeOverride) { setIntent('join'); setStep(2); } 
     } finally {
       setIsLoading(false);
       setVerifyingInvite(false);
@@ -133,9 +132,8 @@ export default function OnboardingApp({ user, inviteCode }) {
     }
   }, [inviteCode, user]);
 
-  // --- 2. CREATE PANTRY LOGIC ---
+  // --- 2. CREATE PANTRY LOGIC (SECURE) ---
   const handleCreatePantry = async () => {
-    // Validation
     const nameErr = validateField('name', createData.name);
     const addrErr = validateField('address', createData.address);
     if (nameErr || addrErr) {
@@ -151,6 +149,8 @@ export default function OnboardingApp({ user, inviteCode }) {
       const userId = user?.id || session?.user?.id;
 
       // A. Create Pantry
+      // ✅ FIX: We only insert the pantry. The Postgres TRIGGER automatically 
+      // adds the current user as the 'owner' in pantry_members.
       const { data: pantry, error: pantryError } = await supabase
         .from('food_pantries')
         .insert({
@@ -158,8 +158,7 @@ export default function OnboardingApp({ user, inviteCode }) {
           address: createData.address,
           type: createData.type,
           join_code: generatedCode,
-          // Explicitly setting seats used to 1 (Admin)
-          total_seats_used: 0
+          total_seats_used: 1 // Start at 1
         })
         .select('pantry_id')
         .single();
@@ -167,25 +166,16 @@ export default function OnboardingApp({ user, inviteCode }) {
       if (pantryError) throw pantryError;
       const newPantryId = pantry.pantry_id;
 
-      // B. Setup Admin Member & Profile
-      const [memberResult, profileResult] = await Promise.all([
-        supabase.from('pantry_members').insert({
-          user_id: userId,
-          pantry_id: newPantryId,
-          role: 'owner',
-          is_active: true
-        }),
-        supabase.from('user_profiles').upsert({
+      // B. Setup Profile
+      // We still update the profile to set the 'current_pantry_id'
+      const { error: profileError } = await supabase.from('user_profiles').upsert({
           user_id: userId,
           name: profileData.fullName,
           current_pantry_id: newPantryId,
           phone: profileData.phone || null
-        })
-      ]);
+      });
 
-      if (memberResult.error || profileResult.error) {
-        throw new Error("Pantry created, but profile setup failed.");
-      }
+      if (profileError) throw new Error("Pantry created, but profile setup failed.");
 
       setCreateData(prev => ({ ...prev, generatedCode }));
       setStep('success');
@@ -197,47 +187,25 @@ export default function OnboardingApp({ user, inviteCode }) {
     }
   };
 
-  // --- 3. JOIN PANTRY LOGIC ---
+  // --- 3. JOIN PANTRY LOGIC (SECURE) ---
   const handleJoinPantry = async () => {
     setIsLoading(true);
     setGlobalError('');
-    const userId = user?.id || session?.user?.id;
     const userEmail = user?.email || session?.user?.email;
 
     try {
-      const { data: invite } = await supabase
-        .from('pantry_invitations')
-        .select('role')
-        .eq('pantry_id', joinData.pantryId)
-        .eq('email', userEmail)
-        .eq('status', 'pending')
-        .maybeSingle();
-
-      const assignedRole = invite?.role || 'volunteer';
-
-      const { error: memberError } = await supabase
-        .from('pantry_members')
-        .insert({
-          user_id: userId,
-          pantry_id: joinData.pantryId,
-          role: assignedRole,
-          is_active: true
-        });
-
-      if (memberError) {
-        if (memberError.code === '23505') throw new Error("You are already a member of this team.");
-        throw memberError;
-      }
-
-      await supabase.from('user_profiles').upsert({
-        user_id: userId,
-        name: profileData.fullName,
-        current_pantry_id: joinData.pantryId,
-        phone: profileData.phone || null
+      // ✅ FIX: Use the secure RPC to join
+      // Manual insert into pantry_members is now blocked by RLS
+      const { error: rpcError } = await supabase.rpc('join_pantry_with_code', {
+        code_input: joinData.code,
+        user_name: profileData.fullName
       });
 
-      if (invite) {
-        await supabase
+      if (rpcError) throw rpcError;
+
+      // 2. Clean up invite (Best effort - if RLS allows)
+      if (userEmail && joinData.pantryId) {
+         await supabase
           .from('pantry_invitations')
           .delete()
           .eq('pantry_id', joinData.pantryId)
@@ -257,7 +225,7 @@ export default function OnboardingApp({ user, inviteCode }) {
     router.push('/');
   };
 
-  // --- RENDER: LOADING STATE ---
+  // --- RENDER ---
   if (verifyingInvite) {
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-4 bg-[#FAFAFA]">
@@ -269,7 +237,6 @@ export default function OnboardingApp({ user, inviteCode }) {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-gray-900">
-
       <header className="w-full h-16 px-6 flex items-center justify-between bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-lg bg-[#d97757] text-white flex items-center justify-center shadow-sm">
@@ -283,7 +250,6 @@ export default function OnboardingApp({ user, inviteCode }) {
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center p-4 md:p-8">
-
         {globalError && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg text-red-700 text-sm max-w-md w-full flex items-center justify-between shadow-sm">
             <span className="flex items-center gap-2"><AlertCircle className="h-4 w-4"/> {globalError}</span>
@@ -292,7 +258,6 @@ export default function OnboardingApp({ user, inviteCode }) {
         )}
 
         <AnimatePresence mode="wait">
-
           {/* STEP 1: QUICK ACTIONS */}
           {step === 1 && (
             <motion.div key="step1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="w-full max-w-5xl">
@@ -318,7 +283,7 @@ export default function OnboardingApp({ user, inviteCode }) {
             </motion.div>
           )}
 
-          {/* STEP 2 (CREATE): ORG FORM - NOW THE FINAL STEP */}
+          {/* STEP 2 (CREATE): ORG FORM */}
           {intent === 'create' && step === 2 && (
             <WizardStep title="Tell us about your Pantry" subtitle="This will create your Pilot account." onBack={() => setStep(1)}>
               <div className="space-y-5">
@@ -333,7 +298,6 @@ export default function OnboardingApp({ user, inviteCode }) {
                   />
                   {fieldErrors.name && <span className="text-xs text-red-500 mt-1">{fieldErrors.name}</span>}
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Location</Label>
@@ -359,13 +323,10 @@ export default function OnboardingApp({ user, inviteCode }) {
                     </Select>
                   </div>
                 </div>
-
                 <div>
                   <Label>Your Full Name</Label>
                   <Input value={profileData.fullName} onChange={e => setProfileData({ ...profileData, fullName: e.target.value })} placeholder="For your admin profile" className="h-11 mt-1 bg-white" />
                 </div>
-
-                {/* MODIFIED BUTTON: Direct Create Action */}
                 <Button
                   onClick={handleCreatePantry}
                   disabled={!createData.name || !createData.address || !!fieldErrors.name || !!fieldErrors.address || isLoading}
@@ -373,15 +334,12 @@ export default function OnboardingApp({ user, inviteCode }) {
                 >
                   {isLoading ? <Loader2 className="animate-spin" /> : 'Launch Pilot Pantry'}
                 </Button>
-                
                 <p className="text-[10px] text-center text-gray-400 mt-2">
                     Pilot plan includes 1 User seat. Upgrade later to invite your team.
                 </p>
               </div>
             </WizardStep>
           )}
-
-          {/* REMOVED: Step 3 (Create/Invite) - Because Pilot is 1 user only */}
 
           {/* STEP 2 (JOIN): CODE ENTRY */}
           {intent === 'join' && step === 2 && (
@@ -411,7 +369,6 @@ export default function OnboardingApp({ user, inviteCode }) {
                 <h3 className="text-xl font-bold text-gray-900">{joinData.pantryName}</h3>
                 <p className="text-gray-500 flex items-center justify-center gap-1 mt-1"><MapPin className="h-3 w-3" /> {joinData.address}</p>
               </div>
-
               <div className="space-y-4">
                 <div>
                   <Label>Your Full Name</Label>
@@ -434,7 +391,6 @@ export default function OnboardingApp({ user, inviteCode }) {
               <p className="text-gray-500 mb-8">
                 Welcome to <span className="font-bold text-gray-900">{intent === 'create' ? createData.name : joinData.pantryName}</span>.
               </p>
-
               {intent === 'create' && (
                 <div className="bg-[#1f2937] text-white p-6 rounded-xl mb-8 text-left relative overflow-hidden shadow-xl">
                   <div className="absolute top-0 right-0 p-4 opacity-10"><Leaf className="h-24 w-24" /></div>
@@ -442,7 +398,6 @@ export default function OnboardingApp({ user, inviteCode }) {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-2xl font-bold text-white">Active</p>
-                      {/* UPDATED: Reflects new plan limits */}
                       <p className="text-sm text-gray-400 mt-1">50 Items • 1 User</p>
                     </div>
                     <div className="text-right z-10">
@@ -452,13 +407,11 @@ export default function OnboardingApp({ user, inviteCode }) {
                   </div>
                 </div>
               )}
-
               <Button onClick={() => { window.location.href = '/dashboard'; }} className="w-full h-14 bg-[#d97757] hover:bg-[#c06245] text-white text-lg shadow-xl shadow-orange-200 font-bold rounded-xl transition-all hover:scale-[1.02]">
                 Enter Dashboard
               </Button>
             </motion.div>
           )}
-
         </AnimatePresence>
       </main>
     </div>
@@ -466,7 +419,6 @@ export default function OnboardingApp({ user, inviteCode }) {
 }
 
 // --- SUB-COMPONENTS ---
-
 function QuickActionCard({ icon, title, desc, onClick }) {
   return (
     <button 
@@ -481,7 +433,6 @@ function QuickActionCard({ icon, title, desc, onClick }) {
               <ArrowRight className="h-4 w-4" />
           </div>
       </div>
-      
       <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-[#d97757] transition-colors">{title}</h3>
       <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
     </button>
