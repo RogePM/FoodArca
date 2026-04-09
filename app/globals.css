@@ -25,6 +25,14 @@
     --success-green: 142 76% 36%;
     --electric-blue: 217 91% 60%;
     --radius: 0.5rem;
+
+    /* --- Added Arca Hero Colors --- */
+    --brand-primary: 15 63% 60%; 
+    --brand-light: 15 63% 96%; 
+    --hero-text-main: 24 10% 10%; 
+    --hero-text-muted: 24 5% 32%; 
+    --hero-border: 24 5% 90%; 
+    --hero-hover: 24 5% 96%; 
   }
 }
 
@@ -35,4 +43,36 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+}
+/* --- CTA 3-Image Layout (Headspace Style) --- */
+
+.photo-brick {
+  @apply absolute rounded-2xl overflow-hidden shadow-2xl;
+}
+
+/* 1. Top Left (Small Portrait) */
+.photo-brick_hs_tl {
+  width: 38%;
+  height: 34%;
+  top: 6%;
+  left: 13%;
+  z-index: 10;
+}
+
+/* 2. Bottom Left (Larger Portrait) */
+.photo-brick_hs_bl {
+  width: 48%;
+  height: 48%;
+  bottom: 2%;
+  left: 5%;
+  z-index: 20; /* Sits slightly on top if they overlap on smaller screens */
+}
+
+/* 3. Right (Tall Portrait) */
+.photo-brick_hs_r {
+  width: 38%;
+  height: 70%;
+  top: 12%;
+  right: 5%;
+  z-index: 15;
 }

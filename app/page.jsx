@@ -16,6 +16,10 @@ import DevicesSection from '@/app/Frontend/DevicesSection';
 import { PLANS } from '@/lib/plans'; // <--- Import this
 
 
+import Hero from './Frontend/Hero/Hero';
+import ClientMarquee from './Frontend/common/MarquesBar';
+import FeatureSection from './Frontend/Feature/FeatureSection';
+import CTASection from './Frontend/Solution/CTASection';
 // --- Animation Imports ---
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -268,61 +272,13 @@ export default function LandingPage() {
       <NavBar />
 
       {/* --- Hero Section --- */}
-      <main className="hero-section min-h-screen pt-32 pb-20 lg:pt-40 lg:pb-32 px-6 flex flex-col justify-center overflow-hidden">
-        <div className="container mx-auto max-w-7xl relative">
+      <Hero />
+      {/* --- Client Marquee --- */}
+      <ClientMarquee />
+     
+     <FeatureSection />
 
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D97757]/5 rounded-full blur-3xl -z-10 animate-pulse delay-700"></div>
-          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-orange-200/10 rounded-full blur-3xl -z-10"></div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-24 items-center">
-            <div className="hero-content max-w-xl mx-auto w-full z-10">
-              <div className="overflow-hidden mb-2">
-                <h1 className="hero-reveal text-5xl md:text-6xl lg:text-8xl font-serif leading-[0.95] tracking-tight text-[#1C1917] text-center md:text-left">
-                  Feed More.
-                </h1>
-              </div>
-              <div className="overflow-hidden mb-6">
-                <h1 className="hero-reveal text-5xl md:text-6xl lg:text-8xl font-serif leading-[0.95] tracking-tight text-center md:text-left">
-                  <span className="italic opacity-90 text-[#D97757]">Count Less.</span>
-                </h1>
-              </div>
-              <div className="overflow-hidden mb-12">
-                <p className="hero-reveal text-xl text-[#57534E] font-light tracking-wide text-center md:text-left">
-                  The inventory tool for high-volume food pantries. Scan barcodes, sync teams in real-time, and speed up your distribution lines.
-                </p>
-              </div>
-
-              <div className="hero-widget bg-white/80 backdrop-blur-sm border border-[#E7E5E4] p-8 rounded-3xl w-full shadow-2xl shadow-[#D6D3D1]/30">
-                <button onClick={handleSignIn} className="w-full bg-white hover:bg-[#F5F5F4] text-[#1C1917] font-medium py-3.5 rounded-xl border border-[#E7E5E4] flex items-center justify-center gap-3 transition-all mb-4 group">
-                  <div className="group-hover:scale-110 transition-transform duration-300"><GoogleIcon /></div>
-                  Sign Up With Google
-                </button>
-                <div className="flex items-center gap-4 my-4">
-                  <div className="h-px bg-[#E7E5E4] flex-1"></div>
-                  <span className="text-sm text-[#A8A29E] uppercase tracking-wide">or</span>
-                  <div className="h-px bg-[#E7E5E4] flex-1"></div>
-                </div>
-                <button onClick={handleSignIn} className="w-full bg-[#1C1917] hover:bg-[#34302e] text-white font-medium py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]">
-                  <LockIcon size={20} />
-                  Sign In
-                </button>
-              </div>
-            </div>
-
-            <div className="hero-image hidden md:block relative w-full h-full min-h-[450px] lg:min-h-[600px] bg-[#D97757] rounded-[2.5rem] shadow-2xl shadow-[#D6D3D1]/50 p-4 lg:p-6">
-              <div className="relative w-full h-full rounded-[2rem] overflow-hidden shadow-lg z-10 bg-black">
-                <Image
-                  src="/HeroArca2.png"
-                  alt="Food Arca Dashboard"
-                  fill
-                  className="hero-img-inner object-cover"
-                  priority
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
+       <CTASection />
       {/* --- SECTION 2: INVENTORY (Concise Copy & Animated) --- */}
       {/* --- SECTION 2: INVENTORY (Concise Copy & Animated) --- */}
       <section id="inventory" className="fade-section min-h-screen py-24 bg-[#F5F5F4] flex flex-col justify-center scroll-mt-20">

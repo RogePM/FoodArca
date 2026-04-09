@@ -4,17 +4,17 @@ module.exports = {
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
-    // Include app files but exclude backend folder to avoid node_modules scanning
+    './app/Frontend/**/*.{js,ts,jsx,tsx,mdx}', 
     './app/layout.{js,jsx,ts,tsx}',
     './app/page.{js,jsx,ts,tsx}',
     './app/globals.css',
     './app/api/**/*.{js,ts,jsx,tsx}',
     './app/onboarding/**/*.{js,ts,jsx,tsx}',
-    // Explicitly exclude app/backend to prevent node_modules scanning
   ],
   theme: {
     extend: {
       colors: {
+        // --- Your Existing Shadcn Colors ---
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {
@@ -47,6 +47,20 @@ module.exports = {
         techCyan: 'hsl(var(--tech-cyan))',
         successGreen: 'hsl(var(--success-green))',
         electricBlue: 'hsl(var(--electric-blue))',
+        
+        // --- PROPERLY LINKED ARCA COLORS ---
+        // This nesting creates the classes `brand-primary` and `brand-light`
+        brand: {
+          primary: 'hsl(var(--brand-primary))',
+          light: 'hsl(var(--brand-light))',
+        },
+        // This nesting creates `hero-main`, `hero-muted`, etc.
+        hero: {
+          main: 'hsl(var(--hero-text-main))',
+          muted: 'hsl(var(--hero-text-muted))',
+          border: 'hsl(var(--hero-border))',
+          hover: 'hsl(var(--hero-hover))',
+        }
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'Arial', 'Helvetica', 'sans-serif'],
