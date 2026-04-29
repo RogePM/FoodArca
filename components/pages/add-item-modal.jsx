@@ -36,7 +36,7 @@ export function AddItemForm({ initialCategory, onClose }) {
 
   // Form Data
   const [itemName, setItemName] = useState('');
-  const [category, setCategory] = useState(initialCategory || categories[0]?.value || 'canned');
+  const [category, setCategory] = useState(initialCategory || categories[0]?.value || 'canned_goods');
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState('units');
   const [expirationDate, setExpirationDate] = useState('');
@@ -57,7 +57,7 @@ export function AddItemForm({ initialCategory, onClose }) {
     setIsInternalBarcode(true);
   };
 
-  // --- LOGIC: Barcode Lookup ---
+ // --- LOGIC: Barcode Lookup ---
   useEffect(() => {
     const lookup = async () => {
       if (!barcode || barcode.length < 3 || isInternalBarcode) return;
@@ -68,9 +68,18 @@ export function AddItemForm({ initialCategory, onClose }) {
           cache: 'no-store'
         });
         const data = await res.json();
+        
+        // 🚨 FRONTEND X-RAY LOG 🚨
+        // You will see this in your BROWSER Console (Right click -> Inspect -> Console)
+        console.log("📥 [FRONTEND] Received from API:", data);
+
         if (data.found && data.data) {
           setItemName(data.data.name || '');
-          setCategory(data.data.category || categories[0]?.value);
+          
+          // Check if the category is valid, otherwise fallback to 'Other'
+          const finalCategory = data.data.category || 'Other';
+          console.log("🎯 [FRONTEND] Setting Dropdown to:", finalCategory);
+          setCategory(finalCategory);
         }
       } catch (e) {
         console.error("Lookup failed", e);

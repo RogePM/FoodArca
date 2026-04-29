@@ -1,6 +1,7 @@
+// app/layout.jsx
 import './globals.css';
-import { PantryProvider } from '@/components/providers/PantryProvider';
-import Script from 'next/script'; // <--- 1. Import Script
+import ScrollToTop from '@/components/Frontend/common/ScrollToTop'; 
+import { GoogleAnalytics } from '@next/third-parties/google'; 
 
 export const metadata = {
   title: 'Food Arca | Food Bank Inventory Management',
@@ -10,26 +11,19 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="antialiased bg-background text-foreground">
+      <body className="antialiased bg-[#FAFAF9] text-[#1C1917]">
         
-        {/* 2. Google Analytics Script */}
-        <Script
-          strategy="afterInteractive"
-          src="https://www.googletagmanager.com/gtag/js?id=G-YJKJHYLC2C"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-YJKJHYLC2C');
-          `}
-        </Script>
+        {/* NAKED CHILDREN: 
+          Next.js automatically injects either your (marketing) layout 
+          or your dashboard layout right here depending on the URL.
+        */}
+        {children}
 
-        <PantryProvider>
-          {children}
-        </PantryProvider>
+        {/* Global UI that is safe to show on EVERY page */}
+        <ScrollToTop /> 
       </body>
+      
+      <GoogleAnalytics gaId="G-YJKJHYLC2C" />
     </html>
   );
 }

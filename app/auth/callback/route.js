@@ -18,10 +18,14 @@ export async function GET(request) {
       {
         cookies: {
           getAll() { return cookieStore.getAll() },
-          setAll(cookiesToSet) {
+         setAll(cookiesToSet) {
+          try {
             cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options)
             })
+          } catch (error) {
+            // Safe to ignore: middleware handles the actual cookie setting
+          }
           },
         },
       }

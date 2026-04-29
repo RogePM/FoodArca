@@ -1,6 +1,4 @@
-// 1. Removed 'use client' - This is now a pure Server Component!
 import React from 'react';
-// 2. Imported Next.js Image for Web Vitals optimization
 import Image from 'next/image';
 
 export default function CommitmentsMarquee() {
@@ -9,14 +7,12 @@ export default function CommitmentsMarquee() {
     { src: '/icons/2.png', alt: 'UN Zero Hunger', label: 'Zero Hunger' },
     { src: '/icons/3.png', alt: 'UN Responsible Consumption', label: 'Responsible Consumption' },
     { src: '/icons/4.png', alt: '1% for the Planet', label: '1% for the Planet' },
-    { src: '/icons/shield.png', alt: 'Encryption Shield', label: 'Encrypted & Secure' },
   ];
 
   return (
-    <section className="py-20 flex flex-col items-center border-t border-[#E7E5E4] bg-white">
+    <section className="py-10 md:py-12 flex flex-col items-center border-t border-[#E7E5E4] bg-white">
       
-    {/* Updated Section Title */}
-      <h2 className="text-xl md:text-2xl text-[#57534E] font-serif mb-12 text-center px-4">
+      <h2 className="text-lg md:text-xl text-[#57534E] font-serif mb-6 text-center px-4">
         Purpose-Driven Technology.
       </h2>
       
@@ -26,38 +22,43 @@ export default function CommitmentsMarquee() {
           className="flex whitespace-nowrap"
           style={{ animation: 'marquee 25s linear infinite' }}
         >
-          {/* Primary List */}
+          {/* --- PRIMARY LIST --- */}
           {commitments.map((item, index) => (
-            <div key={`primary-${index}`} className="flex items-center gap-3 mx-10 md:mx-16 flex-shrink-0">
-              {/* 3. Replaced <img> with <Image /> to prevent Layout Shifts (CLS) */}
-              <div className="relative h-12 w-12 flex-shrink-0">
+            <div key={`primary-${index}`} className="flex items-center gap-4 mx-8 md:mx-14 flex-shrink-0">
+              
+              {/* Sized to exactly 12 on mobile, and 14 on desktop */}
+              <div className="relative h-12 w-12 md:h-14 md:w-14 flex-shrink-0">
                 <Image 
                   src={item.src} 
                   alt={item.alt} 
                   fill
-                  sizes="48px"
+                  sizes="(max-width: 768px) 48px, 56px"
                   className="object-contain" 
                 />
               </div>
-              <span className="text-lg font-medium text-[#1C1917] tracking-tight">
+              
+              <span className="text-base md:text-lg font-medium text-[#57534E]/80 tracking-tight">
                 {item.label}
               </span>
             </div>
           ))}
           
-          {/* Secondary List (Duplicate) */}
+          {/* --- SECONDARY LIST (DUPLICATE) --- */}
           {commitments.map((item, index) => (
-            <div key={`secondary-${index}`} className="flex items-center gap-3 mx-10 md:mx-16 flex-shrink-0">
-              <div className="relative h-12 w-12 flex-shrink-0">
+            <div key={`secondary-${index}`} className="flex items-center gap-4 mx-8 md:mx-14 flex-shrink-0">
+              
+              {/* Perfectly matches the Primary List so the loop is seamless */}
+              <div className="relative h-12 w-12 md:h-14 md:w-14 flex-shrink-0">
                 <Image 
                   src={item.src} 
                   alt={item.alt} 
                   fill
-                  sizes="48px"
+                  sizes="(max-width: 768px) 48px, 56px"
                   className="object-contain" 
                 />
               </div>
-              <span className="text-lg font-medium text-[#1C1917] tracking-tight">
+              
+              <span className="text-base md:text-lg font-medium text-[#57534E]/80 tracking-tight">
                 {item.label}
               </span>
             </div>
