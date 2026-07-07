@@ -45,32 +45,32 @@ const formatDateTime = (timestamp) => {
 // 🎨 UPDATED BADGE STYLES (Soft & Uniform)
 const getActionConfig = (type) => {
     switch (type) {
-        case 'added': return { 
+        case 'added':
+        case 'scan_in': return { 
             label: 'Restock', 
-            // Soft Emerald Green
             colorClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200', 
             icon: <ArrowDownLeft className="h-3 w-3" /> 
         };
-        case 'distributed': return { 
+        case 'distributed':
+        case 'scan_out': return { 
             label: 'Distributed', 
-            // Soft Brand Orange (Matches Green style now)
             colorClass: 'bg-[#d97757]/10 text-[#d97757] border border-[#d97757]/20', 
             icon: <ArrowUpRight className="h-3 w-3" /> 
         };
-        case 'deleted': return { 
-            label: 'Deleted', 
-            // Soft Red
+        case 'deleted':
+        case 'waste_disposal': return { 
+            label: 'Waste / Removed', 
             colorClass: 'bg-red-50 text-red-700 border border-red-200', 
             icon: <Trash2 className="h-3 w-3" /> 
         };
-        case 'updated': return { 
-            label: 'Updated', 
-            // Soft Blue
+        case 'updated':
+        case 'audit_update': return { 
+            label: 'Audit Update', 
             colorClass: 'bg-blue-50 text-blue-700 border border-blue-200', 
             icon: <Edit className="h-3 w-3" /> 
         };
         default: return { 
-            label: type, 
+            label: type || 'Activity', 
             colorClass: 'bg-gray-100 text-gray-600 border border-gray-200', 
             icon: <History className="h-3 w-3" /> 
         };
@@ -123,7 +123,13 @@ export function RecentChangesView() {
             );
         }
         if (typeFilter !== 'all') {
-            result = result.filter(c => c.actionType === typeFilter);
+            result = result.filter(c => 
+                c.actionType === typeFilter || 
+                (typeFilter === 'added' && c.actionType === 'scan_in') ||
+                (typeFilter === 'distributed' && c.actionType === 'scan_out') ||
+                (typeFilter === 'deleted' && c.actionType === 'waste_disposal') ||
+                (typeFilter === 'updated' && c.actionType === 'audit_update')
+            );
         }
         setFilteredChanges(result);
     }, [searchQuery, typeFilter, changes]);
@@ -131,7 +137,7 @@ export function RecentChangesView() {
     // Helper for Quantity Column
     const renderQuantityChange = (change) => {
         const unit = change.unit || 'units';
-        const isNegative = change.actionType === 'distributed' || change.actionType === 'deleted';
+        const isNegative = change.actionType === 'distributed' || change.actionType === 'scan_out' || change.actionType === 'deleted' || change.actionType === 'waste_disposal';
         const qty = change.quantityChanged || change.removedQuantity || 0;
         
         return (
@@ -182,6 +188,7 @@ export function RecentChangesView() {
                                 <DropdownMenuItem onClick={() => setTypeFilter('distributed')}>Distributed</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setTypeFilter('added')}>Restock</DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setTypeFilter('updated')}>Updates</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setTypeFilter('deleted')}>Waste / Removed</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
@@ -224,7 +231,7 @@ export function RecentChangesView() {
                                                 const { date, time } = formatDateTime(change.timestamp);
                                                 const config = getActionConfig(change.actionType);
                                                 return (
-                                                    <TableRow key={change._id} className="group border-b last:border-0 hover:bg-gray-50/50">
+                                                    <TableRow key={change.id || change._id} className="group border-b last:border-0 hover:bg-gray-50/50">
                                                         
                                                         {/* 1. Time */}
                                                         <TableCell className="pl-6 py-4">
@@ -280,7 +287,7 @@ export function RecentChangesView() {
                                             
                                             return (
                                                 <motion.div
-                                                    key={change._id}
+                                                    key={change.id || change._id}
                                                     variants={itemVariants}
                                                     initial="hidden" animate="visible"
                                                 >

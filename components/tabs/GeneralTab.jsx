@@ -32,7 +32,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
 
   // --- LOGIC ---
   const isAdmin = userRole === 'admin' || userRole === 'owner';
-  const isPilot = details?.subscription_tier === 'pilot';
+  const isPilot = details?.subscription_tier === 'pilot' || details?.plan_type === 'free';
   
   // Stats & Limits
   const maxSeats = details?.max_users_limit ?? currentPlan?.limits?.users ?? 5;
@@ -40,8 +40,6 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
   const isSeatsFull = currentSeats >= maxSeats;
   const maxItems = details?.max_items_limit ?? currentPlan?.limits?.items ?? 100;
   const currentItems = details?.total_items_created || 0;
-  const maxClients = usageStats?.limit ?? (details?.max_clients_limit ?? 100);
-  const currentClients = usageStats?.current || 0;
 
   const calculatePercent = (val, max) => {
     if (max >= 100000) return 0;
@@ -59,18 +57,17 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
     const fetchLists = async () => {
       // 1. Get Members (RLS: View teammates)
       const { data: m } = await supabase
-        .from('pantry_members')
-        .select('*, user:user_profiles(name, email)')
-        .eq('pantry_id', pantryId);
+        .from('user_organizations')
+        .select('*, user:app_users(full_name, email)')
+        .eq('organization_id', pantryId);
       if (m) setMembers(m);
 
       // 2. Get Invites (RLS: Admins view invites)
       if (isAdmin) {
         const { data: i } = await supabase
-          .from('pantry_invitations')
+          .from('invites')
           .select('*')
-          .eq('pantry_id', pantryId)
-          .eq('status', 'pending');
+          .eq('organization_id', pantryId);
         if (i) setInvitations(i);
       }
     };
@@ -106,12 +103,14 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
 
       // 2. Insert into DB (Allowed by RLS 'Admins send invites')
       const { data: newInvite, error: dbError } = await supabase
-        .from('pantry_invitations')
+        .from('invites')
         .insert({
-          pantry_id: pantryId,
+          organization_id: pantryId,
           email: cleanEmail,
           role: inviteRole,
-          invited_by: user.id
+          invited_by: user.id,
+          token: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         })
         .select()
         .single();
@@ -150,7 +149,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
     if (!confirm("Cancel this invitation?")) return;
     
     // Allowed by RLS 'Admins delete invites'
-    const { error } = await supabase.from('pantry_invitations').delete().eq('id', inviteId);
+    const { error } = await supabase.from('invites').delete().eq('id', inviteId);
     
     if (!error) {
       setInvitations(prev => prev.filter(i => i.id !== inviteId));
@@ -167,7 +166,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
     try {
       const currentSettings = details?.settings || {};
       const updatedSettings = { ...currentSettings, enable_client_tracking: !checked };
-      const { error } = await supabase.from('food_pantries').update({ settings: updatedSettings }).eq('pantry_id', pantryId);
+      const { error } = await supabase.from('organizations').update({ settings: updatedSettings }).eq('id', pantryId);
       if (error) throw error;
       await refreshPantry();
     } catch (error) {
@@ -248,7 +247,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                 <span className="text-gray-300">•</span>
                 <div className="flex items-center gap-1 text-sm text-gray-500">
                   <MapPin className="h-3 w-3" />
-                  <span>{details?.address || "No address set"}</span>
+                  <span>{details?.address || details?.address_line1 || "No address set"}</span>
                 </div>
               </div>
             </div>
@@ -353,9 +352,9 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
               {members.map(member => (
                 <div key={member.id} className="p-4 sm:p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-4">
-                    <AvatarPlaceholder name={member.user?.name} role={member.role} />
+                    <AvatarPlaceholder name={member.user?.full_name || member.user?.name} role={member.role} />
                     <div>
-                      <p className="font-medium text-gray-900">{member.user?.name}</p>
+                      <p className="font-medium text-gray-900">{member.user?.full_name || member.user?.name || 'Team Member'}</p>
                       <p className="text-xs text-gray-500">{member.user?.email}</p>
                     </div>
                   </div>
@@ -387,7 +386,6 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
               <div className="h-px bg-gray-100" />
               <div className="space-y-4">
                 <StatRow label="Inventory Items" current={currentItems} max={maxItems} color="bg-[#d97757]" />
-                <StatRow label="Registered Families" current={currentClients} max={maxClients} color="bg-blue-600" />
               </div>
             </div>
           </div>
@@ -415,18 +413,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
               <p className="text-xs text-gray-500 mb-4 leading-relaxed">
                 Export your data for federal and state grant reporting.
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  onClick={() => handleExportReport('clients')}
-                  disabled={isExporting}
-                  variant={hasProFeatures ? "outline" : "default"}
-                  className={`w-full group ${!hasProFeatures && 'bg-[#1C1917] hover:bg-[#000]'}`}
-                >
-                  <span className="flex items-center gap-2">
-                    {isExporting ? <Loader2 className="animate-spin h-4 w-4" /> : hasProFeatures ? <Users className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                    {hasProFeatures ? 'Clients' : 'Unlock'}
-                  </span>
-                </Button>
+              <div className="grid grid-cols-1 gap-3">
                 <Button
                   onClick={() => handleExportReport('inventory')}
                   disabled={isExporting}
@@ -435,7 +422,7 @@ export function GeneralTab({ supabase, pantryId, details, userRole, currentPlan,
                 >
                   <span className="flex items-center gap-2">
                     {isExporting ? <Loader2 className="animate-spin h-4 w-4" /> : hasProFeatures ? <Download className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                    {hasProFeatures ? 'Inventory' : 'Unlock'}
+                    {hasProFeatures ? 'Export Inventory Report (CSV)' : 'Unlock Inventory Export'}
                   </span>
                 </Button>
               </div>

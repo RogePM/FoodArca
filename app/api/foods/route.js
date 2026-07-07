@@ -1,19 +1,97 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import connectDB from '@/lib/db';
-import { FoodItem, BarcodeCache } from '@/lib/models/FoodItemModel';
-import { logChange } from '@/lib/logger'; 
 
 // --- UTILITY: Round to 3 Decimals ---
-// simple math trick to round to 3 places safely
-const formatQty = (num) => Math.round((num + Number.EPSILON) * 1000) / 1000;
+const formatQty = (num) => Math.round((Number(num) + Number.EPSILON) * 1000) / 1000;
+
+function normalizeUnit(raw) {
+  const u = String(raw || 'count').trim().toLowerCase();
+  const map = {
+    'oz': 'oz', 'ounce': 'oz', 'ounces': 'oz',
+    'fl oz': 'fl_oz', 'fl_oz': 'fl_oz', 'fluid oz': 'fl_oz', 'ml': 'fl_oz', 'milliliter': 'fl_oz', 'milliliters': 'fl_oz',
+    'lbs': 'lbs', 'lb': 'lbs', 'pound': 'lbs', 'pounds': 'lbs',
+    'kg': 'kg', 'kilo': 'kg', 'kilogram': 'kg', 'kilograms': 'kg',
+    'g': 'oz', 'gram': 'oz', 'grams': 'oz', 'mg': 'oz', 'milligram': 'oz', 'milligrams': 'oz',
+    'gal': 'gallon', 'gallon': 'gallon', 'gallons': 'gallon', 'l': 'gallon', 'liter': 'gallon', 'liters': 'gallon', 'litre': 'gallon', 'litres': 'gallon',
+    'count': 'count', 'units': 'count', 'unit': 'count', 'item': 'count', 'items': 'count',
+    'each': 'count', 'ct': 'count', 'piece': 'count', 'pieces': 'count',
+    'can': 'count', 'cans': 'count',
+    'box': 'count', 'boxes': 'count',
+    'bag': 'count', 'bags': 'count',
+    'jar': 'count', 'jars': 'count',
+    'pack': 'count', 'packs': 'count', 'packet': 'count', 'packets': 'count',
+    'case': 'count', 'cases': 'count',
+    'bottle': 'count', 'bottles': 'count',
+  };
+  return map[u] ?? 'count';
+}
+
+function normalizeExpPrecision(raw) {
+  const p = String(raw || 'unknown').trim().toLowerCase();
+  if (p === 'exact' || p === 'day' || p === 'date') return 'day';
+  if (p === 'month') return 'month';
+  return 'unknown';
+}
+
+function normalizeSourceType(raw) {
+  const s = String(raw || 'donation').trim().toLowerCase();
+  const map = {
+    'donation': 'donation', 'donate': 'donation',
+    'purchased': 'purchased', 'purchase': 'purchased', 'bought': 'purchased',
+    'usda': 'usda_commodity', 'usda_commodity': 'usda_commodity', 'usda commodity': 'usda_commodity', 'tefap': 'usda_commodity', 'commodity': 'usda_commodity',
+    'retail_rescue': 'retail_rescue', 'rescue': 'retail_rescue', 'retail rescue': 'retail_rescue',
+  };
+  return map[s] ?? 'donation';
+}
+
+// Resolve Category ID without violating RLS (categories is a shared global reference table, no INSERT allowed for normal users)
+async function resolveCategoryId(supabase, catInput) {
+  try {
+    const inputLower = String(catInput || '').trim().toLowerCase();
+    let possibleNames = [String(catInput || '').trim()];
+    
+    if (inputLower.includes('canned') || inputLower.includes('cylinder')) {
+      possibleNames.push('Canned Goods', 'canned_goods', 'canned');
+    } else if (inputLower.includes('bev') || inputLower.includes('water') || inputLower.includes('drink') || inputLower.includes('juice') || inputLower.includes('soda') || inputLower.includes('coffee') || inputLower.includes('tea')) {
+      possibleNames.push('Beverages', 'beverages');
+    } else if (inputLower.includes('dry') || inputLower.includes('grain') || inputLower.includes('pasta') || inputLower.includes('cereal') || inputLower.includes('rice') || inputLower.includes('bread') || inputLower.includes('archive')) {
+      possibleNames.push('Dry Goods', 'dry_goods');
+    } else if (inputLower.includes('froz') || inputLower.includes('snow') || inputLower.includes('ice')) {
+      possibleNames.push('Frozen Food', 'frozen_food');
+    } else if (inputLower.includes('prod') || inputLower.includes('fruit') || inputLower.includes('veg') || inputLower.includes('fresh') || inputLower.includes('carrot')) {
+      possibleNames.push('Produce', 'produce');
+    } else if (inputLower.includes('prot') || inputLower.includes('meat') || inputLower.includes('beef') || inputLower.includes('chicken') || inputLower.includes('fish') || inputLower.includes('pork') || inputLower.includes('seafood')) {
+      possibleNames.push('Proteins', 'proteins');
+    } else if (inputLower.includes('bak') || inputLower.includes('snack') || inputLower.includes('chip') || inputLower.includes('cook') || inputLower.includes('croissant') || inputLower.includes('cracker')) {
+      possibleNames.push('Bakery & Snacks', 'bakery_snacks', 'Bakery and Snacks');
+    } else if (inputLower.includes('dair') || inputLower.includes('milk') || inputLower.includes('cheese') || inputLower.includes('yogurt')) {
+      possibleNames.push('Dairy', 'dairy');
+    } else if (inputLower.includes('hyg') || inputLower.includes('soap') || inputLower.includes('shamp') || inputLower.includes('clean') || inputLower.includes('bubble') || inputLower.includes('personal')) {
+      possibleNames.push('Hygiene', 'hygiene');
+    } else {
+      possibleNames.push('Other', 'other', 'General', 'general');
+    }
+    possibleNames = [...new Set(possibleNames)];
+
+    const { data: existingCats } = await supabase.from('categories').select('id, name');
+    if (existingCats && existingCats.length > 0) {
+      const match = existingCats.find(c => 
+        possibleNames.some(p => c.name.toLowerCase() === p.toLowerCase())
+      ) || existingCats.find(c => c.name.toLowerCase() === 'other' || c.name.toLowerCase() === 'general') || existingCats[0];
+      
+      if (match) return match.id;
+    }
+  } catch (err) {
+    console.error("resolveCategoryId error:", err);
+  }
+  return null;
+}
 
 // ----------------------------------------------------------------------
 // 1. HELPER FUNCTIONS
 // ----------------------------------------------------------------------
-
-async function authenticateRequest(req) {
+async function authenticateRequest() {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,181 +105,270 @@ async function authenticateRequest(req) {
   return { authenticated: true, user, supabase };
 }
 
-async function verifyPantryMember(supabase, userId, pantryId) {
-  const { data, error } = await supabase
-    .from('pantry_members')
-    .select('is_active, role')
-    .eq('user_id', userId)
-    .eq('pantry_id', pantryId)
-    .single();
+async function resolveLocationAndOrg(supabase, pantryId) {
+  if (!pantryId) return null;
+  // First check if pantryId matches a location ID
+  const { data: loc } = await supabase
+    .from('locations')
+    .select('id, organization_id')
+    .eq('id', pantryId)
+    .maybeSingle();
 
-  if (error || !data) return null;
-  return data;
+  if (loc) {
+    return { locationId: loc.id, orgId: loc.organization_id };
+  }
+
+  // Otherwise assume pantryId is an organization ID, get its first location
+  const { data: firstLoc } = await supabase
+    .from('locations')
+    .select('id, organization_id')
+    .eq('organization_id', pantryId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (firstLoc) {
+    return { locationId: firstLoc.id, orgId: firstLoc.organization_id };
+  }
+
+  return null;
 }
 
 // ----------------------------------------------------------------------
-// 2. GET: Fetch Inventory (FIXED)
+// 2. GET: Fetch Inventory (by location)
 // ----------------------------------------------------------------------
 export async function GET(req) {
   try {
-    const auth = await authenticateRequest(req);
+    const auth = await authenticateRequest();
     if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const pantryId = req.headers.get('x-pantry-id');
     if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    const membership = await verifyPantryMember(auth.supabase, auth.user.id, pantryId);
+    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
+    if (!resolved) return NextResponse.json({ message: 'Location not found' }, { status: 404 });
+    const { locationId, orgId } = resolved;
+
+    // Verify membership in user_organizations
+    const { data: membership } = await auth.supabase
+      .from('user_organizations')
+      .select('role, status')
+      .eq('user_id', auth.user.id)
+      .eq('organization_id', orgId)
+      .eq('status', 'active')
+      .maybeSingle();
+
     if (!membership) return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
 
     const { searchParams } = new URL(req.url);
-    const sortBy = searchParams.get('sort') || 'expirationDate';
-    const order = searchParams.get('order') === 'desc' ? -1 : 1;
+    const sortBy = searchParams.get('sort') || 'expiration_date';
+    const orderAsc = searchParams.get('order') !== 'desc';
+    const validSortColumns = ['expiration_date', 'quantity', 'received_date', 'created_at', 'source_type'];
+    const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'expiration_date';
 
-    await connectDB();
-    // Use .lean() to get plain JS objects, making them easier to modify
-    const foods = await FoodItem.find({ pantryId }).sort({ [sortBy]: order }).lean();
+    // Query inventory_batches joined with catalog_items and categories
+    const { data: batches, error: batchErr } = await auth.supabase
+      .from('inventory_batches')
+      .select(`
+        id,
+        quantity,
+        expiration_date,
+        expiration_precision,
+        source_type,
+        received_date,
+        catalog_item:catalog_items (
+          id, name, barcode, photo_url, unit_of_measure, input_unit_value, weight_per_unit_lbs,
+          category:categories ( id, name, is_food )
+        )
+      `)
+      .eq('location_id', locationId)
+      .order(sortColumn, { ascending: orderAsc, nullsFirst: true });
 
-    // [FIX] Map over results and fix decimals before sending to frontend
-    const cleanedFoods = foods.map(item => ({
-        ...item,
-        quantity: formatQty(item.quantity)
-    }));
+    if (batchErr) {
+      console.error('Error fetching inventory:', batchErr);
+      return NextResponse.json({ message: 'Database Error' }, { status: 500 });
+    }
+
+    // Flatten into the shape existing UI components expect
+    const cleanedFoods = (batches || []).map(batch => {
+      const item = batch.catalog_item || {};
+      const cat = item.category || {};
+      return {
+        _id: batch.id,
+        id: batch.id,
+        name: item.name || 'Unknown Item',
+        barcode: item.barcode || '',
+        category: cat.name || 'General',
+        quantity: formatQty(batch.quantity || 0),
+        unit: item.unit_of_measure || 'units',
+        expirationDate: batch.expiration_date || null,
+        expirationPrecision: batch.expiration_precision || 'none',
+        sourceType: batch.source_type || 'donation',
+        receivedDate: batch.received_date || null,
+        catalogItemId: item.id,
+        weightPerUnit: item.weight_per_unit_lbs || 1,
+        photoUrl: item.photo_url || null
+      };
+    });
 
     return NextResponse.json({ count: cleanedFoods.length, data: cleanedFoods });
   } catch (error) {
+    console.error('GET /api/foods Error:', error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
 // ----------------------------------------------------------------------
-// 3. POST: Add Item (FIXED)
+// 3. POST: Receive Item (scan_in)
 // ----------------------------------------------------------------------
 export async function POST(req) {
   try {
-    // 1. Authenticate
-    const auth = await authenticateRequest(req);
+    const auth = await authenticateRequest();
     if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const data = await req.json();
     const pantryId = req.headers.get('x-pantry-id');
     if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    // 2. Verify Membership
-    const memberData = await verifyPantryMember(auth.supabase, auth.user.id, pantryId);
-    if (!memberData) return NextResponse.json({ message: 'Membership not found' }, { status: 403 });
-    if (memberData.is_active === false) {
-      return NextResponse.json({ message: 'Account is in Read-Only mode.' }, { status: 403 });
-    }
+    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
+    if (!resolved) return NextResponse.json({ message: 'Location not found' }, { status: 404 });
+    const { locationId, orgId } = resolved;
 
-    if (!data.name || !data.category || !data.quantity) {
+    // Verify membership
+    const { data: membership } = await auth.supabase
+      .from('user_organizations')
+      .select('role, status')
+      .eq('user_id', auth.user.id)
+      .eq('organization_id', orgId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (!membership) return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
+    if (!data.name || !data.quantity) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
 
-    // --- 🚨 GATEKEEPER START: CHECK LIMITS 🚨 ---
-    const { data: pantrySettings, error: pantryError } = await auth.supabase
-        .from('food_pantries')
-        .select('subscription_tier, total_items_created, max_items_limit')
-        .eq('pantry_id', pantryId)
-        .single();
-
-    if (pantryError || !pantrySettings) {
-        return NextResponse.json({ message: 'Could not verify pantry limits' }, { status: 500 });
-    }
-
-    if (pantrySettings.subscription_tier === 'pilot') {
-        const limit = pantrySettings.max_items_limit || 50; 
-        if (pantrySettings.total_items_created >= limit) {
-            return NextResponse.json({ 
-                error: 'LIMIT_REACHED', 
-                message: `Free Limit Reached (${limit} items).` 
-            }, { status: 403 });
-        }
-    }
-    // --- 🚨 GATEKEEPER END 🚨 ---
-
-    // 3. Connect to MongoDB
-    await connectDB();
-
-    // [FIX] Sanitize Input: Force input to max 3 decimals to prevent introducing new float errors
     const quantityToAdd = formatQty(parseFloat(data.quantity));
-    
-    let searchDate = null;
+    if (isNaN(quantityToAdd) || quantityToAdd <= 0) {
+      return NextResponse.json({ message: 'Quantity must be a positive number' }, { status: 400 });
+    }
+    const barcode = String(data.barcode || '').trim() || `SYS-${Date.now().toString().slice(-8)}`;
+
+    // 1. Resolve Category ID (categories is a shared global reference table, no organization_id)
+    const categoryId = await resolveCategoryId(auth.supabase, data.category);
+
+    // 2. Upsert Catalog Item (find by barcode + orgId, or create new)
+    let catalogItem = null;
+    const { data: existingItem } = await auth.supabase
+      .from('catalog_items')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('barcode', barcode)
+      .maybeSingle();
+
+    if (existingItem) {
+      catalogItem = existingItem;
+      // Update name or category if changed
+      const needsUpdate = (data.name && data.name !== existingItem.name) || 
+                          (categoryId && categoryId !== existingItem.category_id) ||
+                          (data.photoUrl && data.photoUrl !== existingItem.photo_url);
+      if (needsUpdate) {
+        const { data: updatedItem, error: updateErr } = await auth.supabase
+          .from('catalog_items')
+          .update({ 
+            name: data.name || existingItem.name, 
+            category_id: categoryId || existingItem.category_id,
+            photo_url: data.photoUrl || existingItem.photo_url
+          })
+          .eq('id', existingItem.id)
+          .select('*')
+          .single();
+        if (updateErr) console.error("Catalog item update error:", updateErr);
+        if (updatedItem) catalogItem = updatedItem;
+      }
+    } else {
+      // ✅ CRITICAL FIX: Do not write to weight_per_unit_lbs! It is GENERATED ALWAYS AS STORED in Postgres.
+      const { data: newItem, error: createErr } = await auth.supabase
+        .from('catalog_items')
+        .insert({
+          organization_id: orgId,
+          name: data.name || 'New Item',
+          barcode: barcode,
+          category_id: categoryId,
+          unit_of_measure: normalizeUnit(data.unit),
+          input_unit_value: Number(data.inputUnitValue || data.weightPerUnit || 1),
+          pack_size: data.packSize ? Number(data.packSize) : null,
+          photo_url: data.photoUrl || null
+        })
+        .select('*')
+        .single();
+      if (createErr) throw createErr;
+      catalogItem = newItem;
+    }
+
+    // 3. Insert Inventory Batch
+    let expDate = null;
     if (data.expirationDate) {
       const d = new Date(data.expirationDate);
-      d.setUTCHours(0, 0, 0, 0);
-      searchDate = d;
+      if (!isNaN(d.getTime())) {
+        expDate = d.toISOString().split('T')[0];
+      }
     }
-    const barcode = data.barcode?.trim() || `SYS-${Date.now().toString().slice(-8)}`;
 
-    // 4. Try to find existing batch (Update) vs Create New
-    let isNewItemCreated = false;
+    const { data: batch, error: batchErr } = await auth.supabase
+      .from('inventory_batches')
+      .insert({
+        catalog_item_id: catalogItem.id,
+        location_id: locationId,
+        quantity: quantityToAdd,
+        expiration_date: expDate,
+        expiration_precision: normalizeExpPrecision(data.expirationPrecision || (expDate ? 'day' : 'none')),
+        source_type: normalizeSourceType(data.sourceType),
+        donor_name: data.donorName || null,
+        received_date: new Date().toISOString().split('T')[0]
+      })
+      .select('*')
+      .single();
 
-    let foodItem = await FoodItem.findOneAndUpdate(
-      {
-        pantryId,
-        barcode: barcode,
-        expirationDate: searchDate ? searchDate : { $exists: false }
-      },
-      {
-        // [NOTE] $inc can still cause float artifacts if the DB value is already dirty.
-        // We will clean the RESPONSE below to hide it from the UI.
-        $inc: { quantity: quantityToAdd },
-        $set: {
-          name: data.name,
-          category: data.category,
-          storageLocation: data.storageLocation || '',
-          lastModified: new Date()
-        }
-      },
-      { new: true, lean: true } // lean: true gives us a plain object
-    );
+    if (batchErr) throw batchErr;
 
-    if (!foodItem) {
-      // If not found, CREATE NEW
-      // [FIX] Use sanitized quantityToAdd here
-      foodItem = await FoodItem.create({
-        ...data,
-        quantity: quantityToAdd, 
-        pantryId,
-        barcode,
-        expirationDate: searchDate || data.expirationDate,
-        lastModified: new Date()
+    // 4. Insert Activity Log (with full item_snapshot required by NOT NULL constraint)
+    const weightChanged = formatQty(quantityToAdd * Number(catalogItem.weight_per_unit_lbs || 1));
+    const { error: logErr } = await auth.supabase
+      .from('activity_logs')
+      .insert({
+        organization_id: orgId,
+        location_id: locationId,
+        user_id: auth.user.id,
+        action_type: 'scan_in',
+        reason: null,
+        quantity_changed: quantityToAdd,
+        total_weight_lbs_changed: weightChanged,
+        item_snapshot: catalogItem
       });
-      // Convert to object if created (mongoose doc -> js object)
-      foodItem = foodItem.toObject();
-      isNewItemCreated = true;
-    }
+    if (logErr) console.error("Activity log insert error:", logErr);
 
-    // --- 💰 SPEND TOKEN: INCREMENT USAGE 💰 ---
-    if (isNewItemCreated) {
-        const { error: rpcError } = await auth.supabase.rpc('increment_pantry_usage', {
-            p_pantry_id: pantryId,
-            p_resource_type: 'item'
-        });
-        
-        if (rpcError) {
-            console.error("Failed to increment item usage counter:", rpcError);
-        }
-    }
+    // 5. Return flattened shape to UI
+    const responseItem = {
+      _id: batch.id,
+      id: batch.id,
+      name: catalogItem.name,
+      barcode: catalogItem.barcode,
+      category: data.category || 'General',
+      quantity: formatQty(batch.quantity),
+      unit: catalogItem.unit_of_measure,
+      expirationDate: batch.expiration_date,
+      expirationPrecision: batch.expiration_precision,
+      sourceType: batch.source_type,
+      receivedDate: batch.received_date,
+      catalogItemId: catalogItem.id,
+      weightPerUnit: catalogItem.weight_per_unit_lbs || 1,
+      photoUrl: catalogItem.photo_url || null
+    };
 
-    // 5. Logging & Caching
-    await logChange('added', foodItem, {}, pantryId);
-
-    if (barcode && !barcode.startsWith('INT-') && !barcode.startsWith('SYS-')) {
-      await BarcodeCache.findOneAndUpdate(
-        { barcode, pantryId },
-        { name: data.name, category: data.category, lastModified: new Date(), pantryId },
-        { upsert: true }
-      );
-    }
-
-    // [FIX] Clean the result before sending back to frontend
-    // If $inc created a float artifact (e.g. 0.300000004), this fixes it for the immediate UI update
-    foodItem.quantity = formatQty(foodItem.quantity);
-
-    return NextResponse.json(foodItem, { status: 201 });
+    return NextResponse.json(responseItem, { status: 201 });
   } catch (error) {
-    console.error('POST Error:', error);
+    console.error('POST /api/foods Error:', error);
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 }

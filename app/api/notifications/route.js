@@ -1,69 +1,111 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import connectDB from '@/lib/db';
-import { FoodItem } from '@/lib/models/FoodItemModel';
+import { getPlanDetails } from '@/lib/plans';
+
+async function authenticateRequest() {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    { cookies: { getAll() { return cookieStore.getAll(); } } }
+  );
+
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) return { authenticated: false, user: null, supabase: null };
+
+  return { authenticated: true, user, supabase };
+}
+
+async function resolveLocationAndOrg(supabase, pantryId) {
+  if (!pantryId) return null;
+  const { data: loc } = await supabase
+    .from('locations')
+    .select('id, organization_id')
+    .eq('id', pantryId)
+    .maybeSingle();
+
+  if (loc) {
+    return { locationId: loc.id, orgId: loc.organization_id };
+  }
+
+  const { data: firstLoc } = await supabase
+    .from('locations')
+    .select('id, organization_id')
+    .eq('organization_id', pantryId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (firstLoc) {
+    return { locationId: firstLoc.id, orgId: firstLoc.organization_id };
+  }
+
+  return null;
+}
 
 export async function GET(req) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      { cookies: { getAll() { return cookieStore.getAll(); } } }
-    );
-
-    // 1. Authenticate
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const auth = await authenticateRequest();
+    if (!auth.authenticated) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
 
     const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+    if (!pantryId) {
+      return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+    }
 
-    let alerts = [];
+    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
+    if (!resolved) {
+      return NextResponse.json({ message: 'Organization not found' }, { status: 404 });
+    }
+    const { locationId, orgId } = resolved;
 
-    // --- CHECK 1: SUPABASE LIMITS ---
-    const { data: pantry, error: dbError } = await supabase
-      .from('food_pantries')
-      .select('max_clients_limit, total_families_created, max_items_limit, total_items_created, subscription_tier')
-      .eq('pantry_id', pantryId)
-      .single();
+    // Verify membership in user_organizations
+    const { data: membership, error: memberError } = await auth.supabase
+      .from('user_organizations')
+      .select('role, status')
+      .eq('user_id', auth.user.id)
+      .eq('organization_id', orgId)
+      .eq('status', 'active')
+      .maybeSingle();
 
-    if (!dbError && pantry) {
-      const clientLimit = pantry.max_clients_limit;
-      const currentClients = pantry.total_families_created;
+    if (memberError || !membership) {
+      return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
+    }
 
-      if (currentClients >= clientLimit) {
-        alerts.push({
-          id: 'limit-clients-crit',
-          type: 'critical',
-          title: 'Client Limit Reached',
-          message: `You have reached the limit of ${clientLimit} families. Upgrade to add more.`,
-          action: 'Upgrade', // Button text
-          // 👇 MATCHES Sidebar 'view' exactly
-          targetView: 'Settings'
-        });
-      } else if (currentClients >= clientLimit * 0.9) {
-        alerts.push({
-          id: 'limit-clients-warn',
-          type: 'warning',
-          title: 'Client Limit Near',
-          message: `You are at ${currentClients}/${clientLimit} families.`,
-          action: 'Upgrade',
-          targetView: 'Settings'
-        });
-      }
+    const alerts = [];
 
-      if (pantry.subscription_tier === 'pilot') {
-        const itemLimit = pantry.max_items_limit;
-        const currentItems = pantry.total_items_created;
+    // --- CHECK 1: PLAN LIMITS (from organizations and plans.js) ---
+    const { data: org } = await auth.supabase
+      .from('organizations')
+      .select('plan_type, current_item_count, current_user_count')
+      .eq('id', orgId)
+      .maybeSingle();
 
+    if (org) {
+      const plan = getPlanDetails(org.plan_type || 'free');
+      const itemLimit = plan?.limits?.items || 150;
+      const currentItems = org.current_item_count || 0;
+
+      // Only check limits if not unlimited (999999)
+      if (itemLimit < 999999) {
         if (currentItems >= itemLimit) {
           alerts.push({
             id: 'limit-items-crit',
             type: 'critical',
             title: 'Item Limit Reached',
-            message: `You reached the ${itemLimit} item limit. Upgrade to Pro.`,
+            message: `You reached the ${itemLimit} item limit on the ${plan.name} plan. Upgrade to increase your capacity.`,
+            action: 'Upgrade',
+            targetView: 'Settings'
+          });
+        } else if (currentItems >= itemLimit * 0.9) {
+          alerts.push({
+            id: 'limit-items-warn',
+            type: 'warning',
+            title: 'Item Limit Near',
+            message: `You are at ${currentItems}/${itemLimit} items on the ${plan.name} plan.`,
             action: 'Upgrade',
             targetView: 'Settings'
           });
@@ -71,56 +113,98 @@ export async function GET(req) {
       }
     }
 
-    // --- CHECK 2: MONGODB (Expiring Goods) ---
-    await connectDB();
+    // --- CHECK 2: INVENTORY STOCK & EXPIRATIONS (across all org locations) ---
+    const { data: orgLocations } = await auth.supabase
+      .from('locations')
+      .select('id')
+      .eq('organization_id', orgId);
+    const locationIds = (orgLocations || []).map(l => l.id);
+    const locFilter = locationIds.length > 0 ? locationIds : [locationId];
 
-    const today = new Date();
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(today.getDate() + 7);
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    const thirtyDaysStr = thirtyDaysFromNow.toISOString().split('T')[0];
 
-    // Fetch the actual items
-    const expiringItems = await FoodItem.find({
-      pantryId: pantryId,
-      quantity: { $gt: 0 },
-      expirationDate: {
-        $gte: today,
-        $lte: sevenDaysFromNow
-      }
-    }).select('name quantity unit expirationDate').limit(5).lean(); // Added .lean() for performance
+    // A. Already Expired Stock
+    const { count: expiredCount } = await auth.supabase
+      .from('inventory_batches')
+      .select('id', { count: 'exact', head: true })
+      .in('location_id', locFilter)
+      .gt('quantity', 0)
+      .lt('expiration_date', today);
 
-    // Create the alert summary
-    if (expiringItems.length > 0) {
+    if (expiredCount && expiredCount > 0) {
+      alerts.push({
+        id: 'expired-crit',
+        type: 'critical',
+        title: 'Expired Stock',
+        message: `${expiredCount} batches are past their expiration date.`,
+        action: 'Remove Items',
+        targetView: 'View Inventory'
+      });
+    }
+
+    // B. Expiring Soon (Within 30 Days)
+    const { data: expiringBatches } = await auth.supabase
+      .from('inventory_batches')
+      .select(`
+        id, quantity, expiration_date,
+        catalog_item:catalog_items ( id, name, unit_of_measure )
+      `)
+      .in('location_id', locFilter)
+      .gt('quantity', 0)
+      .gte('expiration_date', today)
+      .lte('expiration_date', thirtyDaysStr)
+      .order('expiration_date', { ascending: true })
+      .limit(10);
+
+    if (expiringBatches && expiringBatches.length > 0) {
       alerts.push({
         id: 'expiry-alert',
         type: 'warning',
         title: 'Expiring Soon',
-        message: `${expiringItems.length} items expire this week.`,
+        message: `${expiringBatches.length} batches expire within 30 days.`,
         action: 'Check Stock',
         targetView: 'View Inventory'
       });
     }
 
-    const expiredItems = await FoodItem.countDocuments({
-      pantryId: pantryId,
-      quantity: { $gt: 0 },
-      expirationDate: { $lt: today }
-    });
+    // C. Low Stock Notice (quantity <= 5)
+    const { data: lowStockBatches } = await auth.supabase
+      .from('inventory_batches')
+      .select(`
+        id, quantity,
+        catalog_item:catalog_items ( id, name, unit_of_measure )
+      `)
+      .in('location_id', locFilter)
+      .gt('quantity', 0)
+      .lte('quantity', 5)
+      .limit(5);
 
-    if (expiredItems > 0) {
+    if (lowStockBatches && lowStockBatches.length > 0) {
       alerts.push({
-        id: 'expired-crit',
-        type: 'critical',
-        title: 'Expired Stock',
-        message: `${expiredItems} items are past expiration.`,
-        action: 'Remove Items',
-        // 👇 MATCHES Sidebar 'view' exactly
+        id: 'low-stock-alert',
+        type: 'info',
+        title: 'Low Stock Notice',
+        message: `${lowStockBatches.length} items have 5 or fewer units remaining.`,
+        action: 'Restock',
         targetView: 'View Inventory'
       });
     }
 
+    const expiringItems = (expiringBatches || []).map(b => ({
+      _id: b.id,
+      id: b.id,
+      name: b.catalog_item?.name || 'Unknown Item',
+      quantity: b.quantity,
+      unit: b.catalog_item?.unit_of_measure || 'units',
+      expirationDate: b.expiration_date
+    }));
+
     return NextResponse.json({ alerts, expiringItems });
   } catch (error) {
-    console.error('Notification API Error:', error);
+    console.error('❌ GET /api/notifications - Error:', error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }

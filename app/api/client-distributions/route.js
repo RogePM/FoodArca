@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import connectDB from '@/lib/db';
-import { ClientDistribution } from '@/lib/models/ClientDistributionModel';
-import { Client } from '@/lib/models/ClientModel';
-import { FoodItem } from '@/lib/models/FoodItemModel'; 
-import { logChange } from '@/lib/logger';
 
-// --- AUTHENTICATION & SECURITY HELPER ---
-async function authenticateAndVerify(req) {
+// --- UTILITY: Round to 3 Decimals ---
+const formatQty = (num) => Math.round((Number(num) + Number.EPSILON) * 1000) / 1000;
+
+// ----------------------------------------------------------------------
+// 1. HELPER FUNCTIONS
+// ----------------------------------------------------------------------
+async function authenticateRequest() {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -16,225 +16,178 @@ async function authenticateAndVerify(req) {
     { cookies: { getAll() { return cookieStore.getAll(); } } }
   );
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return { valid: false, status: 401, message: 'Unauthorized', supabase }; // Return supabase client
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) return { authenticated: false, user: null, supabase: null };
 
-  const pantryId = req.headers.get('x-pantry-id');
-  if (!pantryId) return { valid: false, status: 400, message: 'Pantry ID required', supabase };
-
-  const { data: membership, error: memberError } = await supabase
-    .from('pantry_members')
-    .select('is_active, role')
-    .eq('user_id', user.id)
-    .eq('pantry_id', pantryId)
-    .single();
-
-  if (memberError || !membership) return { valid: false, status: 403, message: 'Access Denied', supabase };
-
-  return {
-    valid: true,
-    user,
-    pantryId,
-    isActive: membership.is_active,
-    role: membership.role,
-    supabase // Pass this back so we can query limits!
-  };
+  return { authenticated: true, user, supabase };
 }
 
-// --- GET: List All Distributions ---
+async function resolveLocationAndOrg(supabase, pantryId) {
+  if (!pantryId) return null;
+  const { data: loc } = await supabase
+    .from('locations')
+    .select('id, organization_id')
+    .eq('id', pantryId)
+    .maybeSingle();
+
+  if (loc) {
+    return { locationId: loc.id, orgId: loc.organization_id };
+  }
+
+  const { data: firstLoc } = await supabase
+    .from('locations')
+    .select('id, organization_id')
+    .eq('organization_id', pantryId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (firstLoc) {
+    return { locationId: firstLoc.id, orgId: firstLoc.organization_id };
+  }
+
+  return null;
+}
+
+// ----------------------------------------------------------------------
+// 2. GET: List All Distributions (from activity_logs)
+// ----------------------------------------------------------------------
 export async function GET(req) {
   try {
-    const auth = await authenticateAndVerify(req);
-    if (!auth.valid) return NextResponse.json({ message: auth.message }, { status: auth.status });
+    const auth = await authenticateRequest();
+    if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-    await connectDB();
-    const distributions = await ClientDistribution.find({ pantryId: auth.pantryId })
-      .sort({ distributionDate: -1 })
+    const pantryId = req.headers.get('x-pantry-id');
+    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+
+    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
+    if (!resolved) return NextResponse.json({ message: 'Location not found' }, { status: 404 });
+    const { locationId, orgId } = resolved;
+
+    // Verify membership
+    const { data: membership } = await auth.supabase
+      .from('user_organizations')
+      .select('role, status')
+      .eq('user_id', auth.user.id)
+      .eq('organization_id', orgId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (!membership) return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
+
+    // Query activity_logs for scan_out actions
+    const { data: logs, error } = await auth.supabase
+      .from('activity_logs')
+      .select('*')
+      .eq('location_id', locationId)
+      .eq('action_type', 'scan_out')
+      .order('created_at', { ascending: false })
       .limit(100);
+
+    if (error) {
+      console.error('Error fetching distribution logs:', error);
+      return NextResponse.json({ message: 'Database Error' }, { status: 500 });
+    }
+
+    const distributions = (logs || []).map(log => {
+      const item = log.item_snapshot || {};
+      return {
+        _id: log.id,
+        id: log.id,
+        clientName: 'Client Distribution',
+        clientId: 'SYS',
+        itemId: item.id || log.id,
+        itemName: item.name || 'Unknown Item',
+        category: 'General',
+        quantityDistributed: formatQty(log.quantity_changed || 0),
+        unit: item.unit_of_measure || 'units',
+        reason: log.reason || 'distribution-regular',
+        distributionDate: log.created_at
+      };
+    });
 
     return NextResponse.json({ count: distributions.length, data: distributions });
   } catch (error) {
+    console.error('GET /api/client-distributions Error:', error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
 }
 
-// --- POST: Create Distribution & Handle Client Profile ---
+// ----------------------------------------------------------------------
+// 3. POST: Distribute / Remove Items — via scan_out_item() RPC
+// ----------------------------------------------------------------------
 export async function POST(req) {
   try {
-    const auth = await authenticateAndVerify(req);
-    if (!auth.valid) return NextResponse.json({ message: auth.message }, { status: auth.status });
-    if (!auth.isActive) return NextResponse.json({ message: 'Read-only account' }, { status: 403 });
+    const auth = await authenticateRequest();
+    if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const data = await req.json();
-    await connectDB();
+    const pantryId = req.headers.get('x-pantry-id');
+    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
 
-    const {
-      clientName, clientId, isNewClient, address,
-      childrenCount, adultCount, seniorCount,
-      cart 
-    } = data;
-    
-    // ---------------------------------------------------------
-    // 🚨 GATEKEEPER: CHECK FAMILY LIMITS (Only if Creating New) 🚨
-    // ---------------------------------------------------------
-    if (isNewClient && clientName && clientName !== 'Walk-in') {
-        const { data: pantrySettings, error: pantryError } = await auth.supabase
-            .from('food_pantries')
-            .select('subscription_tier, total_families_created, max_clients_limit')
-            .eq('pantry_id', auth.pantryId)
-            .single();
+    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
+    if (!resolved) return NextResponse.json({ message: 'Location not found' }, { status: 404 });
+    const { locationId, orgId } = resolved;
 
-        if (!pantryError && pantrySettings && pantrySettings.subscription_tier === 'pilot') {
-            const limit = pantrySettings.max_clients_limit || 100;
-            
-            // If they hit the limit, BLOCK the distribution until they fix the client issue
-            if (pantrySettings.total_families_created >= limit) {
-                return NextResponse.json({ 
-                    error: 'LIMIT_REACHED', 
-                    message: `Client Limit Reached (${limit}). Please select an existing client or upgrade.` 
-                }, { status: 403 });
-            }
-        }
-    }
-    // ---------------------------------------------------------
+    // Verify membership
+    const { data: membership } = await auth.supabase
+      .from('user_organizations')
+      .select('role, status')
+      .eq('user_id', auth.user.id)
+      .eq('organization_id', orgId)
+      .eq('status', 'active')
+      .maybeSingle();
 
-    // 1. IDENTITY & HOUSEHOLD LOGIC
-    let finalClientId = clientId || 'SYS';
-    let familySize = (childrenCount || 0) + (adultCount || 1) + (seniorCount || 0);
+    if (!membership) return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
 
-    if (clientName && finalClientId !== 'SYS' && clientName !== 'Walk-in') {
-      try {
-        if (isNewClient) {
-          const newClient = await Client.create({
-            pantryId: auth.pantryId,
-            clientId: finalClientId,
-            firstName: clientName.split(' ')[0],
-            lastName: clientName.split(' ').slice(1).join(' ') || '',
-            address: address || '',
-            childrenCount: childrenCount || 0,
-            adultCount: adultCount || 1,
-            seniorCount: seniorCount || 0,
-            familySize: familySize,
-            lastVisit: new Date(),
-          });
-          finalClientId = newClient.clientId;
+    const itemsToProcess = data.cart || [data];
+    const results = [];
 
-          // --- 💰 SPEND TOKEN: INCREMENT COUNTER 💰 ---
-          if (newClient) {
-             const { error: rpcError } = await auth.supabase.rpc('increment_pantry_usage', {
-                p_pantry_id: auth.pantryId,
-                p_resource_type: 'family' 
-             });
-             if (rpcError) console.error("Failed to increment family counter:", rpcError);
-          }
+    for (const item of itemsToProcess) {
+      const qty = formatQty(parseFloat(item.quantityDistributed || item.quantity || 0));
+      if (qty <= 0) continue;
 
-        } else {
-          // Updating existing client does NOT cost a token
-          await Client.findOneAndUpdate(
-            { pantryId: auth.pantryId, clientId: finalClientId },
-            {
-              $set: {
-                lastVisit: new Date(),
-                isActive: true,
-                childrenCount: childrenCount || 0,
-                adultCount: adultCount || 1,
-                seniorCount: seniorCount || 0,
-                familySize: familySize
-              }
-            }
-          );
-        }
-      } catch (err) { console.error("Client update failed:", err); }
-    }
-
-    // 2. DISTRIBUTION & INVENTORY LOGIC
-    const itemsToProcess = cart || [data];
-    const timestamp = new Date();
-
-    const results = await Promise.all(itemsToProcess.map(async (item) => {
-      const qty = item.quantityDistributed;
-
-      // A. Update Food Inventory
-      const updatedFood = await FoodItem.findOneAndUpdate(
-        { _id: item.itemId, pantryId: auth.pantryId },
-        { $inc: { quantity: -qty }, $set: { lastModified: timestamp } },
-        { new: true }
-      );
-
-      // B. Auto-delete if stock is empty
-      if (updatedFood && updatedFood.quantity <= 0) {
-        await FoodItem.findByIdAndDelete(item.itemId);
+      // Resolve catalog_item_id whether frontend passed catalogItemId or batch itemId/_id
+      let catalogItemId = item.catalogItemId;
+      if (!catalogItemId && (item.itemId || item.id || item._id)) {
+        const { data: batch } = await auth.supabase
+          .from('inventory_batches')
+          .select('catalog_item_id')
+          .eq('id', item.itemId || item.id || item._id)
+          .maybeSingle();
+        if (batch) catalogItemId = batch.catalog_item_id;
+      }
+      if (!catalogItemId) {
+        throw new Error(`Could not resolve catalog item for ${item.itemName || 'item'}`);
       }
 
-      // C. Create Distribution Record
-      const distribution = await ClientDistribution.create({
-        pantryId: auth.pantryId,
-        clientName: clientName,
-        clientId: finalClientId,
-        itemId: item.itemId,
-        itemName: item.itemName,
-        category: item.category,
-        quantityDistributed: qty,
-        unit: item.unit || 'units',
-        reason: item.reason || 'distribution-regular',
-        distributionDate: timestamp,
+      // Call scan_out_item RPC which handles FEFO batch selection, row locking, and activity logging
+      const { data: rpcRes, error: rpcErr } = await auth.supabase.rpc('scan_out_item', {
+        p_catalog_item_id: catalogItemId,
+        p_location_id: locationId,
+        p_quantity: qty
       });
 
-      // D. Log to History
-      await logChange('distributed',
-        {
-          _id: item.itemId,
-          name: item.itemName,
-          category: item.category,
-          quantity: updatedFood?.quantity || 0
-        },
-        {
-          reason: item.reason || 'distribution-regular',
-          clientName,
-          clientId: finalClientId,
-          removedQuantity: qty,
-          unit: item.unit,
-          familySize
-        },
-        auth.pantryId
-      );
-
-      return distribution;
-    }));
+      if (rpcErr) throw rpcErr;
+      results.push({ catalogItemId, quantityDistributed: qty, success: true });
+    }
 
     return NextResponse.json({
       message: 'Distribution successful',
-      itemsProcessed: results.length
+      itemsProcessed: results.length,
+      results
     }, { status: 201 });
-
   } catch (error) {
-    console.error("POST Distribution Error:", error);
-    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
+    console.error('POST /api/client-distributions Error:', error);
+    return NextResponse.json({ message: error.message || 'Server Error' }, { status: 500 });
   }
 }
 
-// --- PUT & DELETE (Standard) ---
-export async function PUT(req) {
-  const auth = await authenticateAndVerify(req);
-  if (!auth.valid || !auth.isActive) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get('id');
-  const data = await req.json();
-
-  await connectDB();
-  const result = await ClientDistribution.findOneAndUpdate({ _id: id, pantryId: auth.pantryId }, data, { new: true });
-  return result ? NextResponse.json(result) : NextResponse.json({ message: 'Not found' }, { status: 404 });
+// --- PUT & DELETE (Audit logs are immutable) ---
+export async function PUT() {
+  return NextResponse.json({ message: 'Audit logs are immutable in the new schema' }, { status: 403 });
 }
 
-export async function DELETE(req) {
-  const auth = await authenticateAndVerify(req);
-  if (!auth.valid || !auth.isActive) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get('id');
-
-  await connectDB();
-  const result = await ClientDistribution.findOneAndDelete({ _id: id, pantryId: auth.pantryId });
-  return result ? NextResponse.json({ message: 'Deleted' }) : NextResponse.json({ message: 'Not found' }, { status: 404 });
+export async function DELETE() {
+  return NextResponse.json({ message: 'Audit logs are immutable in the new schema' }, { status: 403 });
 }

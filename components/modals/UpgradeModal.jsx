@@ -73,9 +73,6 @@ export function UpgradeModal({ isOpen, onClose, currentTier }) {
                                     <li className="flex items-center gap-2 text-sm text-gray-600">
                                         <Check className="h-4 w-4 text-green-600" /> {plan.limits.items >= 10000 ? 'Unlimited' : plan.limits.items} Items
                                     </li>
-                                    <li className="flex items-center gap-2 text-sm text-gray-600">
-                                        <Check className="h-4 w-4 text-green-600" /> {plan.limits.clients >= 10000 ? 'Unlimited' : plan.limits.clients} Clients
-                                    </li>
                                 </ul>
 
                                 <Button 

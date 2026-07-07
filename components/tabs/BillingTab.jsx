@@ -169,7 +169,6 @@ export function BillingTab({ details, currentPlan, currentTier, userRole }) {
                                 {/* Features */}
                                 <div className="space-y-4 flex-1 mb-8">
                                     <FeatureItem label={`${formatLimit(plan.limits.items)} Inventory Items`} />
-                                    <FeatureItem label={`${formatLimit(plan.limits.clients)} Client Families`} />
                                     <FeatureItem label={`${formatLimit(plan.limits.users)} Team Members`} />
                                     {isPro && <FeatureItem label="Data Export & Reporting" highlighted />}
                                     {tierKey === 'enterprise' && <FeatureItem label="Dedicated Support" />}
@@ -231,6 +230,7 @@ function FeatureItem({ label, highlighted = false }) {
 }
 
 function formatLimit(num) {
+    if (num === undefined || num === null) return '0';
     if (num >= 10000) return 'Unlimited';
     return num.toLocaleString();
 }

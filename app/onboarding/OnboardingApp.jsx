@@ -20,7 +20,6 @@ export default function OnboardingApp({ user, inviteCode }) {
   const [step, setStep] = useState(1);
   const [intent, setIntent] = useState(null); // 'create' or 'join'
   const [isLoading, setIsLoading] = useState(false);
-  const [verifyingInvite, setVerifyingInvite] = useState(false);
   
   // --- Error State ---
   const [globalError, setGlobalError] = useState('');
@@ -28,8 +27,8 @@ export default function OnboardingApp({ user, inviteCode }) {
 
   // --- Data State ---
   const [session, setSession] = useState(null);
-  const [createData, setCreateData] = useState({ name: '', address: '', type: 'standalone', generatedCode: '' });
-  const [joinData, setJoinData] = useState({ code: '', pantryName: '', address: '', pantryId: '' });
+  const [createData, setCreateData] = useState({ name: '', address: '', type: 'standalone' });
+  const [joinData, setJoinData] = useState({ code: '', joinedOrgName: '' });
   
   // Pre-fill name from Auth User if available
   const [profileData, setProfileData] = useState({ 
@@ -37,9 +36,11 @@ export default function OnboardingApp({ user, inviteCode }) {
     phone: '' 
   });
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const [supabase] = useState(() =>
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
   );
 
   // --- VALIDATION ENGINE ---
@@ -47,7 +48,7 @@ export default function OnboardingApp({ user, inviteCode }) {
     let error = "";
     const val = value ? value.trim() : "";
     const safeTextRegex = /^[a-zA-Z0-9\s\.,'\-&]+$/;
-    const cityStateRegex = /^[a-zA-Z\s\.-]+,\s*[a-zA-Z]{2}$/;
+    const cityStateRegex = /^[a-zA-Z0-9\s\.,'\-&]+,\s*[a-zA-Z]{2}$/;
 
     if (!val) return "This field is required.";
 
@@ -57,7 +58,7 @@ export default function OnboardingApp({ user, inviteCode }) {
        }
     }
 
-    if (field === 'name' || field === 'pantryName') {
+    if (field === 'name') {
        if (!safeTextRegex.test(val)) {
          return "Invalid characters. Please remove special symbols (<, >, ;, --).";
        }
@@ -81,45 +82,11 @@ export default function OnboardingApp({ user, inviteCode }) {
     }
   };
 
-  // --- 1. HANDLE INVITE CODE (Lookup Only) ---
-  const handleCodeLookup = async (codeOverride = null) => {
-    setIsLoading(true);
-    setGlobalError('');
-    const codeToTest = (codeOverride || joinData.code).trim().toUpperCase();
-
-    try {
-      if (!codeToTest) throw new Error("No code provided");
-
-      // ✅ FIX: Use the secure helper function to preview details
-      // Simple 'select' would fail because of RLS (you aren't a member yet)
-      const { data, error } = await supabase
-        .rpc('get_pantry_details_by_code', { lookup_code: codeToTest })
-        .maybeSingle();
-
-      if (error || !data) throw new Error("Invalid or expired invite code.");
-
-      setJoinData({
-        code: codeToTest,
-        pantryName: data.name,
-        address: data.address,
-        pantryId: data.pantry_id
-      });
-
-      setIntent('join');
-      setStep(3); // Skip to confirmation
-    } catch (err) {
-      setGlobalError(err.message);
-      if (codeOverride) { setIntent('join'); setStep(2); } 
-    } finally {
-      setIsLoading(false);
-      setVerifyingInvite(false);
-    }
-  };
-
   useEffect(() => {
     if (inviteCode) {
-        setVerifyingInvite(true);
-        handleCodeLookup(inviteCode);
+        setJoinData(prev => ({ ...prev, code: inviteCode }));
+        setIntent('join');
+        setStep(2);
     }
     
     if (!user) {
@@ -130,9 +97,9 @@ export default function OnboardingApp({ user, inviteCode }) {
         };
         getSession();
     }
-  }, [inviteCode, user]);
+  }, [inviteCode, user, router, supabase]);
 
-  // --- 2. CREATE PANTRY LOGIC (SECURE) ---
+  // --- 1. CREATE ORGANIZATION LOGIC (NEW SCHEMA RPC) ---
   const handleCreatePantry = async () => {
     const nameErr = validateField('name', createData.name);
     const addrErr = validateField('address', createData.address);
@@ -145,39 +112,26 @@ export default function OnboardingApp({ user, inviteCode }) {
     setGlobalError('');
 
     try {
-      const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const userId = user?.id || session?.user?.id;
+      // Dynamically detect user's local browser timezone (fallback to 'UTC')
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
-      // A. Create Pantry
-      // ✅ FIX: We only insert the pantry. The Postgres TRIGGER automatically 
-      // adds the current user as the 'owner' in pantry_members.
-      const { data: pantry, error: pantryError } = await supabase
-        .from('food_pantries')
-        .insert({
-          name: createData.name,
-          address: createData.address,
-          type: createData.type,
-          join_code: generatedCode,
-          total_seats_used: 1 // Start at 1
-        })
-        .select('pantry_id')
-        .single();
+      // Parse "City, State" from createData.address (e.g. "Austin, TX")
+      const [city = '', state = ''] = (createData.address || '').split(',').map(s => s.trim());
 
-      if (pantryError) throw pantryError;
-      const newPantryId = pantry.pantry_id;
-
-      // B. Setup Profile
-      // We still update the profile to set the 'current_pantry_id'
-      const { error: profileError } = await supabase.from('user_profiles').upsert({
-          user_id: userId,
-          name: profileData.fullName,
-          current_pantry_id: newPantryId,
-          phone: profileData.phone || null
+      const { data, error } = await supabase.rpc('create_organization', {
+        org_name: createData.name,
+        org_timezone: userTimezone,
+        location_name: 'Main Location',
+        location_address_line1: createData.address,
+        location_city: city,
+        location_state: state,
+        location_zip: '',
+        location_timezone: userTimezone,
+        user_full_name: profileData.fullName
       });
 
-      if (profileError) throw new Error("Pantry created, but profile setup failed.");
+      if (error) throw error;
 
-      setCreateData(prev => ({ ...prev, generatedCode }));
       setStep('success');
 
     } catch (err) {
@@ -187,29 +141,25 @@ export default function OnboardingApp({ user, inviteCode }) {
     }
   };
 
-  // --- 3. JOIN PANTRY LOGIC (SECURE) ---
+  // --- 2. JOIN ORGANIZATION LOGIC (NEW SCHEMA RPC) ---
   const handleJoinPantry = async () => {
     setIsLoading(true);
     setGlobalError('');
-    const userEmail = user?.email || session?.user?.email;
+    const codeToTest = joinData.code.trim();
 
     try {
-      // ✅ FIX: Use the secure RPC to join
-      // Manual insert into pantry_members is now blocked by RLS
-      const { error: rpcError } = await supabase.rpc('join_pantry_with_code', {
-        code_input: joinData.code,
-        user_name: profileData.fullName
+      if (!codeToTest) throw new Error("Please enter an invite code.");
+
+      const { data, error: rpcError } = await supabase.rpc('accept_invite', {
+        p_token: codeToTest
       });
 
       if (rpcError) throw rpcError;
 
-      // 2. Clean up invite (Best effort - if RLS allows)
-      if (userEmail && joinData.pantryId) {
-         await supabase
-          .from('pantry_invitations')
-          .delete()
-          .eq('pantry_id', joinData.pantryId)
-          .eq('email', userEmail);
+      if (data && typeof data === 'object' && data.organization_name) {
+        setJoinData(prev => ({ ...prev, joinedOrgName: data.organization_name }));
+      } else {
+        setJoinData(prev => ({ ...prev, joinedOrgName: 'your new team' }));
       }
 
       setStep('success');
@@ -226,15 +176,6 @@ export default function OnboardingApp({ user, inviteCode }) {
   };
 
   // --- RENDER ---
-  if (verifyingInvite) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center gap-4 bg-[#FAFAFA]">
-        <Loader2 className="animate-spin h-8 w-8 text-[#d97757]" />
-        <p className="text-gray-500 font-medium animate-pulse">Checking invite...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-gray-900">
       <header className="w-full h-16 px-6 flex items-center justify-between bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -341,40 +282,29 @@ export default function OnboardingApp({ user, inviteCode }) {
             </WizardStep>
           )}
 
-          {/* STEP 2 (JOIN): CODE ENTRY */}
+          {/* STEP 2 (JOIN): CODE ENTRY & JOIN DIRECTLY */}
           {intent === 'join' && step === 2 && (
-            <WizardStep title="Enter Invite Code" subtitle="Get the 6-character code from your admin." onBack={() => setStep(1)}>
-              <div className="space-y-4">
-                <Input
-                  value={joinData.code}
-                  onChange={e => setJoinData({ ...joinData, code: e.target.value.toUpperCase() })}
-                  maxLength={6}
-                  placeholder="XXXXXX"
-                  className="h-16 text-center text-4xl font-mono tracking-[0.5em] uppercase bg-white border-gray-200 focus-visible:ring-[#d97757] text-gray-900 placeholder:text-gray-200"
-                />
-                <Button onClick={() => handleCodeLookup()} disabled={joinData.code.length < 6 || isLoading} className="w-full h-12 bg-[#d97757] hover:bg-[#c06245] font-bold shadow-md shadow-orange-100">
-                  {isLoading ? <Loader2 className="animate-spin" /> : 'Find Team'}
-                </Button>
-              </div>
-            </WizardStep>
-          )}
-
-          {/* STEP 3 (JOIN): CONFIRM */}
-          {intent === 'join' && step === 3 && (
-            <WizardStep title="Is this correct?" subtitle="Confirm the organization details." onBack={() => setStep(2)}>
-              <div className="bg-white border border-gray-200 p-6 rounded-xl text-center mb-6 shadow-sm">
-                <div className="h-12 w-12 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-3 text-[#d97757]">
-                  <Building2 className="h-6 w-6" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900">{joinData.pantryName}</h3>
-                <p className="text-gray-500 flex items-center justify-center gap-1 mt-1"><MapPin className="h-3 w-3" /> {joinData.address}</p>
-              </div>
+            <WizardStep title="Enter Invite Code" subtitle="Get the invite code or token from your admin." onBack={() => setStep(1)}>
               <div className="space-y-4">
                 <div>
-                  <Label>Your Full Name</Label>
-                  <Input value={profileData.fullName} onChange={e => setProfileData({ ...profileData, fullName: e.target.value })} className="h-11 mt-1 bg-white" />
+                  <Label>Invite Code / Token</Label>
+                  <Input
+                    value={joinData.code}
+                    onChange={e => setJoinData({ ...joinData, code: e.target.value })}
+                    placeholder="Enter token or code..."
+                    className="h-12 mt-1 bg-white border-gray-200 focus-visible:ring-[#d97757] text-gray-900 placeholder:text-gray-400 font-mono text-center"
+                  />
                 </div>
-                <Button onClick={handleJoinPantry} disabled={isLoading} className="w-full h-12 bg-[#d97757] hover:bg-[#c06245] font-bold shadow-md shadow-orange-100">
+                <div>
+                  <Label>Your Full Name</Label>
+                  <Input 
+                    value={profileData.fullName} 
+                    onChange={e => setProfileData({ ...profileData, fullName: e.target.value })} 
+                    placeholder="Your Name" 
+                    className="h-11 mt-1 bg-white" 
+                  />
+                </div>
+                <Button onClick={handleJoinPantry} disabled={!joinData.code.trim() || isLoading} className="w-full h-12 bg-[#d97757] hover:bg-[#c06245] font-bold shadow-md shadow-orange-100">
                   {isLoading ? <Loader2 className="animate-spin" /> : 'Join Organization'}
                 </Button>
               </div>
@@ -389,7 +319,7 @@ export default function OnboardingApp({ user, inviteCode }) {
               </div>
               <h1 className="text-3xl font-serif font-medium mb-2 text-gray-900">You're all set!</h1>
               <p className="text-gray-500 mb-8">
-                Welcome to <span className="font-bold text-gray-900">{intent === 'create' ? createData.name : joinData.pantryName}</span>.
+                Welcome to <span className="font-bold text-gray-900">{intent === 'create' ? createData.name : joinData.joinedOrgName}</span>.
               </p>
               {intent === 'create' && (
                 <div className="bg-[#1f2937] text-white p-6 rounded-xl mb-8 text-left relative overflow-hidden shadow-xl">
@@ -401,8 +331,8 @@ export default function OnboardingApp({ user, inviteCode }) {
                       <p className="text-sm text-gray-400 mt-1">50 Items • 1 User</p>
                     </div>
                     <div className="text-right z-10">
-                      <p className="text-[10px] text-gray-400 mb-1 uppercase tracking-wider">Join Code</p>
-                      <p className="font-mono text-2xl font-bold tracking-widest text-[#d97757]">{createData.generatedCode}</p>
+                      <p className="text-[10px] text-gray-400 mb-1 uppercase tracking-wider">Role</p>
+                      <p className="text-xl font-bold text-[#d97757]">Owner</p>
                     </div>
                   </div>
                 </div>

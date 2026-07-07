@@ -98,10 +98,8 @@ export function DashboardHome({ setActiveView }) {
   const [loading, setLoading] = useState(true);
 
   // Filter Actions
-  const showClientTracking = pantryDetails?.settings?.enable_client_tracking ?? true;
-  const filteredActions = dashboardActions.filter(item => 
-    showClientTracking || item.view !== 'View Clients'
-  );
+  const showClientTracking = false; // Client CRM removed from current scope
+  const filteredActions = dashboardActions.filter(item => item.view !== 'View Clients');
 
   // Fetch Data
   useEffect(() => {
@@ -110,7 +108,7 @@ export function DashboardHome({ setActiveView }) {
     const fetchData = async () => {
       try {
         const [statsRes, notifRes] = await Promise.all([
-          fetch('/api/pantry-stats', { headers: { 'x-pantry-id': pantryId } }),
+          fetch('/api/dashboard/stats', { headers: { 'x-pantry-id': pantryId } }),
           fetch('/api/notifications', { headers: { 'x-pantry-id': pantryId } })
         ]);
 
@@ -191,21 +189,21 @@ export function DashboardHome({ setActiveView }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard 
           title="Current Stock" 
-          value={stats.inventoryCount.toLocaleString()} 
+          value={(stats?.inventoryCount || 0).toLocaleString()} 
           subtitle="Unique Items Available"
           percentage={inventoryProgress}
           icon={Package}
         />
         <StatCard 
           title="Est. Value" 
-          value={`$${Math.round(stats.totalValue).toLocaleString()}`} 
+          value={`$${Math.round(stats?.totalValue || 0).toLocaleString()}`} 
           subtitle="Community Aid Provided"
           percentage={impactProgress}
           icon={TrendingUp}
         />
         <StatCard 
           title="Items Out" 
-          value={stats.totalItemsDistributed?.toLocaleString() || "0"} 
+          value={(stats?.totalItemsDistributed || 0).toLocaleString()} 
           subtitle="Total Units Distributed"
           percentage={distributionProgress} 
           icon={Leaf}

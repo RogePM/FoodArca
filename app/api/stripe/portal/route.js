@@ -3,20 +3,22 @@ import { stripe } from '@/lib/stripe';
 import { createClient } from '@/utils/supabase/server';
 
 // --- SHARED SECURITY HELPER ---
-async function verifyAdminAccess(supabase, userId) {
-  // ✅ ACTION: Verify user is an ADMIN and ACTIVE
+// organizationId is passed from the request body so multi-org users work correctly
+async function verifyAdminAccess(supabase, userId, organizationId) {
   const { data: membership, error } = await supabase
-    .from('pantry_members')
-    .select('pantry_id, role, is_active')
+    .from('user_organizations')
+    .select('organization_id, role, status')
     .eq('user_id', userId)
-    .single();
+    .eq('organization_id', organizationId)
+    .eq('status', 'active')
+    .maybeSingle();
 
   if (error || !membership) return null;
   
-  // Guard: Only admins can manage the subscription portal
-  if (membership.role !== 'admin' || !membership.is_active) return null;
+  const allowedRoles = ['admin', 'owner'];
+  if (!allowedRoles.includes(membership.role)) return null;
 
-  return membership.pantry_id;
+  return membership.organization_id;
 }
 
 export async function POST(req) {
@@ -28,22 +30,35 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. SECURITY: Enforce Admin-only verification
-    const pantryId = await verifyAdminAccess(supabase, user.id);
-    if (!pantryId) {
+    const body = await req.json();
+    const { organizationId } = body;
+
+    if (!organizationId) {
+      return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 });
+    }
+
+    // 1. SECURITY: Enforce Admin/Owner-only verification for the specified organization
+    const orgId = await verifyAdminAccess(supabase, user.id, organizationId);
+    if (!orgId) {
       return NextResponse.json({ 
-        error: 'Forbidden: Only an active Admin can access the Billing Portal.' 
+        error: 'Forbidden: Only an active Admin or Owner can access the Billing Portal.' 
       }, { status: 403 });
     }
 
-    // 2. Fetch Stripe Customer ID
-    const { data: pantry, error: pantryError } = await supabase
-      .from('food_pantries')
-      .select('stripe_customer_id')
-      .eq('pantry_id', pantryId)
-      .single();
+    // 2. Fetch Stripe Customer ID by searching Stripe metadata
+    let customerId = null;
+    try {
+      const customers = await stripe.customers.search({
+        query: `metadata['pantryId']:'${orgId}'`,
+      });
+      if (customers.data.length > 0 && !customers.data[0].deleted) {
+        customerId = customers.data[0].id;
+      }
+    } catch (err) {
+      console.error("Stripe customer search error:", err);
+    }
 
-    if (pantryError || !pantry?.stripe_customer_id) {
+    if (!customerId) {
       return NextResponse.json({ 
         error: 'No active billing profile found for this organization.' 
       }, { status: 400 });
@@ -54,13 +69,12 @@ export async function POST(req) {
     const returnUrl = `${origin}/dashboard`; 
 
     // 4. Create Stripe Portal Session
-    // This allows the admin to update cards, view invoices, or change plans
     const session = await stripe.billingPortal.sessions.create({
-      customer: pantry.stripe_customer_id,
+      customer: customerId,
       return_url: returnUrl,
     });
 
-    console.log(`✅ Stripe Portal Session created for Pantry: ${pantryId}`);
+    console.log(`✅ Stripe Portal Session created for Organization: ${orgId}`);
     return NextResponse.json({ url: session.url });
 
   } catch (err) {

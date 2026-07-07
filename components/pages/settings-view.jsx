@@ -16,7 +16,7 @@ export function SettingsView() {
     const [details, setDetails] = useState(pantryDetails);
     
     // Usage State
-    const [clientCount, setClientCount] = useState(0);
+    const [itemCount, setItemCount] = useState(0);
     const [loading, setLoading] = useState(true);
 
     const supabase = createBrowserClient(
@@ -47,9 +47,9 @@ export function SettingsView() {
                 
                 if (!currentDetails) {
                     const { data } = await supabase
-                        .from('food_pantries')
+                        .from('organizations')
                         .select('*')
-                        .eq('pantry_id', pantryId)
+                        .eq('id', pantryId)
                         .single();
                     if (data) {
                         setDetails(data);
@@ -59,15 +59,14 @@ export function SettingsView() {
                     setDetails(pantryDetails);
                 }
 
-                // 2. Fetch Real-time Client Usage
-                // We count the ACTUAL rows in the clients table to ensure accuracy
+                // 2. Fetch Real-time Item Usage (SKUs)
                 const { count, error } = await supabase
-                    .from('clients')
+                    .from('catalog_items')
                     .select('*', { count: 'exact', head: true }) 
-                    .eq('pantry_id', pantryId);
+                    .eq('organization_id', pantryId);
 
                 if (!error) {
-                    setClientCount(count || 0);
+                    setItemCount(count || 0);
                 }
 
             } catch (err) {
@@ -83,19 +82,19 @@ export function SettingsView() {
     if (loading) return <div className="p-20 text-center text-gray-400">Loading settings...</div>;
 
     // --- LIMIT CALCULATION LOGIC ---
-    const currentTier = details?.subscription_tier || 'pilot';
+    const currentTier = details?.subscription_tier || details?.plan_type || 'free';
     const currentPlan = getPlanDetails(currentTier);
     const hasProFeatures = currentPlan.features.csv_export;
     
     // 1. Check if the Database Row has a specific limit (Override)
     // 2. If null, fallback to the Generic Plan Limit
-    const dbLimit = details?.max_clients_limit;
-    const planLimit = currentPlan.features.max_clients;
+    const dbLimit = details?.max_items_limit || details?.max_catalog_items;
+    const planLimit = currentPlan.limits.items;
     
     // Use the DB limit if it exists (even if it is 0), otherwise use plan default
-    const maxClients = (dbLimit !== null && dbLimit !== undefined) ? dbLimit : planLimit;
+    const maxItems = (dbLimit !== null && dbLimit !== undefined) ? dbLimit : planLimit;
     
-    const isUnlimited = maxClients > 100000; 
+    const isUnlimited = maxItems > 100000; 
 
     const commonProps = {
         pantryId,
@@ -109,10 +108,10 @@ export function SettingsView() {
         currentTier,
         // Pass the calculated stats
         usageStats: {
-            current: clientCount,
-            limit: maxClients,
+            current: itemCount,
+            limit: maxItems,
             isUnlimited,
-            percentUsed: isUnlimited ? 0 : Math.min(100, (clientCount / maxClients) * 100)
+            percentUsed: isUnlimited ? 0 : Math.min(100, (itemCount / maxItems) * 100)
         }
     };
 
@@ -140,9 +139,9 @@ export function SettingsView() {
                                 ? 'bg-red-50 border-red-200 text-red-700' 
                                 : 'bg-gray-50 border-gray-100 text-gray-500'
                         }`}>
-                            <span>Clients:</span>
+                            <span>Items:</span>
                             <span className="font-bold">
-                                {clientCount} / {isUnlimited ? '∞' : maxClients}
+                                {itemCount} / {isUnlimited ? '∞' : maxItems}
                             </span>
                         </div>
                     </div>

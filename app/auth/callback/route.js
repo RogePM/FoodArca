@@ -36,8 +36,8 @@ export async function GET(request) {
     }
 
     // 3. Invite Link Fast-Track & Security Check
-    // We only redirect if 'next' is an internal path (starts with /)
-    if (next.startsWith('/')) {
+    // We only redirect if 'next' is an internal path (starts with / and not //)
+    if (next.startsWith('/') && !next.startsWith('//')) {
       if (next.includes('onboarding')) {
         console.log(`🚀 Invite flow detected. Fast-tracking to: ${next}`)
         return NextResponse.redirect(new URL(next, requestUrl.origin))
@@ -47,28 +47,30 @@ export async function GET(request) {
       return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
     }
 
-    // 4. Standard Login: Check for Profile
+    // 4. Standard Login: Check for Organization Membership
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("User not found after exchange")
 
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('user_id')
+      const { data: membership, error: memError } = await supabase
+        .from('user_organizations')
+        .select('id')
         .eq('user_id', user.id)
-        .maybeSingle() // Use maybeSingle to avoid 406 errors if empty
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle()
 
       // 5. Intelligent Redirection
-      if (profileError || !profile) {
-        console.log("🟡 No profile found → redirecting to onboarding")
+      if (memError || !membership) {
+        console.log("🟡 No active organization membership found → redirecting to onboarding")
         return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
       }
 
-      console.log("🟢 Profile verified → redirect to dashboard")
+      console.log("🟢 Organization membership verified → redirect to dashboard")
       return NextResponse.redirect(new URL(next, requestUrl.origin))
 
     } catch (err) {
-      console.error("⚠️ Profile check failed:", err.message)
+      console.error("⚠️ Membership check failed:", err.message)
       return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
     }
   }

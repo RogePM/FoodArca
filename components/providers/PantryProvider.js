@@ -4,20 +4,25 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { createBrowserClient } from '@supabase/ssr';
 
 const PantryContext = createContext({
-  pantryId: null,
+  organizationId: null,
+  locationId: null,
+  pantryId: null, // alias for locationId for backward compatibility
   userRole: null,
   pantryDetails: null, 
   availablePantries: [], 
-  switchPantry: async () => { }, 
-  refreshPantry: async () => { }, // <--- NEW FUNCTION
+  switchPantry: async () => {}, 
+  refreshPantry: async () => {},
+  lastInventoryUpdate: null,
   isLoading: true,
 });
 
 export function PantryProvider({ children }) {
-  const [pantryId, setPantryId] = useState(null);
+  const [organizationId, setOrganizationId] = useState(null);
+  const [locationId, setLocationId] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [pantryDetails, setPantryDetails] = useState(null);
   const [availablePantries, setAvailablePantries] = useState([]);
+  const [lastInventoryUpdate, setLastInventoryUpdate] = useState(Date.now());
   const [isLoading, setIsLoading] = useState(true);
 
   const [supabase] = useState(() =>
@@ -27,59 +32,108 @@ export function PantryProvider({ children }) {
     )
   );
 
-  // --- 1. THE REFRESH LOGIC (Now reusable) ---
+  // --- 1. REFRESH LOGIC (Querying user_organizations, organizations, and locations) ---
   const refreshPantry = useCallback(async () => {
     try {
+      setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setIsLoading(false);
         return;
       }
 
-      // A. Fetch Profile
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('current_pantry_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      // B. Fetch Memberships
-      const { data: memberships } = await supabase
-        .from('pantry_members')
+      // A. Fetch Memberships (user_organizations joined with organizations)
+      const { data: memberships, error: memError } = await supabase
+        .from('user_organizations')
         .select(`
-          pantry_id,
+          id,
           role,
-          pantry:food_pantries (
-            *,
-            settings  
+          status,
+          organization_id,
+          organization:organizations (
+            *
           )
-        `) // ^ Added 'settings' and '*' to ensure we get everything
-        .eq('user_id', user.id);
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'active');
 
-      // C. Determine Active Context
-      let activePantryId = profile?.current_pantry_id;
+      if (memError) {
+        console.error('Error fetching memberships:', memError);
+      }
+
+      let activeOrgId = null;
       let activeRole = null;
-      let activeDetails = null;
+      let activeOrgDetails = null;
 
       if (memberships && memberships.length > 0) {
-        // Try to find the preferred pantry
-        const match = memberships.find(m => m.pantry_id === activePantryId);
+        // Read preferred org from localStorage
+        const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('active_organization_id') : null;
+        const match = memberships.find(m => m.organization_id === savedOrgId);
 
-        if (!activePantryId || !match) {
-           // Default to first
-           activePantryId = memberships[0].pantry_id;
-           activeRole = memberships[0].role;
-           activeDetails = memberships[0].pantry;
+        if (!savedOrgId || !match) {
+          activeOrgId = memberships[0].organization_id;
+          activeRole = memberships[0].role;
+          activeOrgDetails = memberships[0].organization;
         } else {
-           activeRole = match.role;
-           activeDetails = match.pantry;
+          activeOrgId = match.organization_id;
+          activeRole = match.role;
+          activeOrgDetails = match.organization;
         }
       }
 
-      setAvailablePantries(memberships || []);
-      setPantryId(activePantryId || null);
+      // B. Fetch Locations for the active organization
+      let activeLocationId = null;
+      if (activeOrgId) {
+        const { data: locations, error: locError } = await supabase
+          .from('locations')
+          .select('*')
+          .eq('organization_id', activeOrgId)
+          .order('created_at', { ascending: true });
+
+        if (!locError && locations && locations.length > 0) {
+          const savedLocId = typeof window !== 'undefined' ? localStorage.getItem('active_location_id') : null;
+          const locMatch = locations.find(l => l.id === savedLocId);
+          activeLocationId = locMatch ? locMatch.id : locations[0].id;
+
+          // Attach locations and map first location address fields onto pantryDetails for UI component compatibility with relational Supabase schema
+          if (activeOrgDetails) {
+            const firstLoc = locMatch || locations[0] || {};
+            activeOrgDetails = { 
+              ...activeOrgDetails, 
+              locations,
+              address: activeOrgDetails.address || firstLoc.address_line1 || '',
+              address_line2: activeOrgDetails.address_line2 || firstLoc.address_line2 || '',
+              city: activeOrgDetails.city || firstLoc.city || '',
+              state: activeOrgDetails.state || firstLoc.state || '',
+              zip: activeOrgDetails.zip || firstLoc.zip || '',
+              country: activeOrgDetails.country || firstLoc.country || 'US',
+              timezone: activeOrgDetails.timezone || firstLoc.timezone || 'America/New_York'
+            };
+          }
+        }
+      }
+
+      // Format availablePantries for backward compatibility with UI selector components
+      const formattedPantries = (memberships || []).map(m => ({
+        pantry_id: m.organization_id,
+        role: m.role,
+        pantry: m.organization
+      }));
+
+      setAvailablePantries(formattedPantries);
+      setOrganizationId(activeOrgId || null);
+      setLocationId(activeLocationId || null);
       setUserRole(activeRole || null);
-      setPantryDetails(activeDetails || null);
+      setPantryDetails(activeOrgDetails || null);
+
+      // Save active state to localStorage
+      if (typeof window !== 'undefined') {
+        if (activeOrgId) localStorage.setItem('active_organization_id', activeOrgId);
+        else localStorage.removeItem('active_organization_id');
+
+        if (activeLocationId) localStorage.setItem('active_location_id', activeLocationId);
+        else localStorage.removeItem('active_location_id');
+      }
 
     } catch (err) {
       console.error('Error refreshing pantry:', err);
@@ -88,40 +142,70 @@ export function PantryProvider({ children }) {
     }
   }, [supabase]);
 
-  // --- 2. SWITCH PANTRY ---
-  const switchPantry = async (newPantryId) => {
+  // --- 2. REALTIME SUBSCRIPTION (Postgres Changes on inventory_batches) ---
+  useEffect(() => {
+    if (!locationId) return;
+
+    const channel = supabase
+      .channel(`inventory-realtime-${locationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory_batches',
+          filter: `location_id=eq.${locationId}`,
+        },
+        (payload) => {
+          console.log('⚡ Realtime inventory change detected:', payload);
+          setLastInventoryUpdate(Date.now());
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, locationId]);
+
+  // --- 3. SWITCH PANTRY (Client-side persistence) ---
+  const switchPantry = async (newOrgIdOrLocId) => {
     try {
       setIsLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      await supabase
-        .from('user_profiles')
-        .update({ current_pantry_id: newPantryId })
-        .eq('user_id', user.id);
-
-      // Just re-run the main refresh logic to ensure everything stays in sync
+      if (typeof window !== 'undefined') {
+        // Check if newOrgIdOrLocId matches an organization_id in availablePantries
+        const orgMatch = availablePantries.find(p => p.pantry_id === newOrgIdOrLocId);
+        if (orgMatch) {
+          localStorage.setItem('active_organization_id', newOrgIdOrLocId);
+          localStorage.removeItem('active_location_id'); // reset location to pick default of new org
+        } else {
+          // Assume it's a location id
+          localStorage.setItem('active_location_id', newOrgIdOrLocId);
+        }
+      }
       await refreshPantry();
-
     } catch (error) {
       console.error("Failed to switch pantry:", error);
       setIsLoading(false);
     }
   };
 
-  // --- 3. INITIAL LOAD ---
+  // --- 4. INITIAL LOAD ---
   useEffect(() => {
     refreshPantry();
   }, [refreshPantry]);
 
   return (
     <PantryContext.Provider value={{
-      pantryId,
+      organizationId,
+      locationId,
+      pantryId: locationId || organizationId, // alias for backward compatibility during migration
       userRole,
       pantryDetails,
       availablePantries,
       switchPantry,
-      refreshPantry, // <--- EXPOSED HERE
+      refreshPantry,
+      lastInventoryUpdate,
       isLoading
     }}>
       {children}

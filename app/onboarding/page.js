@@ -7,7 +7,8 @@ import OnboardingApp from './OnboardingApp'
 export default async function OnboardingPage({ searchParams }) {
   const cookieStore = await cookies()
   const params = await searchParams
-  const inviteCode = params?.code || params?.invite_code
+  const rawCode = params?.code || params?.invite_code
+  const inviteCode = Array.isArray(rawCode) ? rawCode[0] : rawCode
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -29,10 +30,10 @@ export default async function OnboardingPage({ searchParams }) {
   if (authError || !user) redirect('/')
 
   // 2. Parallel Check: Profile & Existing Memberships
-  // We check if they already have a profile or are in a pantry
+  // We check if they already have a profile or are in an active pantry
   const [profileResult, membershipResult] = await Promise.all([
-    supabase.from('user_profiles').select('user_id').eq('user_id', user.id).maybeSingle(),
-    supabase.from('pantry_members').select('pantry_id').eq('user_id', user.id).maybeSingle()
+    supabase.from('app_users').select('id').eq('id', user.id).maybeSingle(),
+    supabase.from('user_organizations').select('organization_id').eq('user_id', user.id).eq('status', 'active').limit(1).maybeSingle()
   ])
 
   const profile = profileResult.data

@@ -4,13 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { DashboardHome } from '@/components/pages/dashboard-home';
-import { AddItemView } from '@/components/pages/add-item-view';
+import { AddItemView } from '@/components/pages/add-items/add-item-view';
 import { RecentChangesView } from '@/components/pages/recent-changes-view';
-import { InventoryView } from '@/components/pages/Full-inventory';
-import { ClientListView } from '@/components/pages/ClientDirectory';
+import { InventoryView } from '@/components/pages/inventory';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { SettingsView } from '@/components/pages/settings-view';
-import { DistributionView } from '@/components/pages/distribution-view';
+import { DistributionModule } from '@/components/pages/distribution';
 
 export default function DashboardClientApp({ initialUser, initialPantryId }) {
   const [activeView, setActiveView] = useState('Dashboard');
@@ -67,10 +66,9 @@ export default function DashboardClientApp({ initialUser, initialPantryId }) {
     switch (activeView) {
       case 'Dashboard': return <DashboardHome setActiveView={setActiveView} />;
       case 'Add Items': return <AddItemView />;
-      case 'Remove Items': return <DistributionView/>;
+      case 'Remove Items': return <DistributionModule />;
       case 'View Inventory': return <InventoryView />;
       case 'Recent Changes': return <RecentChangesView />;
-      case 'View Clients': return <ClientListView />;
       case 'Settings': return <SettingsView />;
       default: return <DashboardHome setActiveView={setActiveView} />;
     }

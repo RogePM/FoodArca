@@ -28,7 +28,7 @@ export default async function DashboardPage() {
     }
   );
 
-  // ✅ FIX: Use getUser() instead of getSession()
+  // Use getUser() instead of getSession() for server-side security
   const {
     data: { user },
     error
@@ -42,12 +42,38 @@ export default async function DashboardPage() {
 
   console.log('✅ Server-side: User is authenticated:', user.email);
 
-  // 2. Optionally fetch user's pantry data here on the server
+  // 2. Fetch user profile from app_users and initial org/location from user_organizations
   const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('current_pantry_id, name')
+    .from('app_users')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const { data: membership } = await supabase
+    .from('user_organizations')
+    .select('organization_id')
     .eq('user_id', user.id)
-    .single();
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle();
+
+  // 3. Security & Flow: If user is not part of any organization, redirect to onboarding wizard
+  if (!membership?.organization_id) {
+    console.log('🟡 Server-side: User has no active organization, redirecting to onboarding wizard');
+    redirect('/onboarding');
+  }
+
+  let initialLocationId = null;
+  if (membership?.organization_id) {
+    const { data: location } = await supabase
+      .from('locations')
+      .select('id')
+      .eq('organization_id', membership.organization_id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    initialLocationId = location?.id || membership.organization_id;
+  }
 
   // 3. Pass user data to client (not the full session for security)
   return (
@@ -55,9 +81,9 @@ export default async function DashboardPage() {
       initialUser={{
         id: user.id,
         email: user.email,
-        name: profile?.name || user.user_metadata?.full_name
+        name: profile?.full_name || user.user_metadata?.full_name || 'User'
       }}
-      initialPantryId={profile?.current_pantry_id}
+      initialPantryId={initialLocationId}
     />
   );
 }

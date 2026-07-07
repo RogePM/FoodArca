@@ -4,12 +4,12 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
 
-// Initialize Resend
+// Initialize Resend with fallback to prevent build-time evaluation crash when env is missing
 const resendApiKey = process.env.RESEND_API_KEY;
 if (!resendApiKey) {
   console.error("MISSING ENV: RESEND_API_KEY");
 }
-const resend = new Resend(resendApiKey);
+const resend = new Resend(resendApiKey || 're_dummy_key_for_build');
 
 // --- SHARED SECURITY HELPER ---
 async function authenticateAndVerify(req) {
@@ -41,13 +41,14 @@ async function authenticateAndVerify(req) {
   if (!pantryId) return { valid: false, status: 400, message: 'Pantry ID required' };
 
   // 5. RLS Check
-  // We query 'pantry_members' to see if the current user is an admin for this pantry.
+  // We query 'user_organizations' to see if the current user is an admin for this organization.
   // This works because of the "View teammates" RLS policy.
   const { data: membership, error: memberError } = await supabase
-    .from('pantry_members')
+    .from('user_organizations')
     .select('role')
     .eq('user_id', user.id)
-    .eq('pantry_id', pantryId)
+    .eq('organization_id', pantryId)
+    .eq('status', 'active')
     .maybeSingle();
 
   if (memberError || !membership || !['admin', 'owner'].includes(membership.role)) {

@@ -4,21 +4,22 @@ import { createClient } from '@/utils/supabase/server';
 import { PLANS } from '@/lib/plans';
 
 // --- SHARED SECURITY & ROLE HELPER ---
-async function verifyAdminAccess(supabase, userId) {
-  // ✅ ACTION: Find the pantry and verify the user is an ADMIN or OWNER
+// organizationId is passed from the request body so multi-org users work correctly
+async function verifyAdminAccess(supabase, userId, organizationId) {
   const { data: membership, error } = await supabase
-    .from('pantry_members')
-    .select('pantry_id, role, is_active')
+    .from('user_organizations')
+    .select('organization_id, role, status')
     .eq('user_id', userId)
-    .single();
+    .eq('organization_id', organizationId)
+    .eq('status', 'active')
+    .maybeSingle();
 
   if (error || !membership) return null;
   
-  // FIX: Allow both 'admin' and 'owner' roles to manage billing
   const allowedRoles = ['admin', 'owner'];
-  if (!allowedRoles.includes(membership.role) || !membership.is_active) return null;
+  if (!allowedRoles.includes(membership.role)) return null;
 
-  return membership.pantry_id;
+  return membership.organization_id;
 }
 
 export async function POST(req) {
@@ -30,16 +31,20 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. SECURITY: Ensure the user belongs to a pantry and IS AUTHORIZED
-    const pantryId = await verifyAdminAccess(supabase, user.id);
-    if (!pantryId) {
+    const body = await req.json();
+    const { tier, organizationId } = body;
+
+    if (!organizationId) {
+      return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 });
+    }
+
+    // 1. SECURITY: Ensure the user is an Admin/Owner of the specified organization
+    const orgId = await verifyAdminAccess(supabase, user.id, organizationId);
+    if (!orgId) {
       return NextResponse.json({ 
         error: 'Forbidden: Only an active Admin or Owner can manage subscriptions.' 
       }, { status: 403 });
     }
-
-    const body = await req.json();
-    const { tier } = body;
 
     // 2. Plan Validation
     const selectedPlan = PLANS[tier];
@@ -47,41 +52,38 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Invalid plan selected' }, { status: 400 });
     }
 
-    // 3. Get Pantry Details for Stripe
-    const { data: pantry } = await supabase
-      .from('food_pantries')
-      .select('stripe_customer_id, name')
-      .eq('pantry_id', pantryId)
+    // 3. Get Organization Details for Stripe
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', orgId)
       .single();
 
-    let customerId = pantry?.stripe_customer_id;
+    let customerId = null;
 
-    // --- STEP 3: Verify or Create Stripe Customer (Self-Healing) ---
-    if (customerId) {
-      try {
-        const customer = await stripe.customers.retrieve(customerId);
-        if (customer.deleted) customerId = null;
-      } catch (error) {
-        customerId = null;
+    // --- STEP 3: Search Stripe for existing customer by organization ID ---
+    try {
+      const customers = await stripe.customers.search({
+        query: `metadata['pantryId']:'${orgId}'`,
+      });
+      if (customers.data.length > 0 && !customers.data[0].deleted) {
+        customerId = customers.data[0].id;
       }
+    } catch (err) {
+      console.warn("Stripe customer search failed, will create new customer:", err.message);
     }
 
     if (!customerId) {
       const newCustomer = await stripe.customers.create({
         email: user.email,
-        name: pantry?.name || 'Pantry Owner',
+        name: org?.name || 'Organization Owner',
         metadata: {
           supabaseUUID: user.id,
-          pantryId: pantryId
+          pantryId: orgId
         },
       });
 
       customerId = newCustomer.id;
-
-      await supabase
-        .from('food_pantries')
-        .update({ stripe_customer_id: customerId })
-        .eq('pantry_id', pantryId);
     }
 
     const origin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -99,7 +101,7 @@ export async function POST(req) {
       cancel_url: `${origin}/dashboard`,
       metadata: {
         userId: user.id,
-        pantryId: pantryId,
+        pantryId: orgId,
         tier: tier
       },
     });
