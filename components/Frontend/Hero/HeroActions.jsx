@@ -2,20 +2,10 @@
 
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
-import { createBrowserClient } from '@supabase/ssr'; 
+import { useAuthAction } from '@/lib/use-auth-action';
 
 export default function HeroActions() {
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-
-  const handleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` }
-    });
-  };
+  const { handleSignIn } = useAuthAction();
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto mb-6">

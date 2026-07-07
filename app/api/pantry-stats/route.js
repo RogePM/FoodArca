@@ -48,11 +48,17 @@ export async function GET(req) {
 
     await connectDB();
 
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
     // 2. Parallel Data Fetching
     const [
       inventoryStats,
       distributionStats,
-      clientCount
+      clientCount,
+      chartData7DaysRaw,
+      chartDataAllTimeRaw
     ] = await Promise.all([
       // SOURCE 1: Inventory Aggregation (Sum Quantity AND Count SKUs)
       FoodItem.aggregate([
@@ -80,29 +86,68 @@ export async function GET(req) {
       ]),
 
       // SOURCE 3: Clients Count
-      Client.countDocuments({ pantryId })
+      Client.countDocuments({ pantryId }),
+
+      // SOURCE 4: Chart Data - Last 7 Days (Group by day)
+      ClientDistribution.aggregate([
+        { $match: { pantryId: pantryId, distributionDate: { $gte: sevenDaysAgo } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$distributionDate" } },
+            items: { $sum: "$quantityDistributed" }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+
+      // SOURCE 5: Chart Data - All Time (Group by month)
+      ClientDistribution.aggregate([
+        { $match: { pantryId: pantryId } },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m", date: "$distributionDate" } },
+            items: { $sum: "$quantityDistributed" }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ])
     ]);
 
     // Unpack Aggregation Results (Handle empty arrays if no data exists)
     const invData = inventoryStats[0] || { totalQuantity: 0, totalSkus: 0 };
     const distData = distributionStats[0] || { totalVisits: 0, totalItemsDistributed: 0 };
 
+    // Format Chart Data
+    // We want short names like "Mon", "Tue" for 7 days
+    const chartData7Days = chartData7DaysRaw.map(d => {
+      const date = new Date(d._id + "T12:00:00Z"); // Use noon UTC to avoid timezone shift
+      return {
+        label: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        items: d.items
+      };
+    });
+
+    // We want short names like "Jan", "Feb" for all time
+    const chartDataAllTime = chartDataAllTimeRaw.map(d => {
+      const date = new Date(d._id + "-01T12:00:00Z");
+      return {
+        label: date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+        items: d.items
+      };
+    });
+
     // 3. Construct Response
     const response = {
-      // ✅ DASHBOARD STAT: Shows "2,500" items (Volume) instead of "50" items (Rows)
       inventoryCount: invData.totalQuantity, 
-      
       totalPeopleServed: distData.totalVisits,
-      
-      // Value calculation ($1.96 avg value per item)
       totalValue: parseFloat((distData.totalItemsDistributed * 1.96).toFixed(2)),
-      
       totalItemsDistributed: distData.totalItemsDistributed,
-      
       billing: {
-        totalSkus: invData.totalSkus, // Used for Plan Limits (e.g. 500 item limit)
+        totalSkus: invData.totalSkus,
         totalClients: clientCount
-      }
+      },
+      chartData7Days,
+      chartDataAllTime
     };
 
     return NextResponse.json(response);

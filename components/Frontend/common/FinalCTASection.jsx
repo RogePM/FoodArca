@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { Check, ArrowRight } from 'lucide-react';
-import { createBrowserClient } from '@supabase/ssr';
+import { useAuthAction } from '@/lib/use-auth-action';
 
 export default function FinalCTASection() {
   const benefits = [
@@ -12,17 +12,7 @@ export default function FinalCTASection() {
     "Access to all features"
   ];
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-
-  const handleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` }
-    });
-  };
+  const { handleSignIn } = useAuthAction();
 
   return (
     // CHANGED: Replaced bg-[#FAFAF9] with bg-[#D97757]/[0.08] to match your pricing section

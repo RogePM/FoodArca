@@ -136,3 +136,57 @@ Food Arca features an intelligent notification center located in the TopBar. It 
 ## 📄 License
 
 This project is proprietary software. All rights reserved.
+
+
+When moving from a local mobile testing environment using tools like Ngrok back to production, keeping a clean deployment checklist prevents authentication loops and server errors.
+
+The configuration adjustments required to transition back to the live site at `https://foodarca.com` are structured below by platform.
+
+### 1. Environment Variables (`.env.local` or Hosting Platform)
+
+During testing, configuration strings are often modified locally. Production environments (like Vercel, Netlify, or AWS) manage these via an environment dashboard, but verifying consistency is critical.
+
+* **`NEXT_PUBLIC_SITE_URL`**:
+* **Change back to:** `https://foodarca.com`
+* **Why:** This variable acts as the primary absolute fallback origin throughout your application layout and server-side utilities when constructing redirection paths.
+
+
+* **Local Server Flag:**
+* If the local initialization script was amended to bind globally (e.g., `npm run dev -- -H 0.0.0.0`), no action is necessary for deployment. Production build configurations automatically optimize binding hooks depending on the host container.
+
+
+
+### 2. Supabase Authentication Configuration
+
+The Supabase security layer strictly audits oncoming origins post-authentication. The dashboard parameters must point explicitly to production coordinates.
+
+* **Site URL Setup:**
+* **Navigate to:** Supabase Dashboard > Authentication > URL Configuration.
+* **Change "Site URL" to:** `https://foodarca.com`
+* **Why:** If an internal authentication method panics or defaults during an explicit OAuth routing hook, it automatically routes the traffic back to this fallback anchor.
+
+
+* **Redirect URLs Whitelist:**
+* **Verify presence of:** `https://foodarca.com/` or `https://foodarca.com/auth/callback`
+* **Optional Cleanup:** For stricter security architecture, remove the transient Ngrok links (e.g., `https://*.ngrok-free.app/`) and explicit local network IPs (e.g., `http://192.168.0.82:3000/`) from the allowed list so production instances reject arbitrary external endpoints.
+
+
+
+### 3. Codebase Architecture Review
+
+The codebase handles routing dynamically through browser headers, ensuring stability across local and remote instances without structural reversions.
+
+* **Auth Callback Route (`app/auth/callback/route.js`):**
+* **Keep as-is:** The implementation parsing request headers (`x-forwarded-host` and `x-forwarded-proto`) adapts automatically to live environments. When deployed, it reads the production proxy headers instead of local development contexts, accurately mapping redirects dynamically.
+
+
+* **Frontend Auth Components (`use-auth-action.js`):**
+* **Keep as-is:** The choice to use `window.location.origin` safely detects whether a user triggers authentication from a production browser tab or a developer context, ensuring proper callback construction globally.
+
+
+
+### 4. External OAuth Providers (Google Cloud Console)
+
+If you are utilizing a standard Supabase setup, Google OAuth securely redirects directly to your internal Supabase database endpoint (`https://[your-project-id].supabase.co/auth/v1/callback`), which handles subsequent redirection tokens safely.
+
+* If you manually added specific local domains or custom callbacks inside the **Google Cloud Console Credentials** window rather than letting Supabase act as the proxy intermediary, ensure `https://foodarca.com` is configured inside the "Authorized JavaScript origins" section.

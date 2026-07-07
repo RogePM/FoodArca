@@ -9,6 +9,13 @@ export async function GET(request) {
   // 1. Capture the 'next' param (e.g. /onboarding?code=JOIN123)
   const next = requestUrl.searchParams.get('next') ?? '/dashboard'
 
+  // --- THE MAGIC FIX ---
+  // Next.js thinks it's on localhost. We force it to read the Ngrok/Production headers.
+  const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host')
+  const forwardedProto = request.headers.get('x-forwarded-proto') || 'http'
+  const safeOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : requestUrl.origin
+  // ---------------------
+
   if (code) {
     const cookieStore = await cookies()
 
@@ -18,14 +25,14 @@ export async function GET(request) {
       {
         cookies: {
           getAll() { return cookieStore.getAll() },
-         setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
-            })
-          } catch (error) {
-            // Safe to ignore: middleware handles the actual cookie setting
-          }
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options)
+              })
+            } catch (error) {
+              // Safe to ignore: middleware handles the actual cookie setting
+            }
           },
         },
       }
@@ -36,19 +43,18 @@ export async function GET(request) {
     
     if (exchangeError) {
       console.error('❌ Auth Code Exchange Failed:', exchangeError.message)
-      return NextResponse.redirect(new URL('/?error=auth_code_error', requestUrl.origin))
+      // Use safeOrigin instead of requestUrl.origin
+      return NextResponse.redirect(new URL('/?error=auth_code_error', safeOrigin))
     }
 
     // 3. Invite Link Fast-Track & Security Check
-    // We only redirect if 'next' is an internal path (starts with /)
     if (next.startsWith('/')) {
       if (next.includes('onboarding')) {
         console.log(`🚀 Invite flow detected. Fast-tracking to: ${next}`)
-        return NextResponse.redirect(new URL(next, requestUrl.origin))
+        return NextResponse.redirect(new URL(next, safeOrigin))
       }
     } else {
-      // If someone injected an external URL, reset to safe default
-      return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
+      return NextResponse.redirect(new URL('/dashboard', safeOrigin))
     }
 
     // 4. Standard Login: Check for Profile
@@ -60,23 +66,23 @@ export async function GET(request) {
         .from('user_profiles')
         .select('user_id')
         .eq('user_id', user.id)
-        .maybeSingle() // Use maybeSingle to avoid 406 errors if empty
+        .maybeSingle()
 
       // 5. Intelligent Redirection
       if (profileError || !profile) {
         console.log("🟡 No profile found → redirecting to onboarding")
-        return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+        return NextResponse.redirect(new URL('/onboarding', safeOrigin))
       }
 
       console.log("🟢 Profile verified → redirect to dashboard")
-      return NextResponse.redirect(new URL(next, requestUrl.origin))
+      return NextResponse.redirect(new URL(next, safeOrigin))
 
     } catch (err) {
       console.error("⚠️ Profile check failed:", err.message)
-      return NextResponse.redirect(new URL('/onboarding', requestUrl.origin))
+      return NextResponse.redirect(new URL('/onboarding', safeOrigin))
     }
   }
 
   // Fallback if no code
-  return NextResponse.redirect(new URL('/', requestUrl.origin))
+  return NextResponse.redirect(new URL('/', safeOrigin))
 }

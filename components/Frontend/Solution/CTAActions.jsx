@@ -2,20 +2,10 @@
 
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
-import { createBrowserClient } from '@supabase/ssr';
+import { useAuthAction } from '@/lib/use-auth-action';
 
 export default function CTAActions() {
-  // Reusing your Supabase auth logic
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-  const supabase = createBrowserClient(supabaseUrl, supabaseKey);
-
-  const handleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` }
-    });
-  };
+  const { handleSignIn } = useAuthAction();
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mt-4 w-full">

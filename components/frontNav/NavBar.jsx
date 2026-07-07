@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Menu, X, Leaf } from 'lucide-react';
-import { createBrowserClient } from '@supabase/ssr';
+import { useAuthAction } from '@/lib/use-auth-action';
 
 const NAV_LINKS = [
   { name: 'Features', href: '/features' },
@@ -14,17 +14,7 @@ const NAV_LINKS = [
 export default function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-
-  const handleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` }
-    });
-  };
+  const { handleSignIn } = useAuthAction();
 
   // Prevent reload and smooth scroll to top if already on the homepage
   const handleLogoClick = (e) => {

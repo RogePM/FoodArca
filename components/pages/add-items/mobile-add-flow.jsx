@@ -17,11 +17,11 @@ const BarcodeScannerOverlay = dynamic(
   { ssr: false }
 );
 
-export function MobileAddFlow() {
+export function MobileAddFlow({ onClose, initialView = 'SCAN_VIEW' }) {
   const { pantryId } = usePantry();
 
   // --- STATE ---
-  const [currentView, setCurrentView] = useState('SCAN_VIEW'); 
+  const [currentView, setCurrentView] = useState(initialView); 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Form State
@@ -38,6 +38,14 @@ export function MobileAddFlow() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingBarcode, setIsLoadingBarcode] = useState(false);
+
+  // FIX: iOS Keyboard Scroll Bug.
+  // When leaving the form, if the keyboard was open, iOS sometimes leaves the page scrolled down,
+  // hiding the top headers. This forces the viewport back to the top whenever the view changes.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.body.scrollTop = 0; 
+  }, [currentView]);
 
   // --- LOGIC: Barcode API Lookup ---
   useEffect(() => {
@@ -71,6 +79,14 @@ export function MobileAddFlow() {
     setBarcode(`INT-${randomCode}`);
     setIsInternalBarcode(true);
   };
+
+  useEffect(() => {
+    // If opened directly from the Inventory page, auto-generate an ID immediately
+    if (initialView === 'FORM_VIEW' && !barcode) {
+      generateInternalBarcode();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialView]);
 
   const handleManualAdd = () => {
     generateInternalBarcode();
@@ -130,16 +146,23 @@ export function MobileAddFlow() {
     }
   };
 
+  // If we are in any view other than the base SCAN_VIEW, OR if this flow was opened as a modal (onClose provided),
+  // we want to render it as a full-screen fixed overlay so it covers the bottom tabs and top nav.
+  const isFullScreenOverlay = currentView !== 'SCAN_VIEW' || onClose != null;
+
   return (
-    // FIX: Match background color to #f2f2f7. Use a calc height subtracting the nav bar height.
-    // Replace "4rem" or "64px" with whatever the exact height of your top nav bar is.
-    <div className="flex flex-col w-full bg-[#f2f2f7] relative overflow-hidden h-[calc(100dvh-4rem)]">
+    <div className={
+      isFullScreenOverlay
+        ? "fixed inset-0 z-[100] flex flex-col w-full h-[100dvh] bg-[#f7f7f5] overflow-hidden"
+        : "flex-1 flex flex-col w-full bg-[#f7f7f5] relative overflow-hidden min-h-full"
+    }>
       <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 
       {currentView === 'SCAN_VIEW' && (
         <ScanView 
           onScanClick={() => setCurrentView('CAMERA_VIEW')} 
           onManualClick={handleManualAdd} 
+          onClose={onClose}
         />
       )}
 
@@ -152,7 +175,13 @@ export function MobileAddFlow() {
 
       {currentView === 'FORM_VIEW' && (
         <FormView 
-          onBack={() => setCurrentView('SCAN_VIEW')}
+          onBack={() => {
+            if (initialView === 'FORM_VIEW' && onClose) {
+              onClose();
+            } else {
+              setCurrentView('SCAN_VIEW');
+            }
+          }}
           onCameraClick={() => setCurrentView('CAMERA_VIEW')}
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
@@ -177,10 +206,17 @@ export function MobileAddFlow() {
           unit={unit} 
           itemName={itemName} 
           expirationDate={expirationDate}
-          onDone={resetFlow}
+          onDone={() => {
+            resetFlow();
+            if (onClose) onClose();
+          }}
           onScanAnother={() => {
             resetFlow();
             setCurrentView('CAMERA_VIEW');
+          }}
+          onAddManual={() => {
+            resetFlow();
+            handleManualAdd();
           }}
         />
       )}

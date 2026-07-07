@@ -8,6 +8,14 @@ export const metadata = {
   description: 'Food Bank inventory management system',
 };
 
+// 👇 ADD THIS EXPORT RIGHT HERE 👇
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1, // Prevents Safari from zooming in when tapping inputs
+  viewportFit: 'cover', // CRITICAL: Makes env(safe-area-inset-bottom) actually work
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">

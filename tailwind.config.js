@@ -10,6 +10,7 @@ module.exports = {
     './app/globals.css',
     './app/api/**/*.{js,ts,jsx,tsx}',
     './app/onboarding/**/*.{js,ts,jsx,tsx}',
+    './lib/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {

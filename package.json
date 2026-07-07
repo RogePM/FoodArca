@@ -33,6 +33,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-zxing": "^2.1.0",
+    "recharts": "^3.8.1",
     "resend": "^4.8.0",
     "stripe": "^20.1.0",
     "tailwind-merge": "^3.4.0",

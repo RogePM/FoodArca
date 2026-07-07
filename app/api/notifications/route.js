@@ -88,13 +88,23 @@ export async function GET(req) {
       }
     }).select('name quantity unit expirationDate').limit(5).lean(); // Added .lean() for performance
 
+    // Get total count of items expiring soon for the metric card
+    const expiringCount = await FoodItem.countDocuments({
+      pantryId: pantryId,
+      quantity: { $gt: 0 },
+      expirationDate: {
+        $gte: today,
+        $lte: sevenDaysFromNow
+      }
+    });
+
     // Create the alert summary
-    if (expiringItems.length > 0) {
+    if (expiringCount > 0) {
       alerts.push({
         id: 'expiry-alert',
         type: 'warning',
         title: 'Expiring Soon',
-        message: `${expiringItems.length} items expire this week.`,
+        message: `${expiringCount} items expire this week.`,
         action: 'Check Stock',
         targetView: 'View Inventory'
       });
@@ -118,7 +128,7 @@ export async function GET(req) {
       });
     }
 
-    return NextResponse.json({ alerts, expiringItems });
+    return NextResponse.json({ alerts, expiringItems, expiredCount: expiredItems, expiringCount });
   } catch (error) {
     console.error('Notification API Error:', error);
     return NextResponse.json({ message: 'Server Error' }, { status: 500 });

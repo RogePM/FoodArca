@@ -6,16 +6,16 @@ import { usePantry } from '@/components/providers/PantryProvider';
 import dynamic from 'next/dynamic';
 
 // Dynamically import siblings from the same folder
+// Dynamically import siblings from the same folder
 const DesktopAddView = dynamic(
-  () => import('./desktop-add-view').then((mod) => mod.DesktopAddView),
+  () => import('./desktop-add-view').then((mod) => mod.DesktopAddView || mod.default),
   { ssr: false }
 );
 
 const MobileAddFlow = dynamic(
-  () => import('./mobile-add-flow').then((mod) => mod.MobileAddFlow),
+  () => import('./mobile-add-flow').then((mod) => mod.MobileAddFlow || mod.default),
   { ssr: false }
 );
-
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(false);
   useEffect(() => {
