@@ -1,1274 +1,1181 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  ArrowDownToLine, ChevronDown, Plus, Trash2, Loader2, CheckCircle2, 
-  Search, Sparkles, Calendar, Gift, ShoppingBag, 
-  Landmark, HeartHandshake, AlertCircle, Minus, Package, Barcode,
-  ArrowLeft, ArrowRight, Check
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Plus, Loader2, CheckCircle2,
+  Search, Gift, ShoppingBag,
+  Landmark, HeartHandshake, AlertCircle, Package, Barcode,
+  Check, ChevronDown, ChevronLeft, ChevronRight, X, Scale, Hash,
+  RotateCcw, Sparkles, Building2, PanelRight, Minus, Calendar, Info, HelpCircle, BookOpen
 } from 'lucide-react';
 import { categories } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
 
-// --- HELPER: GET CATEGORY ICON & COLOR ---
+/* ─── helpers ─────────────────────────────────────────────────────────── */
+
 function getCategoryMeta(catName) {
   const safeStr = String(catName || '').toLowerCase();
-  const found = categories.find(c => c.name.toLowerCase() === safeStr || c.value.toLowerCase() === safeStr);
-  if (found) return { icon: found.icon, name: found.name, value: found.value };
-  return { icon: Package, name: String(catName || 'Other'), value: 'other' };
+  const found = categories.find(
+    (c) => c.name.toLowerCase() === safeStr || c.value.toLowerCase() === safeStr
+  );
+  if (found)
+    return { icon: found.icon, name: found.name, value: found.value, style: found.style };
+  return {
+    icon: Package,
+    name: String(catName || 'Other'),
+    value: 'other',
+    style: categories.find((c) => c.value === 'other')?.style,
+  };
 }
 
-// --- COMPONENT: 2-STEP TYPEFORM INTAKE TERMINAL ---
-function DesktopInlineForm({ onAdd, pantryId, onPulseChange }) {
-  const generateBarcode = () => `INT-${Math.floor(100000 + Math.random() * 900000)}`;
+function sanitizePositiveNumber(val) {
+  if (!val) return '';
+  const cleaned = val.replace(/[^0-9.]/g, '');
+  const parts = cleaned.split('.');
+  if (parts.length > 2) return `${parts[0]}.${parts.slice(1).join('')}`;
+  return cleaned;
+}
 
-  // Wizard Step State
-  const [step, setStep] = useState(1); // 1 = Catalog Specs, 2 = Batch & Source
+/* ─── design tokens ───────────────────────────────────────────────────── */
 
-  // Step 1: Barcode & Item Catalog Definition
-  const [barcode, setBarcode] = useState(generateBarcode());
+const cls = {
+  input: [
+    'w-full h-[44px] px-4 rounded-xl border border-gray-200 bg-white',
+    'text-[14px] font-medium text-[#1a1f36]',
+    'shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+    'outline-none transition-[border-color,box-shadow] duration-150',
+    'focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10',
+    'placeholder:text-[#a3acb9] placeholder:font-normal',
+  ].join(' '),
+  pill: [
+    'h-[38px] px-4 rounded-xl border text-[13px] font-semibold',
+    'transition-all duration-150 cursor-pointer',
+    'flex items-center gap-2 select-none whitespace-nowrap',
+  ].join(' '),
+  pillOn: 'bg-gray-100/90 border-gray-300 text-[#1a1f36] font-bold shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+  pillOff:
+    'bg-white border-gray-200 text-[#697386] hover:border-gray-300 hover:bg-gray-50/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]',
+};
+
+/* ─── info hover tooltip ──────────────────────────────────────────────── */
+
+function FieldInfoTooltip({ text }) {
+  if (!text) return null;
+  return (
+    <div className="group/info relative inline-flex items-center">
+      <Info className="h-3.5 w-3.5 text-[#a3acb9] hover:text-[#d97757] transition-colors cursor-help shrink-0 ml-1" strokeWidth={2} />
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 hidden group-hover/info:block w-64 bg-white border border-gray-200/90 text-[#1a1f36] text-[11px] font-medium leading-relaxed p-3 rounded-xl shadow-xl z-50 pointer-events-none transition-all text-center">
+        {text}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-white" />
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-gray-200/90 -z-10" />
+      </div>
+    </div>
+  );
+}
+
+/* ─── intake guide modal ──────────────────────────────────────────────── */
+
+function IntakeGuideModal({ isOpen, onClose }) {
+  const [activeTab, setActiveTab] = useState('start');
+  const [searchQuery, setSearchQuery] = useState('');
+  if (!isOpen) return null;
+
+  const guideSections = [
+    {
+      id: 'start',
+      title: 'How to Fill Out Form',
+      badge: 'Start Here',
+      icon: BookOpen,
+      summary: '7 simple steps to log items',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#1a1f36] flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-[#d97757]" />
+              How to Fill Out the Intake Form (Step-by-Step)
+            </h3>
+            <p className="text-[13px] text-[#697386] mt-1 leading-relaxed">
+              Follow these simple steps from top to bottom to log your items into Food Arca.
+            </p>
+          </div>
+
+          <div className="space-y-2.5 text-[12px]">
+            {/* Step 1 */}
+            <div className="p-3 rounded-xl border border-gray-200/90 bg-white flex items-start gap-3 shadow-2xs">
+              <span className="h-6 w-6 rounded-full bg-[#fff0eb] text-[#d97757] text-[12px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">1</span>
+              <div>
+                <strong className="font-semibold text-[#1a1f36] text-[13px]">Scan or Type Barcode (Top Field)</strong>
+                <p className="text-[#697386] mt-0.5">Scan product UPC with your scanner or type it in. <em>If the item has no barcode, leave it blank and Food Arca auto-generates one!</em></p>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="p-3 rounded-xl border border-gray-200/90 bg-white flex items-start gap-3 shadow-2xs">
+              <span className="h-6 w-6 rounded-full bg-[#fff0eb] text-[#d97757] text-[12px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">2</span>
+              <div>
+                <strong className="font-semibold text-[#1a1f36] text-[13px]">Item Name & Category (*)</strong>
+                <p className="text-[#697386] mt-0.5">Type the item name (e.g. <code>Organic Black Beans</code>) and select a Category (e.g. <code>Canned Goods</code>). <em>Required!</em></p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="p-3 rounded-xl border border-gray-200/90 bg-white flex items-start gap-3 shadow-2xs">
+              <span className="h-6 w-6 rounded-full bg-[#fff0eb] text-[#d97757] text-[12px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">3</span>
+              <div>
+                <strong className="font-semibold text-[#1a1f36] text-[13px]">Quantity & Container Type</strong>
+                <p className="text-[#697386] mt-0.5">Type how many you received (e.g. <code>5</code>) and select what you are counting as (e.g. <code>Boxes</code>, <code>Packs</code>, or <code>Units</code>).</p>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="p-3 rounded-xl border border-gray-200/90 bg-white flex items-start gap-3 shadow-2xs">
+              <span className="h-6 w-6 rounded-full bg-[#fff0eb] text-[#d97757] text-[12px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">4</span>
+              <div>
+                <strong className="font-semibold text-[#1a1f36] text-[13px]">Package Size (Weight / Volume)</strong>
+                <p className="text-[#697386] mt-0.5">Enter package size printed on label (e.g. <code>16 oz</code> or <code>12 fl oz</code>).</p>
+              </div>
+            </div>
+
+            {/* Step 5 */}
+            <div className="p-3 rounded-xl border border-gray-200/90 bg-white flex items-start gap-3 shadow-2xs">
+              <span className="h-6 w-6 rounded-full bg-[#fff0eb] text-[#d97757] text-[12px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">5</span>
+              <div>
+                <strong className="font-semibold text-[#1a1f36] text-[13px]">Select Expiration Date & Source</strong>
+                <p className="text-[#697386] mt-0.5">Choose date precision (<code>Exact Date</code>, <code>Month/Year</code>, or <code>No Expiration</code>) and click the Source card (<code>Donation</code>, <code>Rescue</code>, <code>Purchased</code>, <code>USDA</code>).</p>
+              </div>
+            </div>
+
+            {/* Step 6 */}
+            <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50/40 flex items-start gap-3 shadow-2xs">
+              <span className="h-6 w-6 rounded-full bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">6</span>
+              <div>
+                <strong className="font-semibold text-[#1a1f36] text-[13px]">Click "Add to batch"</strong>
+                <p className="text-[#697386] mt-0.5">Food Arca notifies you that the item is staged! The form resets for your next item while staging it in your cart.</p>
+              </div>
+            </div>
+
+            {/* Step 7 — Highlighted Dark Card */}
+            <div className="p-4 rounded-xl bg-[#1a1f36] text-white flex items-start gap-3 shadow-md">
+              <span className="h-6 w-6 rounded-full bg-[#d97757] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">7</span>
+              <div>
+                <strong className="font-bold text-white text-[13px] block">Final Step: Click "View Batch" & Save to Inventory!</strong>
+                <p className="text-gray-300 mt-0.5 text-[11px] leading-relaxed">Whether adding 1 item or 50 items, open <strong>View Batch</strong> and click <strong>"Save Batch to Inventory"</strong> to finalize and commit all staged items into your inventory at once.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'weight',
+      title: 'Weight & Measurements',
+      badge: 'Popular',
+      icon: Scale,
+      summary: 'By Count vs By Weight modes',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#1a1f36] flex items-center gap-2">
+              <Scale className="h-5 w-5 text-[#d97757]" />
+              Weight & Measurement Modes
+            </h3>
+            <p className="text-[13px] text-[#697386] mt-1 leading-relaxed">
+              Food Arca supports two measurement modes depending on whether you are logging pre-packaged retail products or bulk unpackaged produce.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* By Count */}
+            <div className="p-4 rounded-xl border border-gray-200/90 bg-white shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-semibold text-[#1a1f36] flex items-center gap-1.5">
+                  <Hash className="h-4 w-4 text-[#d97757]" /> By Count
+                </span>
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-[#f8fafb] text-[#3c4257] border border-gray-200">
+                  Standard
+                </span>
+              </div>
+              <p className="text-[12px] text-[#697386] leading-relaxed">
+                Use for packaged retail goods that are counted by unit (cans, boxes, bags, jars).
+              </p>
+              <div className="text-[11px] text-[#3c4257] bg-gray-50 p-2.5 rounded-lg border border-gray-100 space-y-1 font-mono">
+                <div>• Quantity: 10</div>
+                <div>• Counting as: Boxes</div>
+                <div>• Package size: 16 oz</div>
+              </div>
+            </div>
+
+            {/* By Weight */}
+            <div className="p-4 rounded-xl border border-gray-200/90 bg-white shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-semibold text-[#1a1f36] flex items-center gap-1.5">
+                  <Scale className="h-4 w-4 text-[#d97757]" /> By Weight (Bulk)
+                </span>
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-[#f8fafb] text-[#3c4257] border border-gray-200">
+                  Scale Mode
+                </span>
+              </div>
+              <p className="text-[12px] text-[#697386] leading-relaxed">
+                Use for unpackaged produce, Gaylord bulk bins, or salvage weighed on a scale.
+              </p>
+              <div className="text-[11px] text-[#3c4257] bg-gray-50 p-2.5 rounded-lg border border-gray-100 space-y-1 font-mono">
+                <div>• Scale Weight: 450 lbs</div>
+                <div>• Container: 1 Gaylord</div>
+                <div>• Category: Produce</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#f8fafb] border border-gray-200/90 rounded-xl p-3.5 space-y-1.5 text-[12px]">
+            <span className="font-semibold text-[#1a1f36] flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-[#d97757]" /> Quick Unit Guide
+            </span>
+            <div className="grid grid-cols-2 gap-2 text-[#3c4257] text-[11px] pt-1">
+              <div><strong>fl oz:</strong> Liquid volumes (Soda, Juice, Milk)</div>
+              <div><strong>oz / lbs:</strong> Solid weights (Canned soup, Flour)</div>
+              <div><strong>gal:</strong> Large liquids (Gallon jugs)</div>
+              <div><strong>units:</strong> Miscellaneous unweighted items</div>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'packs',
+      title: 'Packs, Boxes & Cases',
+      icon: Package,
+      summary: 'Multi-pack unit calculations',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#1a1f36] flex items-center gap-2">
+              <Package className="h-5 w-5 text-[#d97757]" />
+              Logging Multi-Pack Cases & Boxes
+            </h3>
+            <p className="text-[13px] text-[#697386] mt-1 leading-relaxed">
+              Log wholesale cases without manual math. Food Arca tracks both box counts and total individual items.
+            </p>
+          </div>
+
+          <div className="bg-white border border-gray-200/90 rounded-xl p-4 space-y-3 text-[12px]">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <span className="font-semibold text-[#1a1f36] text-[13px]">Example: 5 Fridge Packs (12 Soda Cans each)</span>
+              <span className="text-[10px] font-medium text-[#3c4257] bg-[#f8fafb] px-2 py-0.5 rounded-md border border-gray-200">Automated</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-[#f8fafb] p-2.5 rounded-lg border border-gray-200/80">
+                <span className="text-[11px] text-[#697386] block">Quantity</span>
+                <strong className="text-[14px] text-[#1a1f36]">5</strong>
+              </div>
+              <div className="bg-[#f8fafb] p-2.5 rounded-lg border border-gray-200/80">
+                <span className="text-[11px] text-[#697386]">Counting as</span>
+                <strong className="text-[14px] text-[#1a1f36] block">Packs</strong>
+              </div>
+              <div className="bg-[#f8fafb] p-2.5 rounded-lg border border-gray-200/80">
+                <span className="text-[11px] text-[#697386]">Items per pack</span>
+                <strong className="text-[14px] text-[#1a1f36] block">12</strong>
+              </div>
+            </div>
+            <div className="p-3 bg-[#f8fafb] border border-gray-200/80 rounded-lg text-[#1a1f36] text-[12px] font-medium flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>System logs 5 packs = 60 individual cans staged for clients!</span>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'scanning',
+      title: 'Barcode Scanning',
+      icon: Barcode,
+      summary: 'Auto-fill & smart memory lookup',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#1a1f36] flex items-center gap-2">
+              <Barcode className="h-5 w-5 text-[#d97757]" />
+              UPC Barcode Scanning & Memory
+            </h3>
+            <p className="text-[13px] text-[#697386] mt-1 leading-relaxed">
+              Plug in any USB/Bluetooth scanner and scan barcodes directly into the intake form.
+            </p>
+          </div>
+
+          <div className="space-y-2.5 text-[12px]">
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-[#d97757] shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-semibold text-[#1a1f36] text-[13px]">OpenFoodFacts Integration</strong>
+                <p className="text-[#697386] mt-0.5">Automatically pulls product name, category, image, and size for millions of items worldwide.</p>
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white flex items-start gap-3">
+              <RotateCcw className="h-5 w-5 text-[#1a1f36] shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-semibold text-[#1a1f36] text-[13px]">Zero-Latency Smart Memory</strong>
+                <p className="text-[#697386] mt-0.5">Re-scanning an item previously added in your pantry restores your custom pack size, category, and weight in 0 milliseconds.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'expiration',
+      title: 'Expiration Dates',
+      icon: Calendar,
+      summary: 'Exact day, Month/Year, or No Date',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#1a1f36] flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-[#d97757]" />
+              Expiration Precision Options
+            </h3>
+            <p className="text-[13px] text-[#697386] mt-1 leading-relaxed">
+              Not all food items require exact day precision. Choose the date level that matches the product.
+            </p>
+          </div>
+
+          <div className="space-y-2.5 text-[12px]">
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white flex items-center justify-between">
+              <div>
+                <span className="font-semibold text-[#1a1f36] block">Exact Date</span>
+                <span className="text-[#697386] text-[11px]">Select calendar day</span>
+              </div>
+              <span className="text-[11px] font-medium text-[#3c4257] bg-[#f8fafb] px-2.5 py-1 rounded-md border border-gray-200">
+                Dairy, Fresh Meat, Bakery
+              </span>
+            </div>
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white flex items-center justify-between">
+              <div>
+                <span className="font-semibold text-[#1a1f36] block">Month & Year</span>
+                <span className="text-[#697386] text-[11px]">Select Month and Year</span>
+              </div>
+              <span className="text-[11px] font-medium text-[#3c4257] bg-[#f8fafb] px-2.5 py-1 rounded-md border border-gray-200">
+                Canned Goods, Dry Pasta, Cereal
+              </span>
+            </div>
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white flex items-center justify-between">
+              <div>
+                <span className="font-semibold text-[#1a1f36] block">No Expiration</span>
+                <span className="text-[#697386] text-[11px]">Skip date tracking</span>
+              </div>
+              <span className="text-[11px] font-medium text-[#3c4257] bg-[#f8fafb] px-2.5 py-1 rounded-md border border-gray-200">
+                Hygiene, Paper Goods, Cleaning
+              </span>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'sources',
+      title: 'Acquisition Sources',
+      icon: HeartHandshake,
+      summary: 'Donations, Rescue, USDA, Purchased',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#1a1f36] flex items-center gap-2">
+              <HeartHandshake className="h-5 w-5 text-[#d97757]" />
+              Tracking Acquisition Sources
+            </h3>
+            <p className="text-[13px] text-[#697386] mt-1 leading-relaxed">
+              Selecting the inventory source helps generate required TEFAP and grant compliance reports.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[12px]">
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white">
+              <strong className="text-[#1a1f36] font-semibold text-[13px] block">Donation</strong>
+              <p className="text-[#697386] text-[11px] mt-0.5">Community food drives and individual donor contributions.</p>
+            </div>
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white">
+              <strong className="text-[#1a1f36] font-semibold text-[13px] block">Retail Rescue</strong>
+              <p className="text-[#697386] text-[11px] mt-0.5">Grocery store pickups (Target, Trader Joe's, Walmart).</p>
+            </div>
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white">
+              <strong className="text-[#1a1f36] font-semibold text-[13px] block">Purchased</strong>
+              <p className="text-[#697386] text-[11px] mt-0.5">Items bought using organization funds.</p>
+            </div>
+            <div className="p-3.5 rounded-xl border border-gray-200/90 bg-white">
+              <strong className="text-[#1a1f36] font-semibold text-[13px] block">USDA Commodity</strong>
+              <p className="text-[#697386] text-[11px] mt-0.5">TEFAP and government commodity allocations.</p>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+  ];
+
+  const filteredSections = guideSections.filter((s) =>
+    s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.summary.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const currentSection = guideSections.find((s) => s.id === activeTab) || guideSections[0];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="w-full max-w-4xl bg-white border border-gray-200/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[620px] max-h-[90vh]">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-[#f8fafb]">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8.5 w-8.5 rounded-xl bg-[#fff0eb] border border-[#d97757]/20 flex items-center justify-center shrink-0">
+              <HelpCircle className="h-4.5 w-4.5 text-[#d97757]" strokeWidth={2.2} />
+            </div>
+            <div>
+              <h2 className="text-[16px] font-bold text-[#1a1f36]">Inventory Intake Guide</h2>
+              <p className="text-[12px] text-[#697386]">Step-by-step instructions for logging food items</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-8.5 w-8.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="h-4.5 w-4.5" />
+          </button>
+        </div>
+
+        {/* Modal Main Content Area — Sidebar Layout */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Sidebar Navigation */}
+          <div className="w-[240px] shrink-0 border-r border-gray-100 bg-[#f8fafb]/60 p-3.5 flex flex-col gap-1.5 overflow-y-auto">
+            <div className="relative mb-1">
+              <Search className="h-3.5 w-3.5 text-[#a3acb9] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Filter topics…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-8 pl-8 pr-2 text-[11px] bg-white border border-gray-200 rounded-lg outline-none focus:border-[#d97757]"
+              />
+            </div>
+
+            <div className="text-[10px] font-bold text-[#8792a2] uppercase tracking-wider px-2 pt-1 pb-0.5">
+              Topics
+            </div>
+
+            {filteredSections.map((sec) => {
+              const Icon = sec.icon;
+              const isActive = activeTab === sec.id;
+              return (
+                <button
+                  key={sec.id}
+                  type="button"
+                  onClick={() => setActiveTab(sec.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-150 flex items-start gap-2.5 cursor-pointer ${
+                    isActive
+                      ? 'bg-white border border-gray-200/90 text-[#1a1f36] shadow-2xs font-bold'
+                      : 'text-[#697386] hover:bg-white/80 hover:text-[#1a1f36]'
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${isActive ? 'text-[#d97757]' : 'text-[#a3acb9]'}`} strokeWidth={2} />
+                  <div className="min-w-0">
+                    <div className="text-[12px] leading-snug flex items-center justify-between">
+                      <span className="truncate">{sec.title}</span>
+                      {sec.badge && (
+                        <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-md ml-1 shrink-0 ${
+                          isActive ? 'bg-[#fff0eb] text-[#d97757]' : 'bg-gray-100 text-[#3c4257]'
+                        }`}>
+                          {sec.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-[10px] font-normal truncate mt-0.5 ${isActive ? 'text-gray-300' : 'text-[#8792a2]'}`}>{sec.summary}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right Topic Details Pane */}
+          <div className="flex-1 p-6 overflow-y-auto bg-white">
+            {currentSection.content}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between shrink-0">
+          <span className="text-[11px] text-[#8792a2]">Need more help? Hover any info icon on the form.</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg bg-[#1a1f36] text-white text-[12px] font-bold hover:bg-[#2d3452] transition-colors cursor-pointer"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── custom dropdown component ──────────────────────────────────────── */
+
+function CustomSelect({ value, onChange, options, placeholder = 'Select…', className = 'w-full', buttonClassName = '', menuAlign = 'left', menuVerticalAlign = 'bottom' }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const ref = useRef(null);
+  const listRef = useRef(null);
+
+  const selectedOption = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHighlightedIndex(options.findIndex((o) => o.value === value));
+    }
+  }, [isOpen, value, options]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const searchString = useRef('');
+  const searchTimeout = useRef(null);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+      } else {
+        setHighlightedIndex((prev) => (prev < options.length - 1 ? prev + 1 : prev));
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (isOpen) {
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : prev));
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isOpen && highlightedIndex >= 0 && highlightedIndex < options.length) {
+        onChange(options[highlightedIndex].value);
+        setIsOpen(false);
+      } else {
+        setIsOpen(!isOpen);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+      searchString.current += e.key.toLowerCase();
+      searchTimeout.current = setTimeout(() => {
+        searchString.current = '';
+      }, 500);
+
+      const matchIndex = options.findIndex((opt) => {
+        const lbl = (opt.label || opt.name || '').toLowerCase();
+        return lbl.startsWith(searchString.current);
+      });
+
+      if (matchIndex >= 0) {
+        if (isOpen) {
+          setHighlightedIndex(matchIndex);
+        } else {
+          onChange(options[matchIndex].value);
+          setHighlightedIndex(matchIndex);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && highlightedIndex >= 0 && listRef.current) {
+      const item = listRef.current.children[highlightedIndex];
+      if (item) {
+        item.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex, isOpen]);
+
+  const defaultBtnClass = `w-full ${cls.input} cursor-pointer flex items-center justify-between ${selectedOption ? 'font-semibold text-[#3c4257]' : 'font-normal text-[#a3acb9]'}`;
+
+  const labelToDisplay = selectedOption?.label || selectedOption?.name || placeholder;
+
+  return (
+    <div ref={ref} className={`relative ${className}`} onKeyDown={handleKeyDown}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={buttonClassName || defaultBtnClass}
+      >
+        <span className="truncate text-left flex items-center gap-2">
+          {selectedOption?.icon && <selectedOption.icon className="h-4 w-4 text-[#697386]" strokeWidth={1.8} />}
+          {labelToDisplay}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] shrink-0 ml-1.5" />
+      </button>
+
+      {isOpen && (
+        <div
+          ref={listRef}
+          className={`absolute ${
+            menuVerticalAlign === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+          } ${
+            menuAlign === 'right' ? 'right-0 min-w-[120px]' : 'left-0 right-0'
+          } max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-[0_12px_36px_rgba(0,0,0,0.12)] z-50 py-1 px-1`}
+        >
+          {options.map((opt, idx) => {
+            const isSelected = opt.value === value;
+            const isHighlighted = idx === highlightedIndex;
+            const Icon = opt.icon;
+            const optLabel = opt.label || opt.name;
+            
+            return (
+              <div
+                key={opt.value}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                onMouseEnter={() => setHighlightedIndex(idx)}
+                className={`flex items-center justify-between px-3 py-2 text-[13px] rounded-lg cursor-pointer transition-colors duration-100 ${
+                  isHighlighted || isSelected
+                    ? 'bg-gray-100/90 text-[#1a1f36] font-bold'
+                    : 'text-[#3c4257] hover:bg-gray-50 font-medium'
+                }`}
+              >
+                <span className="truncate flex items-center gap-2.5">
+                  {Icon && <Icon className="h-4 w-4 text-[#697386]" strokeWidth={1.8} />}
+                  {optLabel}
+                </span>
+                {isSelected && (
+                  <Check className="h-3.5 w-3.5 text-[#d97757] shrink-0 ml-2" strokeWidth={2.5} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const unitOptions = [
+  { value: 'units', label: 'Units / Items' },
+  { value: 'cans', label: 'Cans' },
+  { value: 'boxes', label: 'Boxes' },
+  { value: 'bottles', label: 'Bottles' },
+  { value: 'packets', label: 'Packets / Bags' },
+  { value: 'cases', label: 'Cases' },
+];
+
+const weightUnitOptions = [
+  { value: 'lbs', label: 'lbs' },
+  { value: 'oz', label: 'oz' },
+  { value: 'fl_oz', label: 'fl oz' },
+  { value: 'kg', label: 'kg' },
+  { value: 'g', label: 'g' },
+  { value: 'ml', label: 'mL' },
+  { value: 'l', label: 'L' },
+  { value: 'gal', label: 'gal' },
+];
+
+const containerTypeOptions = [
+  { value: 'boxes', label: 'Boxes / Gaylords' },
+  { value: 'pallets', label: 'Pallets' },
+  { value: 'bins', label: 'Bins / Crates' },
+  { value: 'bags', label: 'Bulk Bags' },
+];
+
+const monthOptions = [
+  { value: '01', label: '01 - January' },
+  { value: '02', label: '02 - February' },
+  { value: '03', label: '03 - March' },
+  { value: '04', label: '04 - April' },
+  { value: '05', label: '05 - May' },
+  { value: '06', label: '06 - June' },
+  { value: '07', label: '07 - July' },
+  { value: '08', label: '08 - August' },
+  { value: '09', label: '09 - September' },
+  { value: '10', label: '10 - October' },
+  { value: '11', label: '11 - November' },
+  { value: '12', label: '12 - December' },
+];
+
+/* ─── modern custom date picker ──────────────────────────────────────── */
+
+function ModernDatePicker({ value, onChange, placeholder = 'Select date…', menuVerticalAlign = 'bottom' }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+
+  const parsedDate = value ? new Date(value + 'T00:00:00') : new Date();
+  const [viewYear, setViewYear] = useState(parsedDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState(parsedDate.getMonth());
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const daysOfWeek = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((v) => v - 1);
+    } else {
+      setViewMonth((v) => v - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((v) => v + 1);
+    } else {
+      setViewMonth((v) => v + 1);
+    }
+  };
+
+  const formattedDisplay = value
+    ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : '';
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`h-[44px] px-4 rounded-xl border border-gray-200 bg-white text-[14px] font-medium ${
+          value ? 'text-[#1a1f36] font-semibold' : 'text-[#a3acb9]'
+        } flex items-center gap-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:border-gray-300 hover:bg-gray-50/80 transition-colors cursor-pointer outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10`}
+      >
+        <Calendar className="h-4 w-4 text-[#d97757] shrink-0" strokeWidth={2} />
+        <span>{formattedDisplay || placeholder}</span>
+      </button>
+
+      {isOpen && (
+        <div className={`absolute ${
+          menuVerticalAlign === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
+        } left-0 w-[280px] bg-white border border-gray-200/90 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.14)] z-50 p-4`}>
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="h-7 w-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[#697386] transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="h-4 w-4" strokeWidth={2} />
+            </button>
+            <span className="text-[13px] font-bold text-[#1a1f36]">
+              {monthNames[viewMonth]} {viewYear}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="h-7 w-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[#697386] transition-colors cursor-pointer"
+            >
+              <ChevronRight className="h-4 w-4" strokeWidth={2} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 text-center mb-1">
+            {daysOfWeek.map((d) => (
+              <span key={d} className="text-[11px] font-semibold text-[#a3acb9] py-1">
+                {d}
+              </span>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 text-center gap-y-1">
+            {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const dayNum = i + 1;
+              const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+              const isSelected = value === dateStr;
+              return (
+                <button
+                  key={dayNum}
+                  type="button"
+                  onClick={() => {
+                    onChange(dateStr);
+                    setIsOpen(false);
+                  }}
+                  className={`h-8 w-8 mx-auto rounded-lg text-[12px] font-semibold flex items-center justify-center transition-colors cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#d97757] text-white shadow-xs'
+                      : 'text-[#3c4257] hover:bg-gray-100'
+                  }`}
+                >
+                  {dayNum}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── reusable field label ────────────────────────────────────────────── */
+
+function FieldLabel({ label, required, optional, hint, children }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-[13px] font-semibold text-[#1a1f36] leading-none">
+          <span>{label}</span>
+          {required && (
+            <span className="text-[#d97757] text-[13px] leading-none">*</span>
+          )}
+          {optional && (
+            <span className="text-[11px] font-normal text-[#a3acb9]">Optional</span>
+          )}
+          {hint && <FieldInfoTooltip text={hint} />}
+        </label>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+export function DesktopAddView() {
+  const { pantryId } = usePantry();
+  const generateBarcode = () =>
+    `INT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  /* ── state ────────────────────────────────────────────────────────── */
+  const [intakeMode, setIntakeMode] = useState('count');
+
+  const [barcode, setBarcode] = useState('');
   const [itemName, setItemName] = useState('');
-  const [category, setCategory] = useState('canned_goods');
-  const [categoryQuery, setCategoryQuery] = useState('Canned Goods');
-  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [category, setCategory] = useState('');
   const [photoUrl, setPhotoUrl] = useState(null);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [lookupSource, setLookupSource] = useState(null);
 
-  // Unit Size / Weight per unit ("Each one is *")
-  const [weightPerUnit, setWeightPerUnit] = useState('1');
-  const [unit, setUnit] = useState('units');
-
-  // Step 2: Batch Quantity, Expiration & Source
+  // Count mode
   const [qty, setQty] = useState('1');
-  const [expiration, setExpiration] = useState('');
-  const [expirationPrecision, setExpirationPrecision] = useState('day'); // 'day', 'month', 'none'
-  const [sourceType, setSourceType] = useState('donation'); // 'donation', 'purchased', 'usda', 'retail_rescue'
-  const [donorName, setDonorName] = useState('');
+  const [unit, setUnit] = useState('units');
+  const [packSize, setPackSize] = useState('');
+  const [totalWeight, setTotalWeight] = useState('');
+  const [weightUnit, setWeightUnit] = useState('lbs');
 
-  // Local state
-  const [error, setError] = useState('');
-  const [isAddedPulse, setIsAddedPulse] = useState(false);
-
-  // Barcode Debounce Ref
-  const barcodeTimerRef = useRef(null);
-
-  useEffect(() => {
-    return () => clearTimeout(barcodeTimerRef.current);
+  // Convert any weight or volume unit input to lbs for database & calculation
+  const convertToLbs = useCallback((valStr, unitStr) => {
+    const val = parseFloat(valStr) || 0;
+    if (!val) return 0;
+    switch (unitStr) {
+      case 'oz': return val / 16;
+      case 'fl_oz': return val * 0.065;
+      case 'kg': return val * 2.20462;
+      case 'g': return val / 453.592;
+      case 'ml': return val * 0.0022;
+      case 'l': return val * 2.20462;
+      case 'gal': return val * 8.34;
+      default: return val; // 'lbs'
+    }
   }, []);
 
-  // Idiomatic React focus management between wizard steps
+  // Bulk mode
+  const [bulkWeight, setBulkWeight] = useState('');
+  const [containerCount, setContainerCount] = useState('1');
+  const [containerType, setContainerType] = useState('boxes');
+
+  // Metadata — defaults to "Not specified" / "none"
+  const [sourceType, setSourceType] = useState('not_specified');
+  const [donorName, setDonorName] = useState('');
+  const [expirationPrecision, setExpirationPrecision] = useState('none');
+  const [expDay, setExpDay] = useState('');
+  const [expMonth, setExpMonth] = useState('');
+  const [expYear, setExpYear] = useState('');
+
+  // Collapsible sections
+  const [cartItems, setCartItems] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+
+  // Add button animation state
+  const [addedState, setAddedState] = useState(false); // true = showing green "Added!"
+  const addedTimerRef = useRef(null);
+
+  // Slide-out panel
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+
+  const barcodeTimerRef = useRef(null);
+  const barcodeRef = useRef(null);
+
   useEffect(() => {
-    if (step === 2) {
-      document.getElementById('intake-qty')?.focus();
-    }
-  }, [step]);
+    barcodeRef.current?.focus();
+    return () => {
+      clearTimeout(barcodeTimerRef.current);
+      clearTimeout(addedTimerRef.current);
+    };
+  }, []);
 
-  const currentYear = new Date().getFullYear();
-  const minDate = `${currentYear}-01-01`;
+  // Close panel on Escape
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape' && isPanelOpen) setIsPanelOpen(false);
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [isPanelOpen]);
 
-  const catMeta = getCategoryMeta(categoryQuery || category);
-  const CategoryIcon = catMeta.icon;
+  const catMeta = category ? getCategoryMeta(category) : null;
 
-  // Barcode Lookup Handler
+  /* ── barcode lookup ───────────────────────────────────────────────── */
   const handleBarcodeLookup = async (codeToSearch) => {
     const code = (codeToSearch || barcode || '').trim();
-    if (!code || !pantryId) return;
-    
+    if (!code || code.length < 4 || !pantryId || code.startsWith('INT-')) return;
+
+    // 1. Fast local cache check for instant complete restoration
+    try {
+      const cachedStr = localStorage.getItem(`foodarca_cache_${code}`);
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        if (cached.name) setItemName(cached.name);
+        if (cached.category) {
+          const meta = getCategoryMeta(cached.category);
+          setCategory(meta.value);
+        }
+        if (cached.unit) setUnit(cached.unit);
+        if (cached.packSize) setPackSize(String(cached.packSize));
+        if (cached.rawWeight) setTotalWeight(String(cached.rawWeight));
+        if (cached.weightUnit) setWeightUnit(cached.weightUnit);
+        setLookupSource('cache');
+        return;
+      }
+    } catch (_) { /* no-op */ }
+
     setIsLookingUp(true);
     setError('');
     setLookupSource(null);
-
     try {
       const res = await fetch(`/api/barcode/${encodeURIComponent(code)}`, {
-        headers: { 'x-pantry-id': pantryId }
+        headers: { 'x-pantry-id': pantryId },
       });
       if (res.ok) {
         const result = await res.json();
-        if (result && result.found && result.data) {
+        if (result?.found && result.data) {
           const d = result.data;
           if (d.name) setItemName(d.name);
           if (d.category) {
             const meta = getCategoryMeta(d.category);
             setCategory(meta.value);
-            setCategoryQuery(meta.name);
           }
-          if (d.unit) {
+          if (d.unit && ['units', 'boxes', 'bags', 'pallets', 'crates', 'cans', 'bottles', 'packs', 'cases'].includes(d.unit)) {
             setUnit(d.unit);
           }
-          if (d.weightPerUnit) setWeightPerUnit(String(d.weightPerUnit));
+          if (d.inputUnitValue) {
+            setTotalWeight(String(d.inputUnitValue));
+          } else if (d.weightPerUnit) {
+            if (intakeMode === 'bulk') setBulkWeight(String(d.weightPerUnit));
+            else setTotalWeight(String(d.weightPerUnit));
+          }
+          if (d.unit && ['fl oz', 'oz', 'lbs', 'kg', 'gal'].includes(d.unit)) {
+            setWeightUnit(d.unit);
+          }
           if (d.photoUrl) setPhotoUrl(d.photoUrl);
           setLookupSource(result.source || 'catalog');
-          
-          // Auto-advance focus to item name or weight after successful lookup
-          setTimeout(() => {
-            if (!d.name) document.getElementById('intake-item-name')?.focus();
-            else document.getElementById('intake-weight')?.focus();
-          }, 100);
         }
       }
     } catch (err) {
-      console.warn('Barcode lookup error:', err);
+      console.error(err);
     } finally {
       setIsLookingUp(false);
     }
   };
 
-  const triggerLookup = (code) => {
+  const handleBarcodeChange = (val) => {
+    setBarcode(val);
     clearTimeout(barcodeTimerRef.current);
-    handleBarcodeLookup(code);
+    if (val.trim().length >= 4 && !val.startsWith('INT-')) {
+      barcodeTimerRef.current = setTimeout(
+        () => handleBarcodeLookup(val.trim()),
+        400
+      );
+    }
   };
 
-  // Step 1 -> Step 2 Validation
-  const handleNextStep = () => {
-    if (!itemName.trim()) {
-      setError('Please enter an Item Name before proceeding.');
-      document.getElementById('intake-item-name')?.focus();
-      return;
-    }
-    const numW = parseFloat(weightPerUnit);
-    if (isNaN(numW) || numW <= 0) {
-      setError('Please enter a valid weight/size per unit.');
-      document.getElementById('intake-weight')?.focus();
-      return;
-    }
-    setError('');
-    setStep(2);
-  };
-
-  // Submit Batch Item to Cart
-  const handleAdd = () => {
-    if (!qty) {
-      setError('Please specify the batch quantity.');
-      return;
-    }
-    const numQty = parseFloat(qty);
-    if (isNaN(numQty) || numQty <= 0) {
-      setError('Quantity must be a positive number.');
-      return;
-    }
-    if (expirationPrecision !== 'none' && !expiration) {
-      setError('Please select an expiration date or choose "No Date".');
-      document.getElementById('intake-expiration')?.focus();
-      return;
-    }
-    setError('');
-
-    onAdd({
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
-      name: itemName,
-      barcode: barcode.trim() || generateBarcode(),
-      quantity: qty,
-      unit: unit || 'units',
-      category: category || 'other',
-      categoryName: categoryQuery || catMeta.name || 'Other',
-      expirationDate: expirationPrecision === 'none' ? null : (expiration || null),
-      expirationPrecision: expirationPrecision,
-      sourceType: sourceType || 'donation',
-      donorName: donorName.trim() || null,
-      photoUrl: photoUrl || null,
-      weightPerUnit: Number(weightPerUnit || 1)
-    });
-
-    // Celebratory pulse on item addition
-    setIsAddedPulse(true);
-    if (onPulseChange) onPulseChange(true);
-    setTimeout(() => {
-      setIsAddedPulse(false);
-      if (onPulseChange) onPulseChange(false);
-    }, 2500);
-
-    // Reset fields for fast sequential intake while preserving source/donor settings
+  /* ── form helpers ─────────────────────────────────────────────────── */
+  const handleClearForm = () => {
+    setBarcode('');
     setItemName('');
-    setBarcode(generateBarcode());
-    setQty('1');
+    setCategory('');
     setPhotoUrl(null);
     setLookupSource(null);
-    setExpiration('');
-    setError('');
-    setStep(1); // Return to Step 1 for next item!
-  };
-
-  const handleClear = () => {
-    setItemName('');
-    setBarcode(generateBarcode());
     setQty('1');
-    setWeightPerUnit('1');
-    setUnit('units');
-    setCategory('canned_goods');
-    setCategoryQuery('Canned Goods');
-    setExpiration('');
-    setExpirationPrecision('day');
-    setPhotoUrl(null);
-    setLookupSource(null);
+    setPackSize('');
+    setTotalWeight('');
+    setWeightUnit('lbs');
+    setBulkWeight('');
+    setContainerCount('1');
     setDonorName('');
-    setError('');
-    setIsAddedPulse(false);
-    if (onPulseChange) onPulseChange(false);
-    setStep(1);
+    setSourceType('not_specified');
+    setExpirationPrecision('none');
+    setExpDay('');
+    setExpMonth('');
+    setExpYear('');
   };
 
-  // Calculate live weight math for Step 2 badge
-  const calcTotalWeightLbs = () => {
-    const q = parseFloat(qty) || 0;
-    const numW = parseFloat(weightPerUnit);
-    const w = (!isNaN(numW) && weightPerUnit !== '') ? numW : 1;
-    if (unit === 'lbs') return q * w;
-    if (unit === 'oz' || unit === 'fl oz') return (q * w) / 16;
-    if (unit === 'kg') return (q * w) * 2.20462;
-    if (unit === 'g') return (q * w) * 0.00220462;
-    if (unit === 'mg') return (q * w) * 0.00000220462;
-    return q * w;
+  const getExpirationDate = () => {
+    switch (expirationPrecision) {
+      case 'day':   return expDay;
+      case 'month': return expMonth ? `${expMonth}-01` : '';
+      case 'year':  return expYear ? `${expYear}-01-01` : '';
+      default:      return '';
+    }
   };
 
-  // Checkmark completion helpers
-  const isStep1NameValid = itemName.trim().length > 0;
-  const isStep1CatValid = Boolean(category && category !== 'General');
-  const isStep1WeightValid = parseFloat(weightPerUnit) > 0;
-  const isStep2QtyValid = parseFloat(qty) > 0;
-  const isStep2ExpValid = expirationPrecision === 'none' || Boolean(expiration);
+  const parsedQty = parseFloat(qty) || 0;
+  const parsedBulkWeight = parseFloat(bulkWeight) || 0;
 
-  return (
-    <div className="bg-white rounded-[28px] border border-gray-200/80 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden transition-all duration-300">
-      
-      {/* TYPEFORM HEADER: PROGRESS & STEP STATUS */}
-      <div className="p-6 bg-gradient-to-r from-[#faf8f6] via-white to-[#faf8f6] border-b border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {step === 2 && (
-            <button 
-              type="button" 
-              onClick={() => setStep(1)}
-              className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center transition-all shrink-0"
-              title="Back to Step 1"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          )}
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-widest text-[#c06245]">
-                Step {step} of 2
-              </span>
-              <span className="text-gray-300">•</span>
-              <span className="text-xs font-bold text-gray-600">
-                {step === 1 ? 'Catalog Item Definition' : 'Batch Quantity & Source'}
-              </span>
-            </div>
-            {/* Smooth Progress Bar */}
-            <div className="w-48 h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-[#d97757] to-[#c06245] transition-all duration-500 ease-out rounded-full" 
-                style={{ width: step === 1 ? '50%' : '100%' }}
-              />
-            </div>
-          </div>
-        </div>
+  const isFormValid =
+    intakeMode === 'count'
+      ? itemName.trim().length > 0 && Boolean(category) && parsedQty > 0
+      : itemName.trim().length > 0 && Boolean(category) && parsedBulkWeight > 0;
 
-        <button 
-          type="button" 
-          onClick={handleClear} 
-          className="text-xs font-bold text-gray-400 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-        >
-          Reset
-        </button>
-      </div>
-
-      {error && (
-        <div className="mx-6 mt-6 p-4 text-sm text-red-600 font-semibold bg-red-50/90 border border-red-200/80 rounded-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-top-1">
-          <AlertCircle className="h-4 w-4 shrink-0 text-red-500" /> {error}
-        </div>
-      )}
-
-      {isAddedPulse && (
-        <div className="mx-6 mt-6 p-4 text-sm text-green-800 font-bold bg-green-50/90 border border-green-200/80 rounded-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-top-1 shadow-sm">
-          <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-          <span>✨ Item added to Self-Checkout Cart! Ready for next scan or manual entry.</span>
-        </div>
-      )}
-
-      {/* =========================================================================
-          STEP 1 OF 2: CATALOG ITEM DEFINITION ("What are we adding?")
-         ========================================================================= */}
-      {step === 1 && (
-        <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="flex flex-col flex-1 animate-in slide-in-from-left-8 fade-in duration-300">
-          <div className="p-8 space-y-7">
-            
-            {/* Barcode & Photo Lookup (Typeform Auto-Lookup & Pulse) */}
-            <div className="bg-gray-50/80 p-4 rounded-2xl border border-gray-200/60 space-y-3">
-              <div className="flex items-center justify-between">
-                <label htmlFor="intake-barcode" className="text-xs font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <Barcode className="h-3.5 w-3.5 text-[#c06245]" /> Barcode / UPC (Optional)
-                </label>
-                {lookupSource && (
-                  <span className="text-[11px] font-bold text-green-700 bg-green-50 px-2.5 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Found in {lookupSource === 'openfoodfacts' ? 'OpenFoodFacts' : 'Catalog'}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input 
-                    id="intake-barcode"
-                    type="text"
-                    onFocus={(e) => e.target.select()}
-                    onPaste={(e) => {
-                      const pasted = e.clipboardData?.getData('text');
-                      if (pasted && pasted.trim().length >= 4) {
-                        clearTimeout(barcodeTimerRef.current);
-                        barcodeTimerRef.current = setTimeout(() => triggerLookup(pasted.trim()), 50);
-                      }
-                    }}
-                    className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-white focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/15 outline-none transition-all text-sm font-mono text-gray-800 font-medium shadow-sm"
-                    placeholder="Scan barcode or paste UPC..."
-                    value={barcode}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setBarcode(val);
-                      if (val.trim().length >= 8 && !val.startsWith('INT-')) {
-                        clearTimeout(barcodeTimerRef.current);
-                        barcodeTimerRef.current = setTimeout(() => triggerLookup(val.trim()), 350);
-                      }
-                    }}
-                    onKeyDown={(e) => { 
-                      if (e.key === 'Enter') { 
-                        e.preventDefault(); 
-                        triggerLookup(barcode); 
-                      } 
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleBarcodeLookup(barcode)}
-                  disabled={isLookingUp}
-                  className="h-11 px-5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold transition-all flex items-center gap-2 shrink-0 shadow-sm disabled:opacity-50"
-                >
-                  {isLookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                  <span>Lookup</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Product Photo & Name Row */}
-            <div className="flex items-start gap-5">
-              {/* Thumbnail Card */}
-              <div className="w-20 h-20 rounded-2xl border-2 border-gray-200/80 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                {photoUrl ? (
-                  <img src={photoUrl} alt="Product" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-gray-400 gap-1 p-1 text-center">
-                    <CategoryIcon className="h-7 w-7 text-[#c06245]" strokeWidth={1.8} />
-                    <span className="text-[9px] font-extrabold text-gray-500 uppercase tracking-tighter truncate max-w-[64px]">
-                      {catMeta.name}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Item Name Input (With Inline ✓ Checkmark) */}
-              <div className="flex-1 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="intake-item-name" className="block text-sm font-extrabold text-gray-900 tracking-tight">
-                    1. What is the item name? <span className="text-[#c06245]">*</span>
-                  </label>
-                  {isStep1NameValid && <CheckCircle2 className="h-4 w-4 text-green-600 animate-in zoom-in-50" />}
-                </div>
-                <input 
-                  id="intake-item-name"
-                  required
-                  aria-required="true"
-                  autoFocus
-                  onFocus={(e) => e.target.select()}
-                  className="w-full h-13 px-4 rounded-2xl border-2 border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#d97757] focus:ring-4 focus:ring-[#d97757]/10 outline-none transition-all text-base font-bold text-gray-900 placeholder:text-gray-400 placeholder:font-normal shadow-sm"
-                  placeholder="e.g. Tomato sauce, 24 oz jar"
-                  value={itemName} 
-                  onChange={(e) => setItemName(e.target.value)}
-                />
-                <p className="text-xs text-gray-400 font-medium pl-1">
-                  This name will be saved to your pantry catalog.
-                </p>
-              </div>
-            </div>
-
-            {/* Category Selector (With Inline ✓ Checkmark & Auto-advance) */}
-            <div className="space-y-1.5 relative">
-              <div className="flex items-center justify-between">
-                <label htmlFor="intake-category" className="block text-sm font-extrabold text-gray-900 tracking-tight">
-                  2. Which category does it belong to? <span className="text-[#c06245]">*</span>
-                </label>
-                {isStep1CatValid && <CheckCircle2 className="h-4 w-4 text-green-600 animate-in zoom-in-50" />}
-              </div>
-              <div className="relative">
-                <input 
-                  id="intake-category"
-                  className="w-full h-12 px-4 pr-10 rounded-2xl border-2 border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#d97757] focus:ring-4 focus:ring-[#d97757]/10 outline-none transition-all text-sm font-bold text-gray-800 cursor-pointer shadow-sm"
-                  placeholder="Select category..."
-                  value={categoryQuery} 
-                  onChange={(e) => {
-                    setCategoryQuery(e.target.value);
-                    setIsCategoryOpen(true);
-                    setHighlightedIndex(0);
-                  }}
-                  onFocus={(e) => { 
-                    e.target.select(); 
-                    setIsCategoryOpen(true); 
-                    setHighlightedIndex(0); 
-                    // Reset filter so full list shows when clicking a pre-filled field
-                    setCategoryQuery('');
-                  }}
-                  onBlur={() => {
-                    setTimeout(() => {
-                      setIsCategoryOpen(false);
-                      const matched = categories.find(c => c.name.toLowerCase() === categoryQuery.trim().toLowerCase());
-                      if (matched) {
-                        setCategory(matched.value);
-                        setCategoryQuery(matched.name);
-                      } else {
-                        // Restore previous valid value if nothing matches
-                        const prev = categories.find(c => c.value === category);
-                        setCategoryQuery(prev ? prev.name : 'Other');
-                      }
-                    }, 200);
-                  }}
-                  onKeyDown={(e) => {
-                    if (!isCategoryOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) {
-                      e.preventDefault();
-                      setCategoryQuery('');
-                      setIsCategoryOpen(true);
-                      return;
-                    }
-                    if (!isCategoryOpen) return;
-                    const filtered = categories.filter(c => c.name.toLowerCase().includes(categoryQuery.toLowerCase()));
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      setHighlightedIndex(prev => Math.min(prev + 1, filtered.length - 1));
-                    } else if (e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      setHighlightedIndex(prev => Math.max(prev - 1, 0));
-                    } else if (e.key === 'Enter' && filtered[highlightedIndex]) {
-                      e.preventDefault();
-                      const chosen = filtered[highlightedIndex];
-                      setCategory(chosen.value);
-                      setCategoryQuery(chosen.name);
-                      setIsCategoryOpen(false);
-                      setTimeout(() => document.getElementById('intake-weight')?.focus(), 50);
-                    } else if (e.key === 'Escape') {
-                      setIsCategoryOpen(false);
-                      const prev = categories.find(c => c.value === category);
-                      setCategoryQuery(prev ? prev.name : 'Other');
-                    }
-                  }}
-                />
-                {/* Clickable chevron to toggle dropdown */}
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => {
-                    setCategoryQuery('');
-                    setIsCategoryOpen(prev => !prev);
-                    setHighlightedIndex(0);
-                    document.getElementById('intake-category')?.focus();
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 transition-colors"
-                >
-                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-
-              {/* Dropdown */}
-              {isCategoryOpen && (
-                <div className="absolute z-50 mt-1.5 w-full bg-white border border-gray-100 rounded-2xl shadow-xl max-h-64 overflow-y-auto py-2 animate-in fade-in slide-in-from-top-1">
-                  {categories.filter(c => !categoryQuery || c.name.toLowerCase().includes(categoryQuery.toLowerCase())).map((c, idx) => (
-                    <button
-                      key={c.value}
-                      type="button"
-                      className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors flex items-center gap-3 ${idx === highlightedIndex ? 'bg-[#d97757]/10 text-[#d97757]' : 'text-gray-700 hover:bg-[#d97757]/5 hover:text-[#d97757]'}`}
-                      onClick={() => {
-                        setCategory(c.value);
-                        setCategoryQuery(c.name);
-                        setIsCategoryOpen(false);
-                        setTimeout(() => document.getElementById('intake-weight')?.focus(), 50);
-                      }}
-                      onMouseEnter={() => setHighlightedIndex(idx)}
-                    >
-                      <c.icon className="h-4 w-4 shrink-0 text-[#c06245]" strokeWidth={2} />
-                      <span>{c.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* 3. Unit Size/Weight AND 4. Quantity (Split into 2 Columns on same row) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
-              
-              {/* Left Col: Unit Size & Weight */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="intake-weight" className="block text-sm font-extrabold text-gray-900 tracking-tight">
-                    3. Each unit is size/weight: <span className="text-[#c06245]">*</span>
-                  </label>
-                  {isStep1WeightValid && <CheckCircle2 className="h-4 w-4 text-green-600 animate-in zoom-in-50" />}
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 items-center">
-                  {/* Value input */}
-                  <div className="relative shrink-0 w-24">
-                    <input 
-                      id="intake-weight"
-                      type="number"
-                      step="any"
-                      required
-                      aria-required="true"
-                      onFocus={(e) => e.target.select()}
-                      className="w-full h-10 px-3 pr-8 rounded-xl border-2 border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 outline-none transition-all text-sm font-extrabold text-gray-900 shadow-sm"
-                      placeholder="16"
-                      value={weightPerUnit} 
-                      onChange={(e) => setWeightPerUnit(e.target.value)}
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 uppercase pointer-events-none">
-                      {unit}
-                    </span>
-                  </div>
-
-                  {/* Main chips: oz, lbs, units */}
-                  {['oz', 'lbs', 'units'].map((u) => (
-                    <button
-                      key={u}
-                      type="button"
-                      onClick={() => {
-                        setUnit(u);
-                        setTimeout(() => document.getElementById('intake-weight')?.focus(), 50);
-                      }}
-                      className={`h-10 px-3 rounded-xl text-xs font-extrabold transition-all border-2 flex items-center justify-center whitespace-nowrap ${
-                        unit === u
-                          ? 'bg-[#2b2b2b] text-white border-[#2b2b2b] shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:border-gray-300'
-                      }`}
-                    >
-                      {u}
-                    </button>
-                  ))}
-
-                  {/* Small 'More' dropdown box */}
-                  <div className="relative inline-block">
-                    <select
-                      aria-label="More measurement units"
-                      value={['oz', 'lbs', 'units'].includes(unit) ? '' : unit}
-                      onChange={(e) => {
-                        if (e.target.value) setUnit(e.target.value);
-                      }}
-                      className={`h-10 px-2.5 pr-7 rounded-xl text-xs font-extrabold transition-all border-2 appearance-none cursor-pointer outline-none ${
-                        !['oz', 'lbs', 'units'].includes(unit)
-                          ? 'bg-[#2b2b2b] text-white border-[#2b2b2b] shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:border-gray-300'
-                      }`}
-                    >
-                      <option value="" disabled>More ▾</option>
-                      <option value="kg">kg</option>
-                      <option value="g">g</option>
-                      <option value="gal">gal</option>
-                      <option value="can">can</option>
-                      <option value="box">box</option>
-                      <option value="bag">bag</option>
-                      <option value="jar">jar</option>
-                      <option value="pack">pack</option>
-                      <option value="case">case</option>
-                    </select>
-                    <ChevronDown className={`absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none ${
-                      !['oz', 'lbs', 'units'].includes(unit) ? 'text-white' : 'text-gray-400'
-                    }`} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Col: Quantity Stepper */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="intake-qty-step1" className="block text-sm font-extrabold text-gray-900 tracking-tight">
-                    4. How many items are you adding? <span className="text-[#c06245]">*</span>
-                  </label>
-                  <CheckCircle2 className="h-4 w-4 text-green-600 animate-in zoom-in-50" />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="Decrease quantity"
-                    onClick={() => {
-                      const current = parseFloat(qty) || 1;
-                      if (current > 1) setQty(String(current - 1));
-                    }}
-                    className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 border border-gray-200 flex items-center justify-center text-gray-700 transition-all active:scale-95 shrink-0"
-                  >
-                    <Minus className="h-4 w-4 stroke-[2.5]" />
-                  </button>
-
-                  <input 
-                    id="intake-qty-step1"
-                    type="number"
-                    step="any"
-                    required
-                    aria-required="true"
-                    onFocus={(e) => e.target.select()}
-                    className="w-20 h-10 text-center rounded-xl border-2 border-gray-200 bg-white focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 outline-none transition-all text-base font-black text-gray-900 shadow-sm"
-                    placeholder="1"
-                    value={qty} 
-                    onChange={(e) => setQty(e.target.value)}
-                  />
-
-                  <button
-                    type="button"
-                    aria-label="Increase quantity"
-                    onClick={() => {
-                      const current = parseFloat(qty) || 0;
-                      setQty(String(current + 1));
-                    }}
-                    className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 border border-gray-200 flex items-center justify-center text-gray-700 transition-all active:scale-95 shrink-0"
-                  >
-                    <Plus className="h-4 w-4 stroke-[2.5]" />
-                  </button>
-
-                  <span className="text-xs font-bold text-gray-500 ml-1">
-                    {unit === 'units' ? 'items' : unit}
-                  </span>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Live Math Preview Badge in Step 1 */}
-            <div className="bg-[#d97757]/10 border border-[#d97757]/20 rounded-xl p-3 flex items-center justify-between text-xs font-bold text-gray-800 mt-2">
-              <span className="text-[#c06245] flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4" /> Est. total weight:
-              </span>
-              <span className="font-extrabold text-gray-900 font-mono text-sm">
-                {qty || 0} × {weightPerUnit} {unit} ≈ {calcTotalWeightLbs().toFixed(1)} lbs
-              </span>
-            </div>
-
-          </div>
-
-          {/* STEP 1 FOOTER */}
-          <div className="bg-gray-50/90 p-5 px-8 border-t border-gray-100 flex items-center justify-between mt-auto">
-            <span className="text-xs text-gray-500 font-semibold flex items-center">
-              Press <code className="bg-white text-gray-800 px-2 py-0.5 rounded-md font-mono text-xs font-extrabold border border-gray-200 mx-1">Enter</code> to continue
-            </span>
-            <button 
-              type="submit" 
-              className="h-12 px-8 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white font-extrabold text-sm shadow-lg shadow-gray-900/10 transition-all flex items-center gap-2.5 active:scale-[0.98]"
-            >
-              <span>Next: Set Expiration & Source</span>
-              <span className="bg-white/20 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">⏎ Enter</span>
-              <ArrowRight className="h-4 w-4 stroke-[2.5]" />
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* =========================================================================
-          STEP 2 OF 2: BATCH DETAILS & INTAKE SOURCE ("How many & where from?")
-         ========================================================================= */}
-      {step === 2 && (
-        <form onSubmit={(e) => { e.preventDefault(); handleAdd(); }} className="flex flex-col flex-1 animate-in slide-in-from-right-8 fade-in duration-300">
-          <div className="p-8 space-y-7">
-            
-            {/* Item Summary Pill / Banner */}
-            <div className="bg-[#2b2b2b] text-white p-4 rounded-2xl flex items-center justify-between shadow-md">
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
-                  {photoUrl ? (
-                    <img src={photoUrl} alt="Product" className="w-full h-full object-cover" />
-                  ) : (
-                    <CategoryIcon className="h-5 w-5 text-[#c06245]" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <h4 className="font-extrabold text-sm text-white truncate">{itemName}</h4>
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
-                    <span className="bg-white/15 text-white px-2 py-0.5 rounded text-[10px] font-bold">
-                      {catMeta.name}
-                    </span>
-                    <span>•</span>
-                    <span className="font-semibold">{qty || 0} × {weightPerUnit} {unit} ≈ {calcTotalWeightLbs().toFixed(1)} lbs</span>
-                  </div>
-                </div>
-              </div>
-              <button 
-                type="button" 
-                onClick={() => setStep(1)}
-                className="text-xs font-bold text-[#c06245] hover:underline px-2 shrink-0"
-              >
-                Change
-              </button>
-            </div>
-
-            {/* Expiration Date — label + tabs stacked for clarity */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="intake-expiration" className="block text-sm font-extrabold text-gray-900 tracking-tight flex items-center gap-1.5">
-                  <span>Expiration Date {expirationPrecision !== 'none' && <span className="text-[#c06245]">*</span>}</span>
-                  {isStep2ExpValid && <CheckCircle2 className="h-4 w-4 text-green-600 animate-in zoom-in-50" />}
-                </label>
-              </div>
-
-              {/* Precision selector — full-width tab strip for visibility */}
-              <div role="radiogroup" aria-label="Expiration precision" className="grid grid-cols-3 gap-1.5">
-                {[
-                  { id: 'day', label: 'Exact Date' },
-                  { id: 'month', label: 'Month / Year' },
-                  { id: 'none', label: 'No Date' }
-                ].map((prec) => (
-                  <button
-                    key={prec.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={expirationPrecision === prec.id}
-                    onClick={() => {
-                      setExpirationPrecision(prec.id);
-                      setTimeout(() => {
-                        if (prec.id === 'none') document.getElementById('intake-donor')?.focus();
-                        else document.getElementById('intake-expiration')?.focus();
-                      }, 50);
-                    }}
-                    className={`py-2.5 text-xs font-extrabold rounded-xl border-2 transition-all text-center ${
-                      expirationPrecision === prec.id
-                        ? 'bg-[#2b2b2b] text-white border-[#2b2b2b] shadow-sm'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
-                    }`}
-                  >
-                    {prec.label}
-                  </button>
-                ))}
-              </div>
-
-              {expirationPrecision === 'none' ? (
-                <div className="w-full h-11 rounded-xl bg-green-50 border border-green-200 flex items-center justify-center text-xs font-bold text-green-700 gap-2">
-                  <Check className="h-4 w-4" /> No expiration date required
-                </div>
-              ) : (
-                <input 
-                  id="intake-expiration"
-                  type={expirationPrecision === 'month' ? 'month' : 'date'}
-                  min={expirationPrecision === 'month' ? minDate.slice(0, 7) : minDate}
-                  onFocus={(e) => e.target.select()}
-                  className="w-full h-11 px-4 rounded-xl border-2 border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#d97757] focus:ring-4 focus:ring-[#d97757]/10 outline-none transition-all text-sm font-bold text-gray-800 shadow-sm"
-                  value={expiration} 
-                  onChange={(e) => setExpiration(e.target.value)}
-                />
-              )}
-            </div>
-
-            {/* Intake Source & Donor (Typeform Auto-advance) */}
-            <div className="space-y-3">
-              <label className="block text-sm font-extrabold text-gray-900 tracking-tight">
-                Intake Source & Donor <span className="text-[#c06245]">*</span>
-              </label>
-
-              {/* Segmented Source Cards */}
-              <div role="radiogroup" aria-label="Intake source" className="grid grid-cols-2 gap-2.5">
-                {[
-                  { id: 'donation', label: 'Donation (Default)', icon: Gift },
-                  { id: 'purchased', label: 'Purchased', icon: ShoppingBag },
-                  { id: 'usda', label: 'USDA Commodity', icon: Landmark },
-                  { id: 'retail_rescue', label: 'Retail Rescue', icon: HeartHandshake }
-                ].map((s, idx) => {
-                  const Icon = s.icon;
-                  const isSelected = sourceType === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      id={`intake-source-${idx}`}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      onClick={() => {
-                        setSourceType(s.id);
-                        setTimeout(() => document.getElementById('intake-donor')?.focus(), 50);
-                      }}
-                      className={`flex items-center gap-2.5 p-3 rounded-2xl text-xs font-bold transition-all border-2 ${isSelected ? 'bg-orange-50/60 border-[#d97757] text-[#c06245] shadow-sm' : 'bg-gray-50/60 border-gray-200/80 text-gray-700 hover:bg-gray-100/80'}`}
-                    >
-                      <Icon className={`h-4 w-4 shrink-0 ${isSelected ? 'text-[#c06245]' : 'text-gray-500'}`} strokeWidth={2.2} />
-                      <span className="truncate">{s.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Donor Name Note */}
-              <div className="pt-1">
-                <label htmlFor="intake-donor" className="block text-xs font-bold text-gray-600 mb-1">
-                  Donor / Vendor Name (Optional)
-                </label>
-                <input 
-                  id="intake-donor"
-                  type="text"
-                  onFocus={(e) => e.target.select()}
-                  className="w-full h-11 px-4 rounded-xl border border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 outline-none transition-all text-xs font-semibold text-gray-800"
-                  placeholder="e.g. St. Mary's Food Drive, Walmart Rescue #402..."
-                  value={donorName} 
-                  onChange={(e) => setDonorName(e.target.value)}
-                />
-              </div>
-            </div>
-
-          </div>
-
-          {/* STEP 2 FOOTER */}
-          <div className="bg-gray-50/90 p-5 px-8 border-t border-gray-100 flex items-center justify-between mt-auto">
-            <button 
-              type="button" 
-              onClick={() => setStep(1)}
-              className="text-xs font-extrabold text-gray-600 hover:text-gray-900 flex items-center gap-1.5 py-2 px-3 rounded-xl hover:bg-gray-200/60 transition-colors"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Back
-            </button>
-
-            <div className="flex items-center gap-4">
-              <span className="text-xs text-gray-500 font-semibold hidden sm:flex items-center">
-                Press <code className="bg-white text-gray-800 px-2 py-0.5 rounded-md font-mono text-xs font-extrabold border border-gray-200 mx-1">Enter</code> to add
-              </span>
-              <button 
-                type="submit" 
-                className="h-12 px-8 rounded-2xl bg-gradient-to-r from-[#d97757] to-[#c06245] hover:from-[#c06245] hover:to-[#a85238] text-white font-extrabold text-sm shadow-lg shadow-orange-500/25 transition-all flex items-center gap-2.5 active:scale-[0.98]"
-              >
-                <Plus className="h-4 w-4 stroke-[3]" />
-                <span>+ Add to Self-Checkout Cart</span>
-                <span className="bg-white/20 text-white px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">⏎ Enter</span>
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
-
-    </div>
-  );
-}
-
-// --- COMPONENT: SELF-CHECKOUT LIVE CART RECEIPT TABLE (Collapsible POS Terminal) ---
-function BatchSummarySidebar({ items, onRemove, onUpdateQty, onSubmit, isSubmitting, error, success, isExpanded, onToggleExpand, isAddedPulse }) {
-  // Listen for Escape key to close drawer when expanded
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isExpanded) {
-        onToggleExpand();
+  /* ── add to batch ─────────────────────────────────────────────────── */
+  const handleAddItem = (e) => {
+    e.preventDefault();
+    if (!isFormValid) {
+      if (!itemName.trim()) {
+        setError('Item name is required.');
+      } else if (!category) {
+        setError('Please select a Category before adding to batch.');
+      } else if (intakeMode === 'count' && parsedQty <= 0) {
+        setError('Please enter a valid quantity.');
+      } else if (intakeMode === 'bulk' && parsedBulkWeight <= 0) {
+        setError('Please enter a valid scale weight.');
+      } else {
+        setError('Please fill in all required fields (*).');
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isExpanded, onToggleExpand]);
-
-  // Calculate estimated total weight
-  const totalWeightLbs = items.reduce((acc, item) => {
-    const q = parseFloat(item.quantity) || 0;
-    const numW = parseFloat(item.weightPerUnit);
-    const w = (!isNaN(numW) && item.weightPerUnit !== '') ? numW : 1;
-    if (item.unit === 'lbs') return acc + (q * w);
-    if (item.unit === 'oz' || item.unit === 'fl oz') return acc + ((q * w) / 16);
-    if (item.unit === 'kg') return acc + (q * w * 2.20462);
-    if (item.unit === 'g') return acc + (q * w * 0.00220462);
-    if (item.unit === 'mg') return acc + (q * w * 0.00000220462);
-    return acc + (q * w);
-  }, 0).toFixed(1);
-
-  const totalUnits = items.reduce((acc, item) => acc + (parseFloat(item.quantity) || 0), 0);
-
-  // --- COLLAPSED VIEW (Slim Vertical Strip) ---
-  const renderCollapsedView = () => (
-    <div className={`bg-white rounded-[24px] border border-gray-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col justify-between min-h-[560px] max-h-[calc(100vh-80px)] overflow-hidden transition-all duration-500 ${isAddedPulse ? 'ring-4 ring-[#d97757]/60 shadow-xl' : ''}`}>
-      
-      {/* Compact Header — Expand button on left so it expands leftward */}
-      <div className="p-4 bg-[#2b2b2b] text-white border-b border-gray-800 flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="text-xs font-bold text-[#d97757] hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-xl transition-colors flex items-center gap-1 shrink-0"
-          title="Expand Cart"
-        >
-          <ChevronDown className="h-3.5 w-3.5 rotate-90" />
-          <span>Expand</span>
-        </button>
-        <div className="flex items-center gap-2 ml-auto">
-          <ShoppingBag className="h-4 w-4 text-[#d97757]" />
-          <span className="font-bold text-sm">Cart ({items.length})</span>
-        </div>
-      </div>
-
-      {/* Stacked Item Chips Strip */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-28 text-gray-400 gap-2 text-center">
-            <ShoppingBag className="h-8 w-8 stroke-[1.5] text-gray-300" />
-            <p className="text-xs font-semibold text-gray-500">Cart is empty</p>
-            <p className="text-[10px] text-gray-400">Scanned items appear here</p>
-          </div>
-        ) : (
-          items.map((item) => {
-            const catMeta = getCategoryMeta(item.categoryName || item.category);
-            const Icon = catMeta.icon;
-            return (
-              <div key={item.id} className="bg-gray-50 hover:bg-orange-50/40 border border-gray-200/80 rounded-2xl p-2.5 flex items-center justify-between gap-2 transition-colors">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                    {item.photoUrl ? (
-                      <img src={item.photoUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <Icon className="h-4 w-4 text-[#d97757]" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-gray-900 text-xs truncate leading-tight">{item.name}</h4>
-                    <span className="text-[10px] font-semibold text-gray-500 block truncate mt-0.5">
-                      {item.quantity} × {item.weightPerUnit} {item.unit === 'units' ? 'items' : item.unit}
-                    </span>
-                  </div>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => onRemove(item.id)} 
-                  className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors shrink-0"
-                  title="Remove item"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* Bottom Pinned Stats Bar & Submit Button */}
-      <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0 space-y-3">
-        <div className="flex items-center justify-between text-xs font-extrabold text-gray-700 bg-white p-2.5 rounded-xl border border-gray-200/60 shadow-sm">
-          <span>{items.length} items ({totalUnits} units)</span>
-          <span className="text-[#d97757] font-black">{totalWeightLbs} lbs</span>
-        </div>
-        
-        <button 
-          type="button"
-          disabled={items.length === 0 || isSubmitting}
-          onClick={onSubmit}
-          className="w-full h-12 text-xs font-extrabold text-white bg-[#2b2b2b] hover:bg-[#1a1a1a] rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin text-[#d97757]" />
-              <span>Submitting...</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-4 w-4 text-[#d97757]" />
-              <span>Submit Batch ({items.length})</span>
-            </>
-          )}
-        </button>
-      </div>
-
-    </div>
-  );
-
-  // --- EXPANDED VIEW (Full Receipt Review Table - 6 Cols) ---
-  const renderExpandedView = (isDrawer = false) => (
-    <div className={`bg-white ${isDrawer ? 'h-full max-h-screen rounded-none sm:rounded-l-[24px] border-l border-gray-200/80 shadow-2xl' : 'rounded-[24px] border border-gray-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] min-h-[560px] max-h-[calc(100vh-80px)]'} flex flex-col justify-between overflow-hidden transition-all duration-500 ${isAddedPulse && !isDrawer ? 'ring-4 ring-[#d97757]/60 shadow-xl' : ''}`}>
-      
-      {/* HEADER: RECEIPT SUMMARY */}
-      <div className="p-6 bg-[#2b2b2b] text-white border-b border-gray-800 flex items-center justify-between shrink-0">
-        <div>
-          <h3 className="font-bold text-base flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5 text-[#d97757]" /> Self-Checkout Receipt
-          </h3>
-          <p className="text-xs text-gray-400 mt-0.5">Live Intake Batch Review</p>
-        </div>
-        
-        {/* Stats Pill & Collapse Button */}
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-3 bg-white/10 px-3.5 py-1.5 rounded-xl border border-white/10 text-xs font-semibold">
-            <div>
-              <span className="text-gray-400 text-[10px] uppercase tracking-wider">Items </span>
-              <span className="text-white font-bold">{items.length}</span>
-            </div>
-            <div className="h-4 w-[1px] bg-white/20" />
-            <div>
-              <span className="text-gray-400 text-[10px] uppercase tracking-wider">Est. Weight </span>
-              <span className="text-[#d97757] font-bold">{totalWeightLbs} lbs</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="text-xs font-bold text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 shrink-0"
-            title={isDrawer ? "Close Drawer" : "Collapse Cart"}
-          >
-            <ChevronDown className={`h-4 w-4 text-[#d97757] ${isDrawer ? '-rotate-90' : 'rotate-90'}`} />
-            <span>{isDrawer ? 'Close' : 'Collapse'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ERROR & SUCCESS MESSAGES */}
-      {error && <div className="mx-6 mt-6 p-4 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2"><AlertCircle className="h-4 w-4 shrink-0"/> {error}</div>}
-      {success && <div className="mx-6 mt-6 p-4 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2"><CheckCircle2 className="h-4 w-4 shrink-0"/> {success}</div>}
-
-      {/* RECEIPT ITEMS TABLE */}
-      <div className="flex-1 overflow-y-auto overflow-x-auto p-0">
-        {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 text-gray-400 gap-3">
-            <div className="w-16 h-16 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-300">
-              <ArrowDownToLine className="h-8 w-8 stroke-[1.5]" />
-            </div>
-            <p className="text-sm font-semibold text-gray-600">No items scanned or added yet</p>
-            <p className="text-xs text-gray-400 max-w-xs text-center">Use the Express Intake Terminal on the left to scan barcodes or manually enter pantry items.</p>
-          </div>
-        ) : (
-          <table className="w-full text-left border-collapse min-w-[580px]">
-            <thead>
-              <tr className="bg-gray-50/90 sticky top-0 border-b border-gray-200/80 backdrop-blur-md z-10">
-                <th className="px-6 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Product</th>
-                <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Source</th>
-                <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Expires</th>
-                <th className="px-6 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Quantity</th>
-                <th className="px-4 py-3 w-12"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((item) => {
-                const catMeta = getCategoryMeta(item.categoryName || item.category);
-                const Icon = catMeta.icon;
-                return (
-                  <tr key={item.id} className="hover:bg-orange-50/20 group transition-colors">
-                    {/* Product Cell with Photo Thumbnail OR Fallback Category Icon */}
-                    <td className="px-6 py-3.5 align-middle">
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-11 h-11 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                          {item.photoUrl ? (
-                            <img src={item.photoUrl} alt={item.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <Icon className="h-5 w-5 text-[#d97757]" strokeWidth={1.8} />
-                          )}
-                        </div>
-                        <div className="overflow-hidden">
-                          <h4 className="font-bold text-gray-900 text-sm leading-tight truncate">{item.name}</h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200/60">
-                              {catMeta.name}
-                            </span>
-                            {item.barcode && !item.barcode.startsWith('INT-') && !item.barcode.startsWith('SYS-') && (
-                              <span className="text-[10px] font-mono text-gray-400">
-                                #{item.barcode}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Source & Donor Cell */}
-                    <td className="px-4 py-3.5 align-middle">
-                      <span className="text-xs font-bold text-gray-700 capitalize block">
-                        {item.sourceType ? item.sourceType.replace('_', ' ') : 'Donation'}
-                      </span>
-                      {item.donorName && (
-                        <span className="text-[11px] text-gray-500 truncate max-w-[130px] block font-medium">
-                          {item.donorName}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Expiration Cell */}
-                    <td className="px-4 py-3.5 align-middle">
-                      {item.expirationDate ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-orange-800 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-200/60">
-                          <Calendar className="h-3 w-3 text-orange-600" />
-                          {item.expirationDate}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400 font-medium italic">No date</span>
-                      )}
-                    </td>
-
-                    {/* Quantity Stepper Cell */}
-                    <td className="px-6 py-3.5 align-middle text-right">
-                      <div className="inline-flex items-center justify-end gap-1.5 bg-gray-50 border border-gray-200 rounded-xl p-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const current = parseFloat(item.quantity) || 1;
-                            if (current > 1) onUpdateQty(item.id, String(current - 1));
-                          }}
-                          className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
-                        >
-                          <Minus className="h-3 w-3" />
-                        </button>
-                        <input 
-                          type="number" 
-                          step="any"
-                          value={item.quantity} 
-                          onChange={(e) => onUpdateQty(item.id, e.target.value)}
-                          onBlur={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (isNaN(val) || val <= 0) onUpdateQty(item.id, '1');
-                          }}
-                          className="w-12 h-7 text-center text-xs font-bold text-gray-900 bg-transparent outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const current = parseFloat(item.quantity) || 0;
-                            onUpdateQty(item.id, String(current + 1));
-                          }}
-                          className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </button>
-                      </div>
-                      <span className="text-[11px] font-semibold text-gray-500 block mt-1 text-right pr-1">
-                        {item.unit || 'units'}
-                      </span>
-                    </td>
-
-                    {/* Remove Item Button */}
-                    <td className="px-4 py-3.5 align-middle text-right">
-                      <button 
-                        type="button"
-                        onClick={() => onRemove(item.id)} 
-                        className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-xl hover:bg-red-50"
-                        title="Remove from cart"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* FOOTER: CHECKOUT BAR (Pinned at bottom in both states) */}
-      <div className="p-6 border-t border-gray-200 bg-gray-50 shrink-0 space-y-4">
-        <div className="flex items-center justify-between text-sm font-semibold text-gray-600">
-          <span>Ready to commit to inventory database?</span>
-          <span className="text-[#2b2b2b] font-bold">{items.length} unique products</span>
-        </div>
-        
-        <button 
-          type="button"
-          disabled={items.length === 0 || isSubmitting}
-          onClick={onSubmit}
-          className="w-full h-14 text-base font-bold text-white bg-[#2b2b2b] hover:bg-[#1a1a1a] rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin text-[#d97757]" />
-              <span>Submitting Batch to Supabase...</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-5 w-5 text-[#d97757]" />
-              <span>Submit Batch to Inventory ({items.length} items)</span>
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-
-  // --- COLLAPSED STATE ---
-  if (!isExpanded) {
-    return renderCollapsedView();
-  }
-
-  // --- EXPANDED STATE (Responsive Slide-over Drawer for < xl, Side-by-Side for >= xl) ---
-  return (
-    <>
-      {/* On < xl screens: Keep the collapsed view in the grid so the underlying form layout never squishes */}
-      <div className="block xl:hidden">
-        {renderCollapsedView()}
-      </div>
-
-      {/* On < xl screens: Render the slide-over drawer modal for spacious expanded receipt review */}
-      <div className="xl:hidden fixed inset-0 z-50 overflow-hidden animate-in fade-in duration-300">
-        {/* Dark backdrop */}
-        <div 
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
-          onClick={onToggleExpand}
-          aria-hidden="true"
-        />
-
-        {/* Slide-over panel */}
-        <div className="absolute inset-y-0 right-0 max-w-full flex pl-4 sm:pl-10">
-          <div className="w-screen max-w-2xl lg:max-w-3xl bg-white shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-300">
-            {renderExpandedView(true)}
-          </div>
-        </div>
-      </div>
-
-      {/* On >= xl screens: Render the expanded view directly in the grid side-by-side */}
-      <div className="hidden xl:block">
-        {renderExpandedView(false)}
-      </div>
-    </>
-  );
-}
-
-// --- MAIN PAGE LAYOUT (Edge-to-Edge Self-Checkout Store Terminal) ---
-export function DesktopAddView() {
-  const { pantryId } = usePantry();
-
-  const [cartItems, setCartItems] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [isCartExpanded, setIsCartExpanded] = useState(false); // Collapsed (3 cols) by default!
-  const [isAddedPulse, setIsAddedPulse] = useState(false);
-
-  const handleAddItem = (item) => {
-    setCartItems(prev => [...prev, item]);
-    setSuccess('');
-    setError('');
-  };
-
-  const handleRemoveItem = (id) => {
-    setCartItems(prev => prev.filter(i => i.id !== id));
-  };
-
-  const handleUpdateQty = (id, newQty) => {
-    setCartItems(prev => prev.map(i => i.id === id ? { ...i, quantity: newQty } : i));
-  };
-
-  const handleSubmitBatch = async () => {
-    if (cartItems.length === 0) return;
-    if (!pantryId) {
-      setError('No active pantry selected.');
       return;
     }
+    setError('');
+    setSuccess('');
 
+    let itemQuantity = '1';
+    let itemUnit = 'units';
+    let itemWeightLbs = 0;
+    let weightPerUnit = '0';
+
+    if (intakeMode === 'count') {
+      itemQuantity = String(Math.abs(parsedQty));
+      itemUnit = unit;
+      const convertedLbs = convertToLbs(totalWeight, weightUnit);
+      itemWeightLbs = Math.abs(convertedLbs || 0);
+      weightPerUnit =
+        itemWeightLbs > 0 && parsedQty > 0
+          ? (itemWeightLbs / parsedQty).toFixed(2)
+          : '0';
+    } else {
+      const cnt = Math.abs(parseFloat(containerCount) || 1);
+      itemQuantity = String(cnt);
+      itemUnit = containerType;
+      itemWeightLbs = Math.abs(parsedBulkWeight);
+      weightPerUnit =
+        itemWeightLbs > 0 && cnt > 0
+          ? (itemWeightLbs / cnt).toFixed(2)
+          : '0';
+    }
+
+    const newItem = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      barcode: barcode.trim() || generateBarcode(),
+      name: itemName.trim(),
+      category: category || 'other',
+      categoryName: catMeta?.name || 'Other',
+      quantity: itemQuantity,
+      packSize: packSize ? parseFloat(packSize) : null,
+      weightPerUnit,
+      totalWeightLbs: itemWeightLbs,
+      rawWeight: totalWeight || null,
+      weightUnit: weightUnit || 'lbs',
+      unit: itemUnit,
+      intakeMode,
+      expirationDate: getExpirationDate(),
+      expirationPrecision,
+      sourceType,
+      donorName: donorName.trim(),
+      photoUrl,
+    };
+
+    setCartItems((prev) => [...prev, newItem]);
+
+    // Save to local browser cache for instant future lookup restoration
+    if (newItem.barcode && !newItem.barcode.startsWith('INT-')) {
+      try {
+        const cacheObj = {
+          name: newItem.name,
+          category: newItem.category,
+          unit: newItem.unit,
+          packSize: newItem.packSize,
+          rawWeight: newItem.rawWeight,
+          weightUnit: newItem.weightUnit,
+        };
+        localStorage.setItem(`foodarca_cache_${newItem.barcode}`, JSON.stringify(cacheObj));
+      } catch (_) { /* no-op */ }
+    }
+
+    // ── inline "Added!" animation + haptic ──
+    setAddedState(true);
+    clearTimeout(addedTimerRef.current);
+    addedTimerRef.current = setTimeout(() => setAddedState(false), 1500);
+
+    // Haptic vibration (tablets / Android — graceful no-op elsewhere)
+    try {
+      if (navigator.vibrate) navigator.vibrate(80);
+    } catch (_) { /* no-op */ }
+
+    handleClearForm();
+    barcodeRef.current?.focus();
+  };
+
+  const handleRemoveItem = (id) =>
+    setCartItems((prev) => prev.filter((i) => i.id !== id));
+
+  /* ── submit batch ─────────────────────────────────────────────────── */
+  const handleSubmitBatch = async () => {
+    if (cartItems.length === 0 || !pantryId) return;
     setIsSubmitting(true);
     setError('');
     setSuccess('');
-
     try {
       const response = await fetch('/api/foods/bulk', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-pantry-id': pantryId
-        },
-        body: JSON.stringify({ items: cartItems })
+        headers: { 'Content-Type': 'application/json', 'x-pantry-id': pantryId },
+        body: JSON.stringify({ items: cartItems }),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(data.message || data.error || 'Failed to submit batch');
-      }
-
-      setSuccess(`Successfully added ${cartItems.length} unique items (${data.count || cartItems.length} total batches) to inventory!`);
-      setCartItems([]); // Clear cart only on success
+      setSuccess(
+        `Successfully added ${cartItems.length} product${cartItems.length > 1 ? 's' : ''} to inventory.`
+      );
+      setCartItems([]);
+      setIsPanelOpen(false);
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -1277,41 +1184,704 @@ export function DesktopAddView() {
     }
   };
 
+  /* ── derived ──────────────────────────────────────────────────────── */
+  const totalStagedProducts = cartItems.length;
+  const totalStagedUnits = cartItems.reduce(
+    (a, i) => a + (parseFloat(i.quantity) || 0),
+    0
+  );
+  const totalStagedWeightLbs = cartItems
+    .reduce((a, i) => a + (i.totalWeightLbs || 0), 0)
+    .toFixed(1);
+
+  const currentYear = new Date().getFullYear();
+
+  const sourceOptions = [
+    { key: 'not_specified', label: 'Not specified', icon: Package },
+    { key: 'donation',      label: 'Donation',      icon: HeartHandshake },
+    { key: 'retail_rescue', label: 'Rescue',         icon: Gift },
+    { key: 'purchased',     label: 'Purchased',      icon: ShoppingBag },
+    { key: 'usda',          label: 'USDA',           icon: Landmark },
+  ];
+
+  const expirationOptions = [
+    { key: 'none',  label: 'No expiration' },
+    { key: 'day',   label: 'Exact date' },
+    { key: 'month', label: 'Month & year' },
+    { key: 'year',  label: 'Year only' },
+  ];
+
+  const needsDonor =
+    sourceType === 'donation' ||
+    sourceType === 'retail_rescue' ||
+    sourceType === 'purchased';
+
+  /* ═══════════════════════════  RENDER  ═══════════════════════════════ */
+
   return (
-    <div className="w-full min-h-screen bg-[#f7f7f5] px-6 py-6 md:px-8">
-      {/* EDGE-TO-EDGE GRID WITH DYNAMIC COLLAPSIBLE COLUMNS */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 items-start">
-        
-        {/* LEFT COLUMN: 2-STEP TYPEFORM INTAKE TERMINAL */}
-        <div className={`transition-all duration-300 ${
-          isCartExpanded 
-            ? 'md:col-span-7 lg:col-span-7 xl:col-span-6 2xl:col-span-6' 
-            : 'md:col-span-7 lg:col-span-7 xl:col-span-8 2xl:col-span-9'
-        }`}>
-          <DesktopInlineForm onAdd={handleAddItem} pantryId={pantryId} onPulseChange={setIsAddedPulse} />
-        </div>
+    <div className="max-w-[1400px] mx-auto px-6 py-3 md:px-8 md:py-4 font-['Inter',system-ui,sans-serif] relative">
 
-        {/* RIGHT COLUMN: COLLAPSIBLE POS RECEIPT CART */}
-        <div className={`transition-all duration-300 h-fit sticky top-6 ${
-          isCartExpanded 
-            ? 'md:col-span-5 lg:col-span-5 xl:col-span-6 2xl:col-span-6' 
-            : 'md:col-span-5 lg:col-span-5 xl:col-span-4 2xl:col-span-3'
-        }`}>
-          <BatchSummarySidebar 
-            items={cartItems} 
-            onRemove={handleRemoveItem} 
-            onUpdateQty={handleUpdateQty} 
-            onSubmit={handleSubmitBatch} 
-            isSubmitting={isSubmitting}
-            error={error}
-            success={success}
-            isExpanded={isCartExpanded}
-            onToggleExpand={() => setIsCartExpanded(!isCartExpanded)}
-            isAddedPulse={isAddedPulse}
-          />
+      {/* ── PAGE HEADER ─────────────────────────────────────────────── */}
+      <div className="max-w-[840px] mx-auto mb-3 flex items-center justify-between">
+        <div>
+          <h1 className="text-[22px] font-bold text-[#1a1f36] tracking-[-0.02em] leading-tight">
+            Add Items
+          </h1>
+          <p className="text-[13px] text-[#697386] mt-0.5 leading-relaxed">
+            Log new items into inventory. Fill in the essentials and add to your batch.
+          </p>
         </div>
-
+        <button
+          type="button"
+          onClick={() => setIsGuideOpen(true)}
+          className="h-[36px] px-3.5 rounded-xl bg-white border border-gray-200 text-[#3c4257] hover:bg-gray-50/90 text-[12px] font-semibold flex items-center gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] cursor-pointer transition-all duration-150 shrink-0"
+        >
+          <HelpCircle className="h-4 w-4 text-[#d97757]" strokeWidth={2} />
+          <span>Intake Guide</span>
+        </button>
       </div>
+      <div className="max-w-[840px] mx-auto h-px bg-gradient-to-r from-gray-200 via-gray-200/60 to-transparent mb-4" />
+
+      {/* ── ALERTS ──────────────────────────────────────────────────── */}
+      {error && (
+        <div className="max-w-[840px] mx-auto mb-6 p-3.5 text-[13px] font-medium text-rose-700 bg-rose-50 border border-rose-200/80 rounded-xl flex items-center gap-2.5">
+          <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+        </div>
+      )}
+      {success && (
+        <div className="max-w-[840px] mx-auto mb-6 p-3.5 text-[13px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center gap-2.5">
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> {success}
+        </div>
+      )}
+
+      {/* ═══════  HERO FORM CARD  ═════════════════════════════════════ */}
+      <form
+        onSubmit={handleAddItem}
+        className="max-w-[840px] mx-auto"
+      >
+        <div className="bg-white border border-gray-200/80 rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+
+          {/* ── TOP UTILITY BAR: BATCH CART TRIGGER ────────── */}
+          <div className="px-5 py-1.5 bg-[#f8fafb] border-b border-gray-100 rounded-t-2xl flex items-center justify-between">
+            <span className="text-[11px] font-medium text-[#8792a2] tracking-wide">
+              Inventory Intake
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setIsPanelOpen(true)}
+              className="h-[30px] px-3 rounded-lg bg-white border border-[#d97757]/40 text-[#1a1f36] hover:bg-[#fff7f5] text-[12px] font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-2 group"
+            >
+              <PanelRight className="h-3.5 w-3.5 text-[#d97757] group-hover:scale-110 transition-transform" strokeWidth={2.2} />
+              <span>View Batch</span>
+              {cartItems.length > 0 ? (
+                <span className="h-4.5 px-1.5 rounded-full bg-[#d97757] text-white text-[11px] font-extrabold flex items-center justify-center animate-pulse">
+                  {cartItems.length}
+                </span>
+              ) : (
+                <span className="h-4.5 px-1.5 rounded-full bg-gray-100 text-[#8792a2] text-[10px] font-bold flex items-center justify-center">
+                  0
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* ── ROW 1: BARCODE QUICK SCAN ────────────────────────── */}
+          <div className="px-6 pt-5 pb-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-semibold text-[#8792a2] uppercase tracking-[0.06em] flex items-center gap-1.5">
+                <Barcode className="h-3.5 w-3.5" strokeWidth={2} />
+                Barcode
+              </span>
+              <span className="text-[11px] text-[#a3acb9]">
+                Leave blank to auto-generate
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                ref={barcodeRef}
+                type="text"
+                onFocus={(e) => e.target.select()}
+                className={`flex-1 ${cls.input} font-mono !font-semibold`}
+                placeholder="Scan UPC or type barcode…"
+                value={barcode}
+                onChange={(e) => handleBarcodeChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleBarcodeLookup(barcode);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setBarcode(generateBarcode())}
+                className="h-[40px] px-3 rounded-[10px] bg-white border border-gray-200 text-[#3c4257] text-[13px] font-semibold flex items-center gap-1.5 hover:border-gray-300 hover:bg-gray-50/80 shadow-[0_1px_2px_rgba(0,0,0,0.04)] cursor-pointer transition-colors duration-150"
+                title="Generate internal barcode"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-[#d97757]" strokeWidth={2} />
+                Auto
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBarcodeLookup(barcode)}
+                disabled={isLookingUp || barcode.trim().length < 4}
+                className="h-[40px] px-3.5 rounded-[10px] bg-white border border-gray-200 text-[#3c4257] text-[13px] font-semibold flex items-center gap-1.5 hover:border-gray-300 hover:bg-gray-50/80 shadow-[0_1px_2px_rgba(0,0,0,0.04)] cursor-pointer transition-colors duration-150 disabled:opacity-40 disabled:cursor-default"
+              >
+                {isLookingUp ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#d97757]" />
+                ) : (
+                  <Search className="h-3.5 w-3.5 text-[#697386]" strokeWidth={2} />
+                )}
+                Lookup
+              </button>
+              {lookupSource && (
+                <span className="h-[40px] text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-3 rounded-[10px] border border-emerald-200/80 flex items-center gap-1.5 shrink-0">
+                  <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> Matched
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100 mx-6" />
+
+          {/* ── ROW 2: PRODUCT INFORMATION ────────────────────────── */}
+          <div className="px-6 pt-5 pb-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8792a2] mb-4 select-none">
+              Product Information
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-x-5 gap-y-5">
+              <div className="sm:col-span-3">
+                <FieldLabel
+                  label={intakeMode === 'count' ? 'Item name' : 'Batch description'}
+                  required
+                >
+                  <input
+                    required
+                    onFocus={(e) => e.target.select()}
+                    className={cls.input}
+                    placeholder={
+                      intakeMode === 'count'
+                        ? 'e.g. Organic Tomato Soup'
+                        : 'e.g. Mixed Canned Goods (Gaylord)'
+                    }
+                    value={itemName}
+                    onChange={(e) => setItemName(e.target.value)}
+                  />
+                </FieldLabel>
+              </div>
+              <div className="sm:col-span-2">
+                <FieldLabel label="Category" required>
+                  <CustomSelect
+                    value={category}
+                    onChange={setCategory}
+                    options={categories.map((c) => ({
+                      value: c.value,
+                      label: c.name,
+                      icon: c.icon,
+                    }))}
+                    placeholder="Select category…"
+                  />
+                </FieldLabel>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100 mx-6" />
+
+          {/* ── ROW 3: MEASUREMENTS + MODE TOGGLE ────────────────── */}
+          <div className="px-6 pt-5 pb-5">
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8792a2] select-none">
+                Measurements
+              </p>
+              {/* Intake mode toggle — prominent */}
+              <div className="bg-[#f6f8fa] p-1 rounded-xl border border-gray-200/70 flex gap-1">
+                {[
+                  { key: 'count', icon: Hash, label: 'By count' },
+                  { key: 'bulk', icon: Scale, label: 'By weight' },
+                ].map(({ key, icon: Icon, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setIntakeMode(key)}
+                    className={[
+                      'h-[34px] px-4 rounded-lg text-[13px] font-semibold',
+                      'flex items-center gap-2 transition-all duration-150 cursor-pointer',
+                      intakeMode === key
+                        ? 'bg-white text-[#1a1f36] shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200/70'
+                        : 'text-[#8792a2] hover:text-[#3c4257]',
+                    ].join(' ')}
+                  >
+                    <Icon
+                      className={`h-4 w-4 ${intakeMode === key ? 'text-[#d97757]' : 'text-[#a3acb9]'}`}
+                      strokeWidth={2}
+                    />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {intakeMode === 'count' ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-x-4 gap-y-4">
+                  <FieldLabel label="Quantity" required hint="Number of packages or containers being added.">
+                    <input
+                      type="text"
+                      required
+                      className={cls.input}
+                      placeholder="e.g. 10"
+                      value={qty}
+                      onChange={(e) =>
+                        setQty(sanitizePositiveNumber(e.target.value))
+                      }
+                    />
+                  </FieldLabel>
+
+                  <FieldLabel label="Counting as" hint="Choose how items are grouped (e.g. Boxes, Cases, Packs, Units).">
+                    <CustomSelect
+                      value={unit}
+                      onChange={setUnit}
+                      options={unitOptions}
+                    />
+                  </FieldLabel>
+
+                  <FieldLabel label="Items per pack" optional hint="e.g. 15 diapers per bag">
+                    <input
+                      type="text"
+                      className={cls.input}
+                      placeholder="e.g. 15"
+                      value={packSize}
+                      onChange={(e) =>
+                        setPackSize(sanitizePositiveNumber(e.target.value))
+                      }
+                    />
+                  </FieldLabel>
+
+                  <FieldLabel label="Weight / Volume" optional hint="Total package weight or size">
+                    <div className="flex items-center rounded-xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus-within:border-[#d97757] focus-within:ring-2 focus-within:ring-[#d97757]/10 transition-all duration-150">
+                      <input
+                        type="text"
+                        className="flex-1 min-w-0 h-[44px] px-3.5 bg-transparent text-[14px] font-medium text-[#1a1f36] outline-none placeholder:text-[#a3acb9] placeholder:font-normal"
+                        placeholder="e.g. 16"
+                        value={totalWeight}
+                        onChange={(e) =>
+                          setTotalWeight(sanitizePositiveNumber(e.target.value))
+                        }
+                      />
+                      <div className="h-6 w-px bg-gray-200/80 my-auto shrink-0" />
+                      <CustomSelect
+                        value={weightUnit}
+                        onChange={setWeightUnit}
+                        options={weightUnitOptions}
+                        className="!w-auto shrink-0"
+                        buttonClassName="h-[44px] px-3 text-[13px] font-semibold text-[#1a1f36] hover:bg-gray-50/80 rounded-r-xl cursor-pointer outline-none transition-colors flex items-center justify-between gap-1"
+                        menuAlign="right"
+                      />
+                    </div>
+                  </FieldLabel>
+                </div>
+
+                {/* Live total items calculation badge when pack size is entered */}
+                {parseFloat(packSize) > 0 && parseFloat(qty) > 0 && (
+                  <div className="text-[12px] font-semibold text-[#1a1f36] bg-[#fffaf8] border border-[#d97757]/30 rounded-lg px-3.5 py-2 flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-[#d97757] shrink-0" />
+                    <span>
+                      Total count: <strong className="text-[#d97757] font-bold">{parsedQty * parseFloat(packSize)} individual items</strong> ({parsedQty} {unit} &times; {packSize} per {unit.endsWith('s') ? unit.slice(0, -1) : unit})
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-x-5">
+                <FieldLabel label="Scale weight" required>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      className={`${cls.input} pr-11 !font-bold`}
+                      placeholder="e.g. 400"
+                      value={bulkWeight}
+                      onChange={(e) =>
+                        setBulkWeight(sanitizePositiveNumber(e.target.value))
+                      }
+                    />
+                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-[#d97757] pointer-events-none">
+                      lbs
+                    </span>
+                  </div>
+                </FieldLabel>
+
+                <FieldLabel label="Container count">
+                  <input
+                    type="text"
+                    className={cls.input}
+                    placeholder="1"
+                    value={containerCount}
+                    onChange={(e) =>
+                      setContainerCount(sanitizePositiveNumber(e.target.value))
+                    }
+                  />
+                </FieldLabel>
+
+                <FieldLabel label="Container type">
+                  <CustomSelect
+                    value={containerType}
+                    onChange={setContainerType}
+                    options={containerTypeOptions}
+                  />
+                </FieldLabel>
+              </div>
+            )}
+          </div>
+
+          <div className="h-px bg-gray-100 mx-6" />
+
+          {/* ── ROW 4: ACQUISITION SOURCE ────────────────────────── */}
+          <div className="px-6 pt-5 pb-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8792a2] mb-3 select-none flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-[#8792a2]" strokeWidth={2} />
+              Acquisition Source
+            </p>
+            <div className="space-y-3">
+              <div className="flex gap-1.5 flex-wrap">
+                {sourceOptions.map((s) => {
+                  const on = sourceType === s.key;
+                  return (
+                    <button
+                      key={s.key}
+                      type="button"
+                      onClick={() => setSourceType(s.key)}
+                      className={`${cls.pill} ${on ? cls.pillOn : cls.pillOff}`}
+                    >
+                      <s.icon
+                        className={`h-[15px] w-[15px] ${on ? 'text-[#1a1f36]' : 'text-[#a3acb9]'}`}
+                        strokeWidth={2}
+                      />
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {needsDonor && (
+                <div className="relative max-w-md pt-0.5">
+                  <Building2
+                    className="h-4 w-4 text-[#a3acb9] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    strokeWidth={1.8}
+                  />
+                  <input
+                    type="text"
+                    className={`${cls.input} !pl-10`}
+                    placeholder={
+                      sourceType === 'donation'
+                        ? "Donor name (e.g. Trader Joe's)"
+                        : sourceType === 'retail_rescue'
+                          ? 'Store name (e.g. Whole Foods)'
+                          : 'Supplier (e.g. Costco)'
+                    }
+                    value={donorName}
+                    onChange={(e) => setDonorName(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100 mx-6" />
+
+          {/* ── ROW 5: EXPIRATION DATE ───────────────────────────── */}
+          <div className="px-6 pt-5 pb-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8792a2] mb-3 select-none flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-[#8792a2]" strokeWidth={2} />
+              Expiration Date
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex gap-1.5 flex-wrap">
+                {expirationOptions.map((opt) => {
+                  const on = expirationPrecision === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setExpirationPrecision(opt.key)}
+                      className={`${cls.pill} ${on ? cls.pillOn : cls.pillOff}`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {expirationPrecision !== 'none' && (
+                <>
+                  <div className="h-6 w-px bg-gray-200 shrink-0 hidden sm:block" />
+                  <div className="shrink-0">
+                    {expirationPrecision === 'day' && (
+                      <ModernDatePicker
+                        value={expDay}
+                        onChange={setExpDay}
+                        menuVerticalAlign="top"
+                      />
+                    )}
+                    {expirationPrecision === 'month' && (
+                      <div className="flex items-center gap-2">
+                        <CustomSelect
+                          value={expMonth ? expMonth.split('-')[1] : ''}
+                          onChange={(m) => {
+                            const yr = expMonth ? expMonth.split('-')[0] : String(currentYear);
+                            setExpMonth(`${yr}-${m}`);
+                          }}
+                          options={monthOptions}
+                          placeholder="Select month…"
+                          className="w-[170px]"
+                          menuVerticalAlign="top"
+                        />
+                        <CustomSelect
+                          value={expMonth ? expMonth.split('-')[0] : String(currentYear)}
+                          onChange={(yr) => {
+                            const m = expMonth ? expMonth.split('-')[1] : '01';
+                            setExpMonth(`${yr}-${m}`);
+                          }}
+                          options={Array.from({ length: 6 }, (_, i) => ({
+                            value: String(currentYear + i),
+                            label: String(currentYear + i),
+                          }))}
+                          placeholder="Select year…"
+                          className="w-[110px]"
+                          menuVerticalAlign="top"
+                        />
+                      </div>
+                    )}
+                    {expirationPrecision === 'year' && (
+                      <CustomSelect
+                        value={expYear}
+                        onChange={setExpYear}
+                        options={Array.from({ length: 6 }, (_, i) => ({
+                          value: String(currentYear + i),
+                          label: String(currentYear + i),
+                        }))}
+                        placeholder="Select year…"
+                        className="w-[130px]"
+                        menuVerticalAlign="top"
+                      />
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── ACTION FOOTER ────────────────────────────────────── */}
+          <div className="px-6 py-4 bg-[#f8fafb] border-t border-gray-100/80 rounded-b-2xl flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleClearForm}
+              className="h-[44px] px-5 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50/80 text-[#3c4257] text-[14px] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors duration-150 cursor-pointer flex items-center gap-2"
+            >
+              <RotateCcw className="h-4 w-4 text-[#a3acb9]" strokeWidth={2} />
+              Clear
+            </button>
+            <button
+              type="submit"
+              disabled={!isFormValid}
+              className={[
+                'h-[44px] px-7 rounded-xl text-[14px] font-bold text-white',
+                'shadow-[0_2px_8px_rgba(217,119,87,0.25)] transition-all duration-200',
+                'flex items-center gap-2.5 cursor-pointer active:scale-[0.98]',
+                'disabled:opacity-40 disabled:shadow-none disabled:cursor-default',
+                addedState
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : 'bg-[#d97757] hover:bg-[#c86545]',
+              ].join(' ')}
+            >
+              {addedState ? (
+                <>
+                  <CheckCircle2 className="h-4.5 w-4.5" strokeWidth={2} />
+                  Added!
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4.5 w-4.5" strokeWidth={2.5} />
+                  Add to batch
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+
+
+
+      {/* ═══════  SLIDE-OUT BATCH PANEL  ══════════════════════════════ */}
+      {/* Backdrop */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/8 transition-opacity duration-250 ${
+          isPanelOpen
+            ? 'opacity-100 pointer-events-auto'
+            : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setIsPanelOpen(false)}
+      />
+
+      {/* Panel */}
+      <div
+        className={`fixed top-0 right-0 bottom-0 z-50 w-[400px] max-w-[90vw] bg-white border-l border-gray-200 shadow-[0_0_40px_rgba(0,0,0,0.08)] transform transition-transform duration-250 ease-out flex flex-col ${
+          isPanelOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        {/* Panel Header */}
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-[15px] font-bold text-[#1a1f36] tracking-[-0.01em]">
+              Batch Preview
+            </h3>
+            {totalStagedProducts > 0 && (
+              <p className="text-[12px] text-[#697386] mt-0.5">
+                {totalStagedProducts} item{totalStagedProducts !== 1 ? 's' : ''} staged
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsPanelOpen(false)}
+            className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[#697386] hover:text-[#1a1f36] transition-colors duration-150 cursor-pointer"
+            title="Close panel"
+          >
+            <X className="h-4 w-4" strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Panel Body (scrollable) */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {cartItems.length === 0 ? (
+            <div className="py-16 flex flex-col items-center justify-center text-center">
+              <div className="h-12 w-12 rounded-full bg-gray-50 border border-gray-200/60 flex items-center justify-center mb-4">
+                <Package className="h-5 w-5 text-[#a3acb9]" strokeWidth={1.5} />
+              </div>
+              <p className="text-[13px] font-semibold text-[#3c4257]">
+                No items staged
+              </p>
+              <p className="text-[12px] text-[#a3acb9] mt-1 max-w-[220px] leading-relaxed">
+                Fill out the form and click &quot;Add to batch&quot; to stage items here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {cartItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="group flex items-start justify-between py-3 px-3 -mx-3 rounded-xl hover:bg-gray-50/70 transition-colors duration-100"
+                >
+                  <div className="flex items-baseline gap-2.5 min-w-0 pr-3">
+                    <span className="text-[13px] font-bold text-[#1a1f36] tabular-nums shrink-0">
+                      {item.quantity}&times;
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-[#1a1f36] truncate leading-snug">
+                        {item.name}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px] text-[#8792a2] truncate">
+                          {item.categoryName}
+                        </span>
+                        {item.packSize > 0 && (
+                          <>
+                            <span className="text-[11px] text-[#d4d8e0]">·</span>
+                            <span className="text-[11px] font-semibold text-[#d97757] truncate">
+                              {item.packSize} per {item.unit.endsWith('s') ? item.unit.slice(0, -1) : item.unit}
+                            </span>
+                          </>
+                        )}
+                        {item.donorName && (
+                          <>
+                            <span className="text-[11px] text-[#d4d8e0]">·</span>
+                            <span className="text-[11px] text-[#8792a2] truncate">
+                              via {item.donorName}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                    <span className="text-[13px] font-semibold text-[#3c4257] tabular-nums">
+                      {item.totalWeightLbs > 0
+                        ? `${item.totalWeightLbs} lbs`
+                        : `${item.quantity} ${item.unit}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(item.id)}
+                      className="h-6 w-6 rounded-md flex items-center justify-center text-gray-300 hover:text-rose-500 hover:bg-rose-50 transition-all duration-100 opacity-0 group-hover:opacity-100 cursor-pointer"
+                      title="Remove"
+                    >
+                      <Minus className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Panel Footer — breakdown + submit */}
+        <div className="border-t border-gray-100 px-6 py-5 shrink-0 bg-[#fafbfc]">
+          <div className="space-y-2 text-[13px] mb-5">
+            <div className="flex justify-between text-[#697386]">
+              <span>Products</span>
+              <span className="font-semibold text-[#1a1f36] tabular-nums">
+                {totalStagedProducts}
+              </span>
+            </div>
+            <div className="flex justify-between text-[#697386]">
+              <span>Units</span>
+              <span className="font-semibold text-[#1a1f36] tabular-nums">
+                {totalStagedUnits}
+              </span>
+            </div>
+            {totalStagedWeightLbs !== '0.0' && (
+              <div className="flex justify-between text-[#697386]">
+                <span>Est. weight</span>
+                <span className="font-semibold text-[#1a1f36] tabular-nums">
+                  {totalStagedWeightLbs} lbs
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between items-baseline pt-2.5 border-t border-gray-200/80 mt-1">
+              <span className="text-[14px] font-bold text-[#1a1f36]">Total</span>
+              <span className="text-[14px] font-bold text-[#d97757] tabular-nums">
+                {totalStagedWeightLbs !== '0.0'
+                  ? `${totalStagedWeightLbs} lbs`
+                  : `${totalStagedUnits} units`}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={cartItems.length === 0 || isSubmitting}
+            onClick={handleSubmitBatch}
+            className="w-full h-11 text-[13px] font-bold text-white bg-[#d97757] hover:bg-[#c86545] rounded-xl shadow-[0_2px_8px_rgba(217,119,87,0.25)] transition-all duration-150 active:scale-[0.98] disabled:opacity-40 disabled:shadow-none disabled:cursor-default flex items-center justify-center gap-2 cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Submitting…
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+                Submit batch to inventory
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+      {/* ── INTAKE GUIDE TUTORIAL MODAL ──────────────────────────────── */}
+      <IntakeGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+      />
     </div>
   );
 }

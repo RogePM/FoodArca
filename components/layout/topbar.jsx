@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-    Menu, ChevronDown, Copy, Check, MapPin, Settings, Leaf,
-    Building2, LogOut, RefreshCw, Bell, AlertTriangle, ArrowUpCircle, Package, X as XIcon, CreditCard, Sparkles
+    Menu, ChevronDown, Copy, Check, MapPin, Settings, Leaf, Search, Command,
+    Building2, LogOut, RefreshCw, Bell, AlertTriangle, ArrowUpCircle, Package, X as XIcon, CreditCard, Sparkles, Plus, Minus, LayoutDashboard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -33,10 +33,26 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
     const [unreadCount, setUnreadCount] = useState(0);
     const [hasSeenAlerts, setHasSeenAlerts] = useState(false);
 
+    // Global Command Palette Search State
+    const [isCommandOpen, setIsCommandOpen] = useState(false);
+    const [commandQuery, setCommandQuery] = useState('');
+
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
+
+    // Keyboard shortcut handler for Cmd+K / Ctrl+K
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setIsCommandOpen((prev) => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     useEffect(() => {
         setIsMounted(true);
@@ -144,46 +160,76 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
 
     const getInitials = (name) => name ? name.substring(0, 2).toUpperCase() : 'U';
 
+    const quickNavigation = [
+        { name: 'Dashboard', icon: LayoutDashboard, view: 'Overview', category: 'Navigation' },
+        { name: 'Add Items (Receive Intake)', icon: Plus, view: 'Add Items', category: 'Actions' },
+        { name: 'Full Inventory Table', icon: Package, view: 'Inventory', category: 'Navigation' },
+        { name: 'Remove Items (Distribution)', icon: Minus, view: 'Remove Items', category: 'Actions' },
+        { name: 'Settings & Organization', icon: Settings, view: 'Settings', category: 'Preferences' }
+    ];
+
+    const filteredNav = quickNavigation.filter(item =>
+        item.name.toLowerCase().includes(commandQuery.toLowerCase()) ||
+        item.category.toLowerCase().includes(commandQuery.toLowerCase())
+    );
+
+    const handleSelectView = (view) => {
+        if (setActiveView) setActiveView(view);
+        setIsCommandOpen(false);
+        setCommandQuery('');
+    };
+
     if (!isMounted) {
         return (
-            <header className="sticky top-0 z-30 flex h-[72px] w-full items-center justify-between border-b border-gray-100 bg-[#fafaf8]/80 px-4 backdrop-blur-2xl md:px-6">
-                <div className="h-5 w-32 bg-gray-100 rounded animate-pulse"></div>
-                <div className="h-8 w-8 bg-gray-100 rounded-full animate-pulse"></div>
+            <header className="sticky top-0 z-30 flex h-[72px] w-full items-center justify-between bg-[#f7f7f5]/80 px-4 backdrop-blur-md md:px-6">
+                <div className="h-5 w-32 bg-gray-100/60 rounded animate-pulse"></div>
+                <div className="h-8 w-8 bg-gray-100/60 rounded-full animate-pulse"></div>
             </header>
         );
     }
 
     return (
-        <header className="sticky top-0 z-30 flex h-[72px] w-full items-center justify-between border-b border-gray-200/50 bg-[#fafaf8]/80 px-4 backdrop-blur-2xl md:px-8 transition-all">
+        <>
+            <header className="sticky top-0 z-30 flex h-[72px] w-full items-center bg-[#fafafa] px-4 md:px-6 transition-all">
+                <div className="w-full max-w-[1400px] mx-auto flex items-center justify-between">
 
-            {/* --- LEFT: App Logo (Mobile) / Context (Desktop) --- */}
-            <div className="flex items-center gap-3">
-                {/* Desktop Context (Hidden on mobile) */}
-                <div className="hidden md:flex items-center text-[15px] font-medium">
-                    <span className="text-gray-400">Dashboard</span>
-                    <span className="mx-2 text-gray-300">/</span>
-                    <span className="text-[#2b2b2b] bg-white/60 px-3 py-1.5 rounded-lg border border-gray-200/30 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-                        {activeView}
-                    </span>
-                </div>
-
-                {/* Mobile App Logo */}
-                <div className="flex md:hidden items-center gap-2.5">
-                    <div className="h-[34px] w-[34px] rounded-lg bg-gradient-to-br from-[#d97757] to-[#c06245] text-white flex items-center justify-center shadow-sm shadow-orange-500/20">
-                        <Leaf className="h-4 w-4" strokeWidth={2} />
+                {/* --- LEFT: Search Bar adjusted for Laptops and Centered for Large Desktops --- */}
+                <div className="flex items-center flex-1">
+                    {/* Desktop Search Bar (Responsive spacing for laptops & centered alignment on large desktops) */}
+                    <div className="hidden md:flex items-center md:ml-2 lg:ml-4">
+                        <button
+                            onClick={() => setIsCommandOpen(true)}
+                            className="flex items-center gap-2.5 bg-[#eef1f6] hover:bg-[#e4e8f0] text-[#3c4257] px-3.5 py-2 rounded-xl w-[210px] md:w-[240px] lg:w-[300px] xl:w-[340px] transition-all text-left group border border-transparent hover:border-slate-300/40 shadow-none"
+                        >
+                            <Search className="h-4 w-4 text-[#4f566b] group-hover:text-gray-900 transition-colors shrink-0" strokeWidth={2.2} />
+                            <span className="text-[14px] font-semibold text-[#4f566b] group-hover:text-gray-900 flex-1 truncate">
+                                Search
+                            </span>
+                            <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold font-mono text-slate-400 bg-white/80 rounded border border-slate-200/70 shadow-2xs">
+                                <span>⌘</span>
+                                <span className="text-[9px] text-slate-300 font-sans">+</span>
+                                <span>K</span>
+                            </kbd>
+                        </button>
                     </div>
-                    <span className="text-[19px] font-serif font-semibold tracking-tight text-gray-900">
-                        Food Arca
-                    </span>
+
+                    {/* Mobile App Logo */}
+                    <div className="flex md:hidden items-center gap-2.5">
+                        <div className="h-[34px] w-[34px] rounded-lg bg-gradient-to-br from-[#d97757] to-[#c06245] text-white flex items-center justify-center shadow-sm shadow-orange-500/20">
+                            <Leaf className="h-4 w-4" strokeWidth={2} />
+                        </div>
+                        <span className="text-[19px] font-serif font-semibold tracking-tight text-gray-900">
+                            Food Arca
+                        </span>
+                    </div>
                 </div>
-            </div>
 
-            {/* --- RIGHT: Controls --- */}
-            <div className="flex items-center gap-2 md:gap-4">
+                {/* --- RIGHT: Controls (Org Switcher, Notification Bell, User Profile) --- */}
+                <div className="flex items-center gap-2.5 md:gap-4 shrink-0">
 
-                {/* 1. ORGANIZATION SWITCHER (Desktop Only) */}
-                <div className="hidden md:block">
-                    <DropdownMenu>
+                    {/* 1. ORGANIZATION SWITCHER (Desktop Only) */}
+                    <div className="hidden md:block">
+                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <button className="flex items-center gap-2 py-1.5 px-2 pl-2 pr-3 rounded-full border border-gray-200/60 bg-white/80 hover:bg-white hover:border-gray-300 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all outline-none group active:scale-95 duration-200">
                                 <div className="h-6 w-6 rounded-full bg-gray-50 flex items-center justify-center text-gray-600 border border-gray-100">
@@ -252,32 +298,38 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                 {/* 2. NOTIFICATIONS BELL */}
                 <DropdownMenu open={isNotifOpen} onOpenChange={handleOpenChange}>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="relative text-gray-500 hover:text-gray-900 hover:bg-gray-100/60 rounded-full h-10 w-10 transition-transform active:scale-95">
-                            <Bell className="h-5 w-5" strokeWidth={1.5} />
+                        <Button variant="ghost" size="icon" className="relative text-[#3c4257] hover:text-gray-900 hover:bg-gray-200/50 rounded-full h-10 w-10 transition-transform active:scale-95">
+                            <Bell className="h-[21px] w-[21px] text-[#3c4257]" strokeWidth={2.2} />
                             {unreadCount > 0 && !hasSeenAlerts && (
                                 <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-red-500 border-[1.5px] border-white shadow-sm" />
                             )}
                         </Button>
                     </DropdownMenuTrigger>
                     
-                    {/* CHANGED: Reverted to a fixed readable width, and we'll let Radix handle the bounds naturally */}
-                    <DropdownMenuContent align="end" className="w-[340px] sm:w-[380px] rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.08)] border-gray-100/50 p-0 mt-2 overflow-hidden ring-1 ring-black/5 bg-white/95 backdrop-blur-xl">
-                        <div className="p-4 border-b border-gray-100/50 flex justify-between items-center bg-white/50">
-                            <span className="font-semibold text-[16px] text-gray-900 tracking-tight">Notifications</span>
+                    {/* SLEEK RESPONSIVE NOTIFICATION POPOVER (GUARANTEED 16px GUTTER ON MOBILE & DESKTOP) */}
+                    <DropdownMenuContent 
+                        align="end" 
+                        sideOffset={8}
+                        collisionPadding={16}
+                        className="w-[calc(100vw-32px)] sm:w-[380px] max-w-[360px] sm:max-w-[380px] rounded-2xl shadow-2xl border border-gray-200/90 p-0 mt-1.5 overflow-hidden bg-white/95 backdrop-blur-xl z-50 font-sans"
+                    >
+                        <div className="p-3.5 sm:p-4 border-b border-gray-100 flex justify-between items-center bg-white">
+                            <span className="font-bold text-sm text-[#1a1f36] tracking-tight">Notifications</span>
                             {notifications.length > 0 && (
-                                <span className="bg-[#d97757]/10 text-[#d97757] text-[12px] font-bold px-2.5 py-0.5 rounded-full">
+                                <span className="bg-[#d97757]/10 text-[#d97757] text-[11px] font-bold px-2 py-0.5 rounded-full">
                                     {notifications.length} New
                                 </span>
                             )}
                         </div>
-                        <div className="max-h-[350px] overflow-y-auto">
+                        <div className="max-h-[340px] overflow-y-auto">
                             {notifications.length === 0 ? (
-                                <div className="p-8 text-center bg-gray-50/30">
-                                    <Sparkles className="h-8 w-8 text-gray-300 mx-auto mb-3" />
-                                    <p className="text-[15px] font-medium text-gray-500">All caught up!</p>
+                                <div className="p-6 text-center bg-gray-50/40">
+                                    <Sparkles className="h-7 w-7 text-gray-300 mx-auto mb-2" />
+                                    <p className="text-xs font-semibold text-[#4f566b]">All caught up!</p>
+                                    <p className="text-[11px] text-[#8792a2] mt-0.5">No new notifications</p>
                                 </div>
                             ) : (
-                                <div className="divide-y divide-gray-50">
+                                <div className="divide-y divide-gray-100">
                                     <AnimatePresence>
                                         {notifications.map((notif) => {
                                             const Icon = getAlertIcon(notif.type, notif.id);
@@ -288,36 +340,31 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                                                     initial={{ opacity: 0, y: 10 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     exit={{ opacity: 0, scale: 0.95 }}
-                                                    className="p-4 hover:bg-gray-50/80 cursor-pointer transition-colors relative group"
+                                                    className="p-3.5 hover:bg-gray-50/80 cursor-pointer transition-colors relative group"
                                                     onClick={() => handleNotificationClick(notif)}
                                                 >
-                                                    <div className="flex gap-4 items-start">
-                                                        {/* CHANGED: Made the icon square large and readable again! */}
-                                                        <div className={`mt-0.5 h-10 w-10 rounded-[12px] flex items-center justify-center shrink-0 ${isCritical ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500'}`}>
-                                                            <Icon className="h-5 w-5" strokeWidth={2.5} />
+                                                    <div className="flex gap-3 items-start">
+                                                        <div className={`mt-0.5 h-8.5 w-8.5 rounded-xl flex items-center justify-center shrink-0 ${isCritical ? 'bg-red-50 text-red-500 border border-red-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                                                            <Icon className="h-4 w-4" strokeWidth={2.2} />
                                                         </div>
-                                                        <div className="flex-1 min-w-0 pr-6">
-                                                            <p className="text-[15px] font-semibold text-gray-900 leading-tight mb-1">
+                                                        <div className="flex-1 min-w-0 pr-4">
+                                                            <p className="text-xs font-bold text-[#1a1f36] leading-tight mb-1">
                                                                 {notif.title}
                                                             </p>
-                                                            <p className="text-[13.5px] text-gray-500 leading-snug line-clamp-2">
+                                                            <p className="text-[11.5px] text-[#697386] leading-relaxed line-clamp-2">
                                                                 {notif.message}
                                                             </p>
-                                                            {notif.item && (
-                                                                <p className="text-[11.5px] font-bold text-[#d97757] mt-2 bg-[#d97757]/10 inline-block px-2.5 py-1 rounded-md tracking-tight uppercase">
-                                                                    {notif.item}
-                                                                </p>
-                                                            )}
                                                         </div>
                                                         <button 
                                                             onClick={(e) => handleDismiss(e, notif.id)}
-                                                            className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-gray-200 rounded-full text-gray-400 hover:text-gray-600"
+                                                            className="text-gray-300 hover:text-gray-500 p-1 rounded-md hover:bg-gray-100 transition-colors"
+                                                            title="Dismiss"
                                                         >
-                                                            <XIcon className="h-4 w-4" />
+                                                            <XIcon className="h-3.5 w-3.5" />
                                                         </button>
                                                     </div>
                                                 </motion.div>
-                                            )
+                                            );
                                         })}
                                     </AnimatePresence>
                                 </div>
@@ -365,8 +412,91 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
-
             </div>
-        </header>
-    );
+        </div>
+    </header>
+
+        {/* --- GLOBAL COMMAND PALETTE MODAL (⌘K) --- */}
+        <AnimatePresence>
+            {isCommandOpen && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 md:pt-24 px-4">
+                    {/* Backdrop */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                        onClick={() => setIsCommandOpen(false)}
+                    />
+
+                    {/* Dialog Card (Sleek Linear/Stripe Command Palette) */}
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.97, y: -8 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.97, y: -8 }}
+                        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-200/90 overflow-hidden z-10 font-sans"
+                    >
+                        {/* Input Header */}
+                        <div className="flex items-center px-4 py-3.5 border-b border-gray-100 gap-3">
+                            <Search className="h-4.5 w-4.5 text-[#4f566b] shrink-0" strokeWidth={2.2} />
+                            <input
+                                type="text"
+                                autoFocus
+                                placeholder="Type a command or search view..."
+                                value={commandQuery}
+                                onChange={(e) => setCommandQuery(e.target.value)}
+                                className="w-full bg-transparent text-sm text-[#1a1f36] placeholder-[#8792a2] outline-none font-medium"
+                            />
+                            <button
+                                onClick={() => setIsCommandOpen(false)}
+                                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                            >
+                                <XIcon className="h-4.5 w-4.5" />
+                            </button>
+                        </div>
+
+                        {/* Quick Navigation List */}
+                        <div className="max-h-[300px] overflow-y-auto p-2">
+                            <div className="px-3 py-2 text-[11px] font-semibold text-[#8792a2] uppercase tracking-wider">
+                                Navigation & Actions
+                            </div>
+
+                            {filteredNav.length > 0 ? (
+                                filteredNav.map((item) => (
+                                    <button
+                                        key={item.name}
+                                        onClick={() => handleSelectView(item.view)}
+                                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#f4f4f6] transition-all text-left group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 rounded-lg bg-gray-100/70 text-[#4f566b] group-hover:bg-[#fff5f2] group-hover:text-[#d97757] group-hover:border group-hover:border-[#fcd5c7] flex items-center justify-center transition-all shrink-0">
+                                                <item.icon className="h-4 w-4" strokeWidth={2} />
+                                            </div>
+                                            <span className="text-xs font-semibold text-[#3c4257] group-hover:text-[#1a1f36] tracking-tight">
+                                                {item.name}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] font-medium text-[#697386] bg-gray-100/80 group-hover:bg-white px-2 py-0.5 rounded-md border border-gray-200/60 shadow-2xs">
+                                            {item.category}
+                                        </span>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="p-8 text-center text-xs font-medium text-[#8792a2]">
+                                    No commands found matching &quot;{commandQuery}&quot;
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer info */}
+                        <div className="px-4 py-2.5 bg-gray-50/70 border-t border-gray-100 flex justify-between items-center text-[11px] font-medium text-[#8792a2]">
+                            <span>Tip: Press <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200/80 shadow-2xs text-[#4f566b]">⌘ + K</kbd> to search anytime</span>
+                            <span>Esc to close</span>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+    </>
+);
 }

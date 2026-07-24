@@ -1,6 +1,12 @@
 import './globals.css';
 import { PantryProvider } from '@/components/providers/PantryProvider';
-import Script from 'next/script'; // <--- 1. Import Script
+import Script from 'next/script';
+import { Inter } from 'next/font/google';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+});
 
 export const metadata = {
   title: 'Food Arca | Food Bank Inventory Management',
@@ -10,7 +16,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="antialiased bg-background text-foreground">
+      <body className={`${inter.className} antialiased bg-background text-foreground`}>
         
         {/* 2. Google Analytics Script */}
         <Script

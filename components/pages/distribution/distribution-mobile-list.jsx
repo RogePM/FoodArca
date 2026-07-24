@@ -106,7 +106,7 @@ export function DistributionMobileList({ inventory = [], cart = [], setGroupCart
   if (view !== 'CART_VIEW') return null;
 
   return (
-    <div className="md:hidden flex flex-col h-full font-sans bg-[#f7f7f5] overflow-hidden relative">
+    <div className="md:hidden flex flex-col h-full font-sans bg-[#fafafa] overflow-hidden relative">
       
       {/* 2. TOP BAR: Smart Manual Entry */}
       <div className="px-4 py-4 z-20 shrink-0">

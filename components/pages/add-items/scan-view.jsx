@@ -60,7 +60,7 @@ export function ScanView({ onScanClick, onManualClick, onClose }) {
   }, [pantryId]);
 
   return (
-    <div className="flex-1 flex flex-col w-full bg-[#f7f7f5] px-5 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain">
+    <div className="flex-1 flex flex-col w-full bg-[#fafafa] px-5 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain">
       
       {/* Page Header */}
       <div className="flex items-end justify-between px-1 pb-5">

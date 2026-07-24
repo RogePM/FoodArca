@@ -8,7 +8,7 @@ import { BottomNav } from './bottom-nav';
 export function DashboardLayout({ activeView, setActiveView, children }) {
   return (
     // Outer wrapper uses 100dvh
-    <div className="min-h-[100dvh] w-full bg-[#f7f7f5] text-gray-900 flex overflow-hidden">      
+    <div className="min-h-[100dvh] w-full bg-[#fafafa] text-gray-900 flex overflow-hidden">      
       
       {/* Desktop Sidebar (Hidden on Mobile) */}
       <div className="hidden md:block">

@@ -167,10 +167,10 @@ export function InventoryView() {
   };
 
   return (
-    <div className="w-full max-w-[100vw] overflow-x-hidden bg-[#f7f7f5] font-sans">
+    <div className="w-full max-w-[100vw] overflow-x-hidden bg-[#fafafa] font-sans">
       
       {/* --- TOP BAR (SEARCH & STATS) --- */}
-      <div className="bg-[#f7f7f5] z-20 pt-2 pb-3 md:pb-0 md:pt-0">
+      <div className="bg-[#fafafa] z-20 pt-2 pb-3 md:pb-0 md:pt-0">
         
         {/* Search Row (Hidden on Desktop) */}
         <div className="px-4 py-2 flex gap-2 items-center md:hidden w-full max-w-full">

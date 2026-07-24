@@ -170,8 +170,8 @@ export function MobileAddFlow({ onClose, initialView = 'SCAN_VIEW' }) {
   return (
     <div className={
       isFullScreenOverlay
-        ? "fixed inset-0 z-[100] flex flex-col w-full h-[100dvh] bg-[#f7f7f5] overflow-hidden"
-        : "flex-1 flex flex-col w-full bg-[#f7f7f5] relative overflow-hidden min-h-full"
+        ? "fixed inset-0 z-[100] flex flex-col w-full h-[100dvh] bg-[#fafafa] overflow-hidden"
+        : "flex-1 flex flex-col w-full bg-[#fafafa] relative overflow-hidden min-h-full"
     }>
       <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
 

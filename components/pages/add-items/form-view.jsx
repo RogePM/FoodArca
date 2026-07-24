@@ -110,7 +110,7 @@ export function FormView({
   // MAIN VIEW: NATIVE FORM LAYOUT
   // ==========================================
   return (
-    <div className="flex-1 w-full z-10 bg-[#f7f7f5] flex flex-col overflow-hidden">
+    <div className="flex-1 w-full z-10 bg-[#fafafa] flex flex-col overflow-hidden">
 
       {/* Main Scrollable Area */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 pb-6 pt-[max(env(safe-area-inset-top,16px),16px)]">

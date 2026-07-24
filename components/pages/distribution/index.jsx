@@ -119,7 +119,7 @@ export function DistributionModule({ initialInventory = [] }) {
     };
 
   return (
-        <div className="w-full max-w-[100vw] overflow-x-hidden bg-[#f7f7f5] font-sans">
+        <div className="w-full max-w-[100vw] overflow-x-hidden bg-[#fafafa] font-sans">
             <div className="px-0 md:px-5 lg:px-4 pb-0 md:pb-8 pt-0 md:pt-4 max-w-full mx-auto overflow-hidden h-[calc(100vh-64px)] flex flex-col relative">
 
                 <AnimatePresence>
