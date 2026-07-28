@@ -6,7 +6,7 @@ import { X, Loader2, Scan } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useZxing } from "react-zxing";
 
-export function BarcodeScannerOverlay({ onScan, onClose }) {
+export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, className = "fixed inset-0 z-[9999]", showCloseButton = true }) {
   const videoRef = useRef(null);
   const [isReady, setIsReady] = useState(false);
   const [detectedItem, setDetectedItem] = useState(null);
@@ -49,6 +49,11 @@ export function BarcodeScannerOverlay({ onScan, onClose }) {
     };
 
     const nativeHunt = async () => {
+      if (isPaused) {
+        animationFrameId = requestAnimationFrame(nativeHunt);
+        return;
+      }
+      
       if (videoRef.current?.readyState === 4) {
         try {
           const barcodes = await detector.detect(videoRef.current);
@@ -76,7 +81,7 @@ export function BarcodeScannerOverlay({ onScan, onClose }) {
       cancelAnimationFrame(animationFrameId);
       if (videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t => t.stop());
     };
-  }, [useNative, onScan]);
+  }, [useNative, onScan, isPaused]);
 
   // --- ENGINE B: Fallback Optimized (iOS Safari) ---
   const zxingConstraints = useMemo(() => ({
@@ -90,7 +95,7 @@ export function BarcodeScannerOverlay({ onScan, onClose }) {
   }), []);
 
   const { ref: zxingRef } = useZxing({
-    paused: useNative,
+    paused: useNative || isPaused,
     onDecodeResult(result) {
       if (navigator.vibrate) navigator.vibrate(60);
       onScan(result.getText());
@@ -100,7 +105,7 @@ export function BarcodeScannerOverlay({ onScan, onClose }) {
   });
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black overflow-hidden touch-none select-none">
+    <div className={`${className} bg-black overflow-hidden touch-none select-none`}>
       
       {/* CAMERA FEED */}
       {useNative ? (
@@ -154,15 +159,17 @@ export function BarcodeScannerOverlay({ onScan, onClose }) {
       </div>
 
       {/* TOP CONTROLS: Large Visible Close Button */}
-      <div className="absolute top-0 left-0 right-0 p-8 flex justify-end items-start z-50">
-        <Button 
-          variant="secondary" 
-          onClick={onClose} 
-          className="h-16 w-16 rounded-full bg-white text-black shadow-2xl hover:bg-gray-100 active:scale-90 transition-all border-4 border-black/10"
-        >
-          <X className="h-8 w-8 stroke-[3]" />
-        </Button>
-      </div>
+      {showCloseButton && (
+        <div className="absolute top-0 left-0 right-0 p-8 flex justify-end items-start z-50 pointer-events-auto">
+          <Button 
+            variant="secondary" 
+            onClick={onClose} 
+            className="h-16 w-16 rounded-full bg-white text-black shadow-2xl hover:bg-gray-100 active:scale-90 transition-all border-4 border-black/10"
+          >
+            <X className="h-8 w-8 stroke-[3]" />
+          </Button>
+        </div>
+      )}
 
       {/* LOADING STATE */}
       {!isReady && (

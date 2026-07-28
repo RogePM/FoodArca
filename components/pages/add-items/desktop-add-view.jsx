@@ -6,7 +6,7 @@ import {
   Search, Gift, ShoppingBag,
   Landmark, HeartHandshake, AlertCircle, Package, Barcode,
   Check, ChevronDown, ChevronLeft, ChevronRight, X, Scale, Hash,
-  RotateCcw, Sparkles, Building2, PanelRight, Minus, Calendar, Info, HelpCircle, BookOpen
+  RotateCcw, Sparkles, Building2, PanelRight, Minus, Calendar, Info, HelpCircle, BookOpen, Trash2, Settings2, Pencil
 } from 'lucide-react';
 import { categories } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
@@ -605,6 +605,7 @@ function CustomSelect({ value, onChange, options, placeholder = 'Select…', cla
     <div ref={ref} className={`relative ${className}`} onKeyDown={handleKeyDown}>
       <button
         type="button"
+        onFocus={() => setIsOpen(true)}
         onClick={() => setIsOpen(!isOpen)}
         className={buttonClassName || defaultBtnClass}
       >
@@ -909,21 +910,40 @@ export function DesktopAddView() {
   const [expYear, setExpYear] = useState('');
 
   // Collapsible sections
-  const [cartItems, setCartItems] = useState([]);
+  const [cartItems, setCartItems] = useState(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = sessionStorage.getItem('foodarca_staged_batch');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isMoreDetailsOpen, setIsMoreDetailsOpen] = useState(false);
+  const [isClearingBatch, setIsClearingBatch] = useState(false);
 
   // Add button animation state
   const [addedState, setAddedState] = useState(false); // true = showing green "Added!"
   const addedTimerRef = useRef(null);
 
-  // Slide-out panel
+  // Slide-out panel (fallback for mobile/tablet)
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   const barcodeTimerRef = useRef(null);
   const barcodeRef = useRef(null);
+
+  // Sync cartItems to sessionStorage on updates
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('foodarca_staged_batch', JSON.stringify(cartItems));
+    } catch (e) {
+      console.error('Failed to sync cart to sessionStorage:', e);
+    }
+  }, [cartItems]);
 
   useEffect(() => {
     barcodeRef.current?.focus();
@@ -1051,10 +1071,16 @@ export function DesktopAddView() {
   const parsedQty = parseFloat(qty) || 0;
   const parsedBulkWeight = parseFloat(bulkWeight) || 0;
 
+  const isExpirationValid =
+    expirationPrecision === 'none' ||
+    (expirationPrecision === 'day' && expDay.trim() !== '') ||
+    (expirationPrecision === 'month' && expMonth.trim() !== '' && expMonth.includes('-')) ||
+    (expirationPrecision === 'year' && expYear.trim() !== '');
+
   const isFormValid =
     intakeMode === 'count'
-      ? itemName.trim().length > 0 && Boolean(category) && parsedQty > 0
-      : itemName.trim().length > 0 && Boolean(category) && parsedBulkWeight > 0;
+      ? itemName.trim().length > 0 && Boolean(category) && parsedQty > 0 && isExpirationValid
+      : itemName.trim().length > 0 && Boolean(category) && parsedBulkWeight > 0 && isExpirationValid;
 
   /* ── add to batch ─────────────────────────────────────────────────── */
   const handleAddItem = (e) => {
@@ -1068,6 +1094,8 @@ export function DesktopAddView() {
         setError('Please enter a valid quantity.');
       } else if (intakeMode === 'bulk' && parsedBulkWeight <= 0) {
         setError('Please enter a valid scale weight.');
+      } else if (!isExpirationValid) {
+        setError('Please complete the Expiration Date or set it to "No expiration".');
       } else {
         setError('Please fill in all required fields (*).');
       }
@@ -1084,12 +1112,10 @@ export function DesktopAddView() {
     if (intakeMode === 'count') {
       itemQuantity = String(Math.abs(parsedQty));
       itemUnit = unit;
-      const convertedLbs = convertToLbs(totalWeight, weightUnit);
-      itemWeightLbs = Math.abs(convertedLbs || 0);
-      weightPerUnit =
-        itemWeightLbs > 0 && parsedQty > 0
-          ? (itemWeightLbs / parsedQty).toFixed(2)
-          : '0';
+      const convertedLbsPerUnit = convertToLbs(totalWeight, weightUnit);
+      const perUnitLbs = Math.abs(convertedLbsPerUnit || 0);
+      itemWeightLbs = Number((perUnitLbs * parsedQty).toFixed(2));
+      weightPerUnit = perUnitLbs > 0 ? perUnitLbs.toFixed(2) : '0';
     } else {
       const cnt = Math.abs(parseFloat(containerCount) || 1);
       itemQuantity = String(cnt);
@@ -1156,6 +1182,66 @@ export function DesktopAddView() {
   const handleRemoveItem = (id) =>
     setCartItems((prev) => prev.filter((i) => i.id !== id));
 
+  const handleEditItem = (id) => {
+    const itemToEdit = cartItems.find((i) => i.id === id);
+    if (!itemToEdit) return;
+
+    handleRemoveItem(id);
+
+    setBarcode(itemToEdit.barcode || '');
+    setItemName(itemToEdit.name || '');
+    setCategory(itemToEdit.category || '');
+    setPhotoUrl(itemToEdit.photoUrl || null);
+    
+    if (itemToEdit.intakeMode === 'count') {
+      setIntakeMode('count');
+      setQty(String(itemToEdit.quantity || '1'));
+      setUnit(itemToEdit.unit || 'Units');
+      setPackSize(itemToEdit.packSize ? String(itemToEdit.packSize) : '');
+      setTotalWeight(itemToEdit.rawWeight ? String(itemToEdit.rawWeight) : '');
+      setWeightUnit(itemToEdit.weightUnit || 'lbs');
+    } else {
+      setIntakeMode('bulk');
+      setBulkWeight(itemToEdit.totalWeightLbs ? String(itemToEdit.totalWeightLbs) : '');
+      setContainerCount(String(itemToEdit.quantity || '1'));
+    }
+    
+    setSourceType(itemToEdit.sourceType || 'not_specified');
+    setDonorName(itemToEdit.donorName || '');
+    
+    const prec = itemToEdit.expirationPrecision || 'none';
+    setExpirationPrecision(prec);
+    if (prec === 'day') {
+      setExpDay(itemToEdit.expirationDate || '');
+      setExpMonth('');
+      setExpYear('');
+    } else if (prec === 'month') {
+      setExpDay('');
+      setExpMonth(itemToEdit.expirationDate ? itemToEdit.expirationDate.slice(0, 7) : '');
+      setExpYear('');
+    } else if (prec === 'year') {
+      setExpDay('');
+      setExpMonth('');
+      setExpYear(itemToEdit.expirationDate ? itemToEdit.expirationDate.slice(0, 4) : '');
+    } else {
+      setExpDay('');
+      setExpMonth('');
+      setExpYear('');
+    }
+
+    if (barcodeRef.current) barcodeRef.current.focus();
+    setIsPanelOpen(false);
+  };
+
+  const executeClearBatch = () => {
+    if (cartItems.length === 0) return;
+    setCartItems([]);
+    setIsClearingBatch(false);
+    try {
+      sessionStorage.removeItem('foodarca_staged_batch');
+    } catch (_) {}
+  };
+
   /* ── submit batch ─────────────────────────────────────────────────── */
   const handleSubmitBatch = async () => {
     if (cartItems.length === 0 || !pantryId) return;
@@ -1171,11 +1257,16 @@ export function DesktopAddView() {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.message || data.error || 'Failed to submit batch');
-      setSuccess(
-        `Successfully added ${cartItems.length} product${cartItems.length > 1 ? 's' : ''} to inventory.`
-      );
+      setSuccess('Batch successfully added!');
       setCartItems([]);
-      setIsPanelOpen(false);
+      try {
+        sessionStorage.removeItem('foodarca_staged_batch');
+      } catch (_) {}
+      
+      setTimeout(() => {
+        setSuccess('');
+        setIsPanelOpen(false);
+      }, 2500);
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -1222,7 +1313,7 @@ export function DesktopAddView() {
     <div className="max-w-[1400px] mx-auto px-6 py-3 md:px-8 md:py-4 font-['Inter',system-ui,sans-serif] relative">
 
       {/* ── PAGE HEADER ─────────────────────────────────────────────── */}
-      <div className="max-w-[840px] mx-auto mb-3 flex items-center justify-between">
+      <div className="w-full mb-3 flex items-center justify-between">
         <div>
           <h1 className="text-[22px] font-bold text-[#1a1f36] tracking-[-0.02em] leading-tight">
             Add Items
@@ -1231,60 +1322,82 @@ export function DesktopAddView() {
             Log new items into inventory. Fill in the essentials and add to your batch.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsGuideOpen(true)}
-          className="h-[36px] px-3.5 rounded-xl bg-white border border-gray-200 text-[#3c4257] hover:bg-gray-50/90 text-[12px] font-semibold flex items-center gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] cursor-pointer transition-all duration-150 shrink-0"
-        >
-          <HelpCircle className="h-4 w-4 text-[#d97757]" strokeWidth={2} />
-          <span>Intake Guide</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          {/* Mobile/Tablet Batch trigger button */}
+          <button
+            type="button"
+            onClick={() => setIsPanelOpen(true)}
+            className="xl:hidden h-[36px] px-3.5 rounded-xl bg-white border border-[#d97757]/40 text-[#1a1f36] hover:bg-[#fff7f5] text-[12px] font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-2"
+          >
+            <PanelRight className="h-4 w-4 text-[#d97757]" strokeWidth={2.2} />
+            <span>View Batch</span>
+            {cartItems.length > 0 && (
+              <span className="h-4.5 px-1.5 rounded-full bg-[#d97757] text-white text-[11px] font-extrabold flex items-center justify-center">
+                {cartItems.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsGuideOpen(true)}
+            className="h-[36px] px-3.5 rounded-xl bg-white border border-gray-200 text-[#3c4257] hover:bg-gray-50/90 text-[12px] font-semibold flex items-center gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)] cursor-pointer transition-all duration-150 shrink-0"
+          >
+            <HelpCircle className="h-4 w-4 text-[#d97757]" strokeWidth={2} />
+            <span>Intake Guide</span>
+          </button>
+        </div>
       </div>
-      <div className="max-w-[840px] mx-auto h-px bg-gradient-to-r from-gray-200 via-gray-200/60 to-transparent mb-4" />
+      <div className="w-full h-px bg-gradient-to-r from-gray-200 via-gray-200/60 to-transparent mb-4" />
 
       {/* ── ALERTS ──────────────────────────────────────────────────── */}
       {error && (
-        <div className="max-w-[840px] mx-auto mb-6 p-3.5 text-[13px] font-medium text-rose-700 bg-rose-50 border border-rose-200/80 rounded-xl flex items-center gap-2.5">
+        <div className="w-full mb-6 p-3.5 text-[13px] font-medium text-rose-700 bg-rose-50 border border-rose-200/80 rounded-xl flex items-center gap-2.5">
           <AlertCircle className="h-4 w-4 shrink-0" /> {error}
         </div>
       )}
-      {success && (
-        <div className="max-w-[840px] mx-auto mb-6 p-3.5 text-[13px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center gap-2.5">
-          <CheckCircle2 className="h-4 w-4 shrink-0" /> {success}
-        </div>
-      )}
 
-      {/* ═══════  HERO FORM CARD  ═════════════════════════════════════ */}
-      <form
-        onSubmit={handleAddItem}
-        className="max-w-[840px] mx-auto"
-      >
-        <div className="bg-white border border-gray-200/80 rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
 
-          {/* ── TOP UTILITY BAR: BATCH CART TRIGGER ────────── */}
-          <div className="px-5 py-1.5 bg-[#f8fafb] border-b border-gray-100 rounded-t-2xl flex items-center justify-between">
-            <span className="text-[11px] font-medium text-[#8792a2] tracking-wide">
-              Inventory Intake
-            </span>
+      {/* ── TWO-COLUMN LAYOUT GRID ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
 
-            <button
-              type="button"
-              onClick={() => setIsPanelOpen(true)}
-              className="h-[30px] px-3 rounded-lg bg-white border border-[#d97757]/40 text-[#1a1f36] hover:bg-[#fff7f5] text-[12px] font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-2 group"
-            >
-              <PanelRight className="h-3.5 w-3.5 text-[#d97757] group-hover:scale-110 transition-transform" strokeWidth={2.2} />
-              <span>View Batch</span>
-              {cartItems.length > 0 ? (
-                <span className="h-4.5 px-1.5 rounded-full bg-[#d97757] text-white text-[11px] font-extrabold flex items-center justify-center animate-pulse">
-                  {cartItems.length}
+        {/* LEFT COLUMN: HERO FORM CARD */}
+        <div className="xl:col-span-7 2xl:col-span-8 min-w-0">
+          <form
+            onSubmit={handleAddItem}
+            className="w-full relative"
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                if (isFormValid) handleAddItem(e);
+              }
+            }}
+          >
+            <div className="bg-white border border-gray-200/80 rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+
+              {/* ── TOP UTILITY BAR: BATCH CART TRIGGER (Mobile/Tablet Only) ────────── */}
+              <div className="px-5 py-1.5 bg-[#f8fafb] border-b border-gray-100 rounded-t-2xl flex items-center justify-between xl:hidden">
+                <span className="text-[11px] font-medium text-[#8792a2] tracking-wide">
+                  Inventory Intake
                 </span>
-              ) : (
-                <span className="h-4.5 px-1.5 rounded-full bg-gray-100 text-[#8792a2] text-[10px] font-bold flex items-center justify-center">
-                  0
-                </span>
-              )}
-            </button>
-          </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPanelOpen(true)}
+                  className="h-[30px] px-3 rounded-lg bg-white border border-[#d97757]/40 text-[#1a1f36] hover:bg-[#fff7f5] text-[12px] font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-2 group"
+                >
+                  <PanelRight className="h-3.5 w-3.5 text-[#d97757] group-hover:scale-110 transition-transform" strokeWidth={2.2} />
+                  <span>View Batch</span>
+                  {cartItems.length > 0 ? (
+                    <span className="h-4.5 px-1.5 rounded-full bg-[#d97757] text-white text-[11px] font-extrabold flex items-center justify-center animate-pulse">
+                      {cartItems.length}
+                    </span>
+                  ) : (
+                    <span className="h-4.5 px-1.5 rounded-full bg-gray-100 text-[#8792a2] text-[10px] font-bold flex items-center justify-center">
+                      0
+                    </span>
+                  )}
+                </button>
+              </div>
 
           {/* ── ROW 1: BARCODE QUICK SCAN ────────────────────────── */}
           <div className="px-6 pt-5 pb-4">
@@ -1425,7 +1538,7 @@ export function DesktopAddView() {
 
             {intakeMode === 'count' ? (
               <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-x-4 gap-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
                   <FieldLabel label="Quantity" required hint="Number of packages or containers being added.">
                     <input
                       type="text"
@@ -1446,56 +1559,11 @@ export function DesktopAddView() {
                       options={unitOptions}
                     />
                   </FieldLabel>
-
-                  <FieldLabel label="Items per pack" optional hint="e.g. 15 diapers per bag">
-                    <input
-                      type="text"
-                      className={cls.input}
-                      placeholder="e.g. 15"
-                      value={packSize}
-                      onChange={(e) =>
-                        setPackSize(sanitizePositiveNumber(e.target.value))
-                      }
-                    />
-                  </FieldLabel>
-
-                  <FieldLabel label="Weight / Volume" optional hint="Total package weight or size">
-                    <div className="flex items-center rounded-xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus-within:border-[#d97757] focus-within:ring-2 focus-within:ring-[#d97757]/10 transition-all duration-150">
-                      <input
-                        type="text"
-                        className="flex-1 min-w-0 h-[44px] px-3.5 bg-transparent text-[14px] font-medium text-[#1a1f36] outline-none placeholder:text-[#a3acb9] placeholder:font-normal"
-                        placeholder="e.g. 16"
-                        value={totalWeight}
-                        onChange={(e) =>
-                          setTotalWeight(sanitizePositiveNumber(e.target.value))
-                        }
-                      />
-                      <div className="h-6 w-px bg-gray-200/80 my-auto shrink-0" />
-                      <CustomSelect
-                        value={weightUnit}
-                        onChange={setWeightUnit}
-                        options={weightUnitOptions}
-                        className="!w-auto shrink-0"
-                        buttonClassName="h-[44px] px-3 text-[13px] font-semibold text-[#1a1f36] hover:bg-gray-50/80 rounded-r-xl cursor-pointer outline-none transition-colors flex items-center justify-between gap-1"
-                        menuAlign="right"
-                      />
-                    </div>
-                  </FieldLabel>
                 </div>
-
-                {/* Live total items calculation badge when pack size is entered */}
-                {parseFloat(packSize) > 0 && parseFloat(qty) > 0 && (
-                  <div className="text-[12px] font-semibold text-[#1a1f36] bg-[#fffaf8] border border-[#d97757]/30 rounded-lg px-3.5 py-2 flex items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-[#d97757] shrink-0" />
-                    <span>
-                      Total count: <strong className="text-[#d97757] font-bold">{parsedQty * parseFloat(packSize)} individual items</strong> ({parsedQty} {unit} &times; {packSize} per {unit.endsWith('s') ? unit.slice(0, -1) : unit})
-                    </span>
-                  </div>
-                )}
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-x-5">
-                <FieldLabel label="Scale weight" required>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                <FieldLabel label="Scale weight" required hint="Total weight on the scale in pounds (lbs).">
                   <div className="relative">
                     <input
                       type="text"
@@ -1513,7 +1581,7 @@ export function DesktopAddView() {
                   </div>
                 </FieldLabel>
 
-                <FieldLabel label="Container count">
+                <FieldLabel label="Container count" hint="Number of gaylords, pallets, or bins being weighed.">
                   <input
                     type="text"
                     className={cls.input}
@@ -1524,77 +1592,17 @@ export function DesktopAddView() {
                     }
                   />
                 </FieldLabel>
-
-                <FieldLabel label="Container type">
-                  <CustomSelect
-                    value={containerType}
-                    onChange={setContainerType}
-                    options={containerTypeOptions}
-                  />
-                </FieldLabel>
               </div>
             )}
           </div>
 
           <div className="h-px bg-gray-100 mx-6" />
 
-          {/* ── ROW 4: ACQUISITION SOURCE ────────────────────────── */}
-          <div className="px-6 pt-5 pb-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8792a2] mb-3 select-none flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-[#8792a2]" strokeWidth={2} />
-              Acquisition Source
-            </p>
-            <div className="space-y-3">
-              <div className="flex gap-1.5 flex-wrap">
-                {sourceOptions.map((s) => {
-                  const on = sourceType === s.key;
-                  return (
-                    <button
-                      key={s.key}
-                      type="button"
-                      onClick={() => setSourceType(s.key)}
-                      className={`${cls.pill} ${on ? cls.pillOn : cls.pillOff}`}
-                    >
-                      <s.icon
-                        className={`h-[15px] w-[15px] ${on ? 'text-[#1a1f36]' : 'text-[#a3acb9]'}`}
-                        strokeWidth={2}
-                      />
-                      {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {needsDonor && (
-                <div className="relative max-w-md pt-0.5">
-                  <Building2
-                    className="h-4 w-4 text-[#a3acb9] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                    strokeWidth={1.8}
-                  />
-                  <input
-                    type="text"
-                    className={`${cls.input} !pl-10`}
-                    placeholder={
-                      sourceType === 'donation'
-                        ? "Donor name (e.g. Trader Joe's)"
-                        : sourceType === 'retail_rescue'
-                          ? 'Store name (e.g. Whole Foods)'
-                          : 'Supplier (e.g. Costco)'
-                    }
-                    value={donorName}
-                    onChange={(e) => setDonorName(e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="h-px bg-gray-100 mx-6" />
-
-          {/* ── ROW 5: EXPIRATION DATE ───────────────────────────── */}
+          {/* ── ROW 4: EXPIRATION DATE ───────────────────────────── */}
           <div className="px-6 pt-5 pb-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8792a2] mb-3 select-none flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5 text-[#8792a2]" strokeWidth={2} />
-              Expiration Date
+              Expiration Date <span className="text-rose-500 font-bold ml-0.5">*</span>
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex gap-1.5 flex-wrap">
@@ -1671,6 +1679,154 @@ export function DesktopAddView() {
             </div>
           </div>
 
+          <div className="h-px bg-gray-100 mx-6" />
+
+          {/* ── MORE DETAILS ACCORDION TOGGLE ─────────────────────── */}
+          <div className="px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setIsMoreDetailsOpen(!isMoreDetailsOpen)}
+              className="w-full flex items-center justify-between p-3.5 rounded-xl bg-[#f8fafb] border border-gray-200/80 hover:bg-gray-50 text-[13px] font-semibold text-[#3c4257] transition-all cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.02)] group"
+            >
+              <div className="flex items-center gap-2.5">
+                <Settings2 className="h-4.5 w-4.5 text-[#8792a2] group-hover:text-[#3c4257] transition-colors" strokeWidth={2} />
+                <div className="flex items-center flex-wrap gap-x-1.5">
+                  <span>More Details</span>
+                  <span className="text-[#a3acb9] font-normal text-[12px] mt-[1px]">
+                    (Donation Source, Package Size)
+                  </span>
+                </div>
+              </div>
+              <ChevronDown
+                className={`h-4.5 w-4.5 text-[#8792a2] transition-transform duration-250 ${
+                  isMoreDetailsOpen ? 'rotate-180' : ''
+                }`}
+                strokeWidth={2}
+              />
+            </button>
+          </div>
+
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              isMoreDetailsOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+            }`}
+          >
+            {/* ── SECONDARY MEASUREMENTS ──────────────────────────── */}
+            <div className="px-6 pb-5">
+              {intakeMode === 'count' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+                    <FieldLabel label="Items per pack" optional hint="e.g. 15 diapers per bag">
+                      <input
+                        type="text"
+                        className={cls.input}
+                        placeholder="e.g. 15"
+                        value={packSize}
+                        onChange={(e) =>
+                          setPackSize(sanitizePositiveNumber(e.target.value))
+                        }
+                      />
+                    </FieldLabel>
+
+                    <FieldLabel label="Weight / Volume" optional hint="Total package weight or size">
+                      <div className="flex items-center rounded-xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus-within:border-[#d97757] focus-within:ring-2 focus-within:ring-[#d97757]/10 transition-all duration-150">
+                        <input
+                          type="text"
+                          className="flex-1 min-w-0 h-[44px] px-3.5 bg-transparent text-[14px] font-medium text-[#1a1f36] outline-none placeholder:text-[#a3acb9] placeholder:font-normal"
+                          placeholder="e.g. 16"
+                          value={totalWeight}
+                          onChange={(e) =>
+                            setTotalWeight(sanitizePositiveNumber(e.target.value))
+                          }
+                        />
+                        <div className="h-6 w-px bg-gray-200/80 my-auto shrink-0" />
+                        <CustomSelect
+                          value={weightUnit}
+                          onChange={setWeightUnit}
+                          options={weightUnitOptions}
+                          className="!w-auto shrink-0"
+                          buttonClassName="h-[44px] px-3 text-[13px] font-semibold text-[#1a1f36] hover:bg-gray-50/80 rounded-r-xl cursor-pointer outline-none transition-colors flex items-center justify-between gap-1"
+                          menuAlign="right"
+                        />
+                      </div>
+                    </FieldLabel>
+                  </div>
+                  {parseFloat(packSize) > 0 && parseFloat(qty) > 0 && (
+                    <div className="text-[12px] font-semibold text-[#1a1f36] bg-[#fffaf8] border border-[#d97757]/30 rounded-lg px-3.5 py-2 flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-[#d97757] shrink-0" />
+                      <span>
+                        Total count: <strong className="text-[#d97757] font-bold">{parsedQty * parseFloat(packSize)} individual items</strong> ({parsedQty} {unit} &times; {packSize} per {unit.endsWith('s') ? unit.slice(0, -1) : unit})
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                  <FieldLabel label="Container type">
+                    <CustomSelect
+                      value={containerType}
+                      onChange={setContainerType}
+                      options={containerTypeOptions}
+                    />
+                  </FieldLabel>
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-gray-100 mx-6" />
+
+            {/* ── ROW 4: ACQUISITION SOURCE ────────────────────────── */}
+            <div className="px-6 pt-5 pb-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8792a2] mb-3 select-none flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-[#8792a2]" strokeWidth={2} />
+              Acquisition Source
+            </p>
+            <div className="space-y-3">
+              <div className="flex gap-1.5 flex-wrap">
+                {sourceOptions.map((s) => {
+                  const on = sourceType === s.key;
+                  return (
+                    <button
+                      key={s.key}
+                      type="button"
+                      onClick={() => setSourceType(s.key)}
+                      className={`${cls.pill} ${on ? cls.pillOn : cls.pillOff}`}
+                    >
+                      <s.icon
+                        className={`h-[15px] w-[15px] ${on ? 'text-[#1a1f36]' : 'text-[#a3acb9]'}`}
+                        strokeWidth={2}
+                      />
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {needsDonor && (
+                <div className="relative max-w-md pt-0.5">
+                  <Building2
+                    className="h-4 w-4 text-[#a3acb9] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    strokeWidth={1.8}
+                  />
+                  <input
+                    type="text"
+                    className={`${cls.input} !pl-10`}
+                    placeholder={
+                      sourceType === 'donation'
+                        ? "Donor name (e.g. Trader Joe's)"
+                        : sourceType === 'retail_rescue'
+                          ? 'Store name (e.g. Whole Foods)'
+                          : 'Supplier (e.g. Costco)'
+                    }
+                    value={donorName}
+                    onChange={(e) => setDonorName(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          </div> {/* End More Details Accordion */}
+
           {/* ── ACTION FOOTER ────────────────────────────────────── */}
           <div className="px-6 py-4 bg-[#f8fafb] border-t border-gray-100/80 rounded-b-2xl flex items-center justify-between">
             <button
@@ -1703,12 +1859,214 @@ export function DesktopAddView() {
                 <>
                   <Plus className="h-4.5 w-4.5" strokeWidth={2.5} />
                   Add to batch
+                  <span className="hidden sm:inline-flex items-center gap-0.5 ml-2 text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-medium tracking-wide">
+                    <kbd>Ctrl</kbd>+<kbd>Enter</kbd>
+                  </span>
                 </>
               )}
             </button>
           </div>
         </div>
       </form>
+    </div>
+
+        {/* RIGHT COLUMN: PERSISTENT BATCH SIDEBAR (Desktop) */}
+        <div className="hidden xl:block xl:col-span-5 2xl:col-span-4 sticky top-6">
+          <div className="bg-white border border-gray-200/80 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col max-h-[calc(100vh-48px)]">
+            {/* Header */}
+            <div className="px-6 pt-5 pb-4 shrink-0 flex items-center justify-between min-h-[64px]">
+              {isClearingBatch && totalStagedProducts > 0 ? (
+                <div className="w-full flex items-center justify-between bg-rose-50 -mx-3 -my-2 px-3 py-2 rounded-xl border border-rose-100/50">
+                  <span className="text-[12px] font-bold text-rose-700 flex items-center gap-1.5">
+                    <Trash2 className="h-4 w-4" strokeWidth={2} /> Clear all items?
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsClearingBatch(false)}
+                      className="text-[12px] font-bold text-gray-500 hover:text-gray-700 bg-white border border-gray-200/80 hover:bg-gray-50 px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={executeClearBatch}
+                      className="text-[12px] font-bold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg shadow-[0_1px_3px_rgba(225,29,72,0.3)] transition-all cursor-pointer"
+                    >
+                      Yes, clear
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#8792a2] select-none flex items-center gap-1.5">
+                      <Package className="h-3.5 w-3.5 text-[#a3acb9]" strokeWidth={2} />
+                      Batch Preview
+                    </p>
+                    {totalStagedProducts > 0 ? (
+                      <span className="h-4.5 px-2 rounded-full bg-[#1a1f36] text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+                        {totalStagedProducts}
+                      </span>
+                    ) : (
+                      <span className="h-4.5 px-2 rounded-full bg-gray-100 text-[#8792a2] text-[10px] font-bold flex items-center justify-center tabular-nums">
+                        0
+                      </span>
+                    )}
+                  </div>
+                  {totalStagedProducts > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsClearingBatch(true)}
+                      className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Discard entire batch"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Clear Batch
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="h-px bg-gray-100 mx-6 shrink-0" />
+
+            {/* Body: Staged items list */}
+            <div className="px-6 py-4 overflow-y-auto min-h-[120px]">
+              {cartItems.length === 0 ? (
+                <div className="py-12 flex flex-col items-center justify-center text-center">
+                  <div className="h-12 w-12 rounded-full bg-gray-50 border border-gray-200/60 flex items-center justify-center mb-3">
+                    <Package className="h-5 w-5 text-[#a3acb9]" strokeWidth={1.5} />
+                  </div>
+                  <p className="text-[13px] font-semibold text-[#3c4257]">No items staged</p>
+                  <p className="text-[12px] text-[#8792a2] mt-1 max-w-[220px] leading-relaxed">
+                    Scan a barcode or fill out the form to add items to this batch.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-0.5 pb-2">
+                  {cartItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="group flex items-start justify-between py-2.5 px-3 -mx-3 rounded-xl hover:bg-[#f8fafb] transition-colors duration-100 cursor-default"
+                    >
+                      <div className="flex items-baseline gap-2.5 min-w-0 pr-2">
+                        <span className="text-[12px] font-bold text-[#1a1f36] tabular-nums shrink-0 bg-gray-100/80 border border-gray-200/50 px-1.5 py-0.5 rounded-md">
+                          {item.quantity}&times;
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-bold text-[#1a1f36] truncate leading-snug">
+                            {item.name}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="text-[11px] text-[#8792a2] truncate">
+                              {item.categoryName}
+                            </span>
+                            {item.packSize > 0 && (
+                              <>
+                                <span className="text-[11px] text-[#d4d8e0]">·</span>
+                                <span className="text-[11px] font-semibold text-[#d97757] truncate">
+                                  {item.packSize} per {item.unit.endsWith('s') ? item.unit.slice(0, -1) : item.unit}
+                                </span>
+                              </>
+                            )}
+                            {item.donorName && (
+                              <>
+                                <span className="text-[11px] text-[#d4d8e0]">·</span>
+                                <span className="text-[11px] text-[#8792a2] truncate">
+                                  via {item.donorName}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                        <span className="text-[12px] font-semibold text-[#3c4257] tabular-nums">
+                          {item.totalWeightLbs > 0
+                            ? `${item.totalWeightLbs} lbs`
+                            : `${item.quantity} ${item.unit}`}
+                        </span>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+                          <button
+                            type="button"
+                            onClick={() => handleEditItem(item.id)}
+                            className="h-6 w-6 rounded-md flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all duration-100 cursor-pointer"
+                            title="Edit Item"
+                          >
+                            <Pencil className="h-3 w-3" strokeWidth={2.5} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(item.id)}
+                            className="h-6 w-6 rounded-md flex items-center justify-center text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-all duration-100 cursor-pointer"
+                            title="Remove"
+                          >
+                            <Minus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-gray-100 mx-6 shrink-0" />
+
+            {/* Footer */}
+            <div className="px-6 py-5 shrink-0 bg-[#fafbfc]/50 rounded-b-2xl">
+              <div className="space-y-2 text-[12px] mb-5">
+                <div className="flex justify-between text-[#697386]">
+                  <span>Products</span>
+                  <span className="font-semibold text-[#1a1f36] tabular-nums">{totalStagedProducts}</span>
+                </div>
+                <div className="flex justify-between text-[#697386]">
+                  <span>Total Units</span>
+                  <span className="font-semibold text-[#1a1f36] tabular-nums">{totalStagedUnits}</span>
+                </div>
+                {totalStagedWeightLbs !== '0.0' && (
+                  <div className="flex justify-between text-[#697386]">
+                    <span>Est. weight</span>
+                    <span className="font-semibold text-[#1a1f36] tabular-nums">{totalStagedWeightLbs} lbs</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-baseline pt-3 border-t border-gray-100 mt-2">
+                  <span className="text-[13px] font-bold text-[#1a1f36]">Total</span>
+                  <span className="text-[13px] font-bold text-[#1a1f36] tabular-nums">
+                    {totalStagedWeightLbs !== '0.0' ? `${totalStagedWeightLbs} lbs` : `${totalStagedUnits} units`}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={(cartItems.length === 0 && !success) || isSubmitting}
+                onClick={success ? undefined : handleSubmitBatch}
+                className={`w-full h-11 text-[13px] font-bold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-40 disabled:cursor-default flex items-center justify-center gap-2 ${
+                  success 
+                    ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 cursor-default shadow-md' 
+                    : 'text-[#d97757] bg-[#fff0eb] hover:bg-[#ffe4db] border border-[#ffdbce] cursor-pointer'
+                }`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-[#d97757]/70" /> Submitting…
+                  </>
+                ) : success ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-white" strokeWidth={2.5} /> {success}
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-[#d97757]/70" strokeWidth={2} /> Submit batch to inventory
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div> {/* end grid */}
 
 
 
@@ -1730,25 +2088,63 @@ export function DesktopAddView() {
         }`}
       >
         {/* Panel Header */}
-        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between shrink-0">
-          <div>
-            <h3 className="text-[15px] font-bold text-[#1a1f36] tracking-[-0.01em]">
-              Batch Preview
-            </h3>
-            {totalStagedProducts > 0 && (
-              <p className="text-[12px] text-[#697386] mt-0.5">
-                {totalStagedProducts} item{totalStagedProducts !== 1 ? 's' : ''} staged
-              </p>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsPanelOpen(false)}
-            className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[#697386] hover:text-[#1a1f36] transition-colors duration-150 cursor-pointer"
-            title="Close panel"
-          >
-            <X className="h-4 w-4" strokeWidth={2} />
-          </button>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 min-h-[72px]">
+          {isClearingBatch && totalStagedProducts > 0 ? (
+            <div className="w-full flex items-center justify-between bg-rose-50 -mx-2 -my-1 px-3 py-2.5 rounded-xl border border-rose-100/50">
+              <span className="text-[13px] font-bold text-rose-700 flex items-center gap-1.5">
+                <Trash2 className="h-4 w-4" strokeWidth={2} /> Clear all items?
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsClearingBatch(false)}
+                  className="text-[13px] font-bold text-gray-500 hover:text-gray-700 bg-white border border-gray-200/80 hover:bg-gray-50 px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeClearBatch}
+                  className="text-[13px] font-bold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg shadow-[0_1px_3px_rgba(225,29,72,0.3)] transition-all cursor-pointer"
+                >
+                  Yes, clear
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-[15px] font-bold text-[#1a1f36] tracking-[-0.01em]">
+                  Batch Preview
+                </h3>
+                {totalStagedProducts > 0 && (
+                  <p className="text-[12px] text-[#697386] mt-0.5">
+                    {totalStagedProducts} item{totalStagedProducts !== 1 ? 's' : ''} staged
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {totalStagedProducts > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsClearingBatch(true)}
+                    className="text-[12px] font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Discard entire batch"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Clear Batch
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsPanelOpen(false)}
+                  className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-[#697386] hover:text-[#1a1f36] transition-colors duration-150 cursor-pointer"
+                  title="Close panel"
+                >
+                  <X className="h-4 w-4" strokeWidth={2} />
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Panel Body (scrollable) */}
@@ -1809,14 +2205,24 @@ export function DesktopAddView() {
                         ? `${item.totalWeightLbs} lbs`
                         : `${item.quantity} ${item.unit}`}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(item.id)}
-                      className="h-6 w-6 rounded-md flex items-center justify-center text-gray-300 hover:text-rose-500 hover:bg-rose-50 transition-all duration-100 opacity-0 group-hover:opacity-100 cursor-pointer"
-                      title="Remove"
-                    >
-                      <Minus className="h-3.5 w-3.5" strokeWidth={2} />
-                    </button>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+                      <button
+                        type="button"
+                        onClick={() => handleEditItem(item.id)}
+                        className="h-6 w-6 rounded-md flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all duration-100 cursor-pointer"
+                        title="Edit Item"
+                      >
+                        <Pencil className="h-3 w-3" strokeWidth={2.5} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(item.id)}
+                        className="h-6 w-6 rounded-md flex items-center justify-center text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-all duration-100 cursor-pointer"
+                        title="Remove"
+                      >
+                        <Minus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1859,18 +2265,26 @@ export function DesktopAddView() {
 
           <button
             type="button"
-            disabled={cartItems.length === 0 || isSubmitting}
-            onClick={handleSubmitBatch}
-            className="w-full h-11 text-[13px] font-bold text-white bg-[#d97757] hover:bg-[#c86545] rounded-xl shadow-[0_2px_8px_rgba(217,119,87,0.25)] transition-all duration-150 active:scale-[0.98] disabled:opacity-40 disabled:shadow-none disabled:cursor-default flex items-center justify-center gap-2 cursor-pointer"
+            disabled={(cartItems.length === 0 && !success) || isSubmitting}
+            onClick={success ? undefined : handleSubmitBatch}
+            className={`w-full h-11 text-[13px] font-bold rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-40 disabled:cursor-default flex items-center justify-center gap-2 ${
+              success 
+                ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 cursor-default shadow-md' 
+                : 'text-[#d97757] bg-[#fff0eb] hover:bg-[#ffe4db] border border-[#ffdbce] cursor-pointer'
+            }`}
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin text-[#d97757]/70" />
                 Submitting…
+              </>
+            ) : success ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-white" strokeWidth={2.5} /> {success}
               </>
             ) : (
               <>
-                <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+                <CheckCircle2 className="h-4 w-4 text-[#d97757]/70" strokeWidth={2} />
                 Submit batch to inventory
               </>
             )}
