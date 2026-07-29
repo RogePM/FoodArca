@@ -95,8 +95,9 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
   }), []);
 
   const { ref: zxingRef } = useZxing({
-    paused: useNative || isPaused,
+    paused: useNative, // Do not toggle this rapidly with isPaused, it causes browser .play() race conditions
     onDecodeResult(result) {
+      if (isPaused) return; // Ignore scans while sheet is open or looking up
       if (navigator.vibrate) navigator.vibrate(60);
       onScan(result.getText());
     },
@@ -111,7 +112,7 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
       {useNative ? (
         <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover" />
       ) : (
-        <video ref={zxingRef} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover" onPlay={() => setIsReady(true)} />
+        <video ref={zxingRef} muted playsInline className="absolute inset-0 w-full h-full object-cover" onPlay={() => setIsReady(true)} />
       )}
 
       {/* THE SCANNING HUD */}
