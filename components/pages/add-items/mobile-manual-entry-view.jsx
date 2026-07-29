@@ -88,12 +88,12 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
     onSave(newItem);
   };
 
-  const inputClass = "w-full h-[52px] px-4 rounded-xl border border-gray-200/80 bg-white text-[15px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all placeholder:text-[#a3acb9]";
+  const inputClass = "w-full h-[52px] px-4 rounded-xl border border-gray-200/80 bg-white text-[16px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all placeholder:text-[#a3acb9]";
 
   return (
     <motion.div 
       initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="flex flex-col w-full h-[100dvh] bg-[#f8fafb] z-[999] fixed inset-0 overflow-hidden"
+      className="absolute inset-0 z-50 bg-[#f8fafb] flex flex-col pb-[calc(80px+env(safe-area-inset-bottom))]"
     >
       {/* HEADER */}
       <div className="p-4 pt-safe flex items-center justify-between border-b bg-white shadow-sm shrink-0 relative z-10">
@@ -169,7 +169,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
                 <select
                   value={formUnit}
                   onChange={e => setFormUnit(e.target.value)}
-                  className="h-full w-full pl-3 pr-8 bg-transparent text-[14px] font-bold text-[#1a1f36] outline-none appearance-none"
+                  className="h-full w-full pl-3 pr-8 bg-transparent text-[16px] font-bold text-[#1a1f36] outline-none appearance-none"
                 >
                   <option value="units">Units</option>
                   <option value="cans">Cans</option>
@@ -192,13 +192,13 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
                 value={formWeight} 
                 onChange={e => setFormWeight(e.target.value)}
                 placeholder="e.g. 16"
-                className="w-full h-[52px] px-4 rounded-l-xl border border-gray-200/80 border-r-0 bg-white text-[15px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 relative z-10 placeholder:text-[#a3acb9]"
+                className="w-full h-[52px] px-4 rounded-l-xl border border-gray-200/80 border-r-0 bg-white text-[16px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 relative z-10 placeholder:text-[#a3acb9]"
               />
               <div className="relative border border-gray-200/80 rounded-r-xl bg-gray-50 shrink-0 w-[90px]">
                 <select
                   value={formWeightUnit}
                   onChange={e => setFormWeightUnit(e.target.value)}
-                  className="h-full w-full pl-3 pr-8 bg-transparent text-[14px] font-bold text-[#1a1f36] outline-none appearance-none"
+                  className="h-full w-full pl-3 pr-8 bg-transparent text-[16px] font-bold text-[#1a1f36] outline-none appearance-none"
                 >
                   <option value="lbs">lbs</option>
                   <option value="oz">oz</option>
@@ -218,13 +218,13 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
         </div>
 
         {/* CARD 3: METADATA */}
-        <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 space-y-5">
+        <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 space-y-5 overflow-hidden">
           <MobileFieldLabel label="Expiration Date" optional>
             <input 
               type="date" 
               value={expirationDate} 
               onChange={e => setExpirationDate(e.target.value)}
-              className={inputClass}
+              className={`${inputClass} max-w-full box-border`}
             />
           </MobileFieldLabel>
           

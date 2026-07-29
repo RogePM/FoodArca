@@ -56,7 +56,7 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
   return (
     <motion.div 
       initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="flex flex-col w-full h-[100dvh] bg-[#f8fafb] z-[999] fixed inset-0 overflow-hidden"
+      className="absolute inset-0 z-50 bg-[#f8fafb] flex flex-col pb-[calc(80px+env(safe-area-inset-bottom))]"
     >
       {/* HEADER */}
       <div className="p-4 pt-safe flex items-center justify-between border-b bg-white shadow-sm shrink-0 relative z-10">

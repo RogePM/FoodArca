@@ -11,6 +11,19 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+// Helper for labels
+function MobileFieldLabel({ label, optional, children }) {
+  return (
+    <div className="space-y-1.5 w-full">
+      <div className="flex items-center justify-between">
+        <label className="text-[13px] font-bold text-[#1a1f36] leading-none ml-0.5">{label}</label>
+        {optional && <span className="text-[11px] font-semibold text-[#a3acb9] uppercase tracking-wide mr-1">Optional</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 import { MobileCartView } from './mobile-cart-view';
 import { MobileManualEntryView } from './mobile-manual-entry-view';
 
@@ -56,7 +69,8 @@ export function MobileAddFlow({ onClose }) {
   const [sheetState, setSheetState] = useState('CLOSED'); 
   const [scannedItem, setScannedItem] = useState(null);
   const [isLookingUp, setIsLookingUp] = useState(false);
-  const [successFlash, setSuccessFlash] = useState('');
+  const [toastMessage, setToastMessage] = useState(null); // { title: string, count: number }
+  const [isAdding, setIsAdding] = useState(false);
   
   // Form State (for the Known Item Sheet)
   const [formName, setFormName] = useState('');
@@ -65,6 +79,7 @@ export function MobileAddFlow({ onClose }) {
   const [formWeight, setFormWeight] = useState('');
   const [formWeightUnit, setFormWeightUnit] = useState('lbs');
   const [formBarcode, setFormBarcode] = useState('');
+  const [formExpDate, setFormExpDate] = useState('');
 
   // --- ACTIONS ---
   
@@ -86,6 +101,7 @@ export function MobileAddFlow({ onClose }) {
         setFormCategory(data.data.category || categories[0].value);
         setFormQty('1');
         setFormWeight(data.data.weightPerUnit ? String(data.data.weightPerUnit) : '');
+        setFormExpDate('');
         setSheetState('KNOWN');
       } else {
         // Not found -> go to full screen manual entry
@@ -113,13 +129,13 @@ export function MobileAddFlow({ onClose }) {
     setScannedItem(null);
   };
 
-  const showFlash = (msg) => {
-    setSuccessFlash(msg);
-    setTimeout(() => setSuccessFlash(''), 1500);
+  const showToast = (title, count) => {
+    setToastMessage({ title, count });
+    setTimeout(() => setToastMessage(null), 2500);
   };
 
   const addToBatch = () => {
-    if (!formName.trim() || !formQty) return;
+    if (!formName.trim() || !formQty || isAdding) return;
     
     const qtyNum = parseFloat(formQty) || 1;
     let perUnitLbs = 0;
@@ -140,14 +156,20 @@ export function MobileAddFlow({ onClose }) {
       weightPerUnit: perUnitLbs > 0 ? perUnitLbs.toFixed(2) : '0',
       totalWeightLbs: Number((perUnitLbs * qtyNum).toFixed(2)),
       intakeMode: 'count',
-      expirationPrecision: 'none',
+      expirationDate: formExpDate || null,
+      expirationPrecision: formExpDate ? 'day' : 'none',
       sourceType: 'donation',
       photoUrl: scannedItem?.photoUrl || null
     };
 
     setCartItems(prev => [newItem, ...prev]);
-    closeSheet();
-    showFlash(`Added ${newItem.name}`);
+    setIsAdding(true);
+    
+    setTimeout(() => {
+      setIsAdding(false);
+      closeSheet();
+      showToast(newItem.name, cartItems.length + 1);
+    }, 1000);
   };
 
   // Prevent background scrolling on iOS when a sheet is open
@@ -194,7 +216,7 @@ export function MobileAddFlow({ onClose }) {
             return [updatedItem, ...prev];
           });
           setActiveView('CAMERA');
-          showFlash(`Saved ${updatedItem.name}`);
+          showToast(updatedItem.name, cartItems.length + (cartItems.find(i => i.id === updatedItem.id) ? 0 : 1));
         }}
       />
     );
@@ -240,20 +262,35 @@ export function MobileAddFlow({ onClose }) {
           <motion.div 
             key="lookup-loader"
             initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 bg-black/60 backdrop-blur-md rounded-2xl p-6 flex flex-col items-center shadow-2xl"
+            className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
           >
-            <Loader2 className="h-10 w-10 text-white animate-spin mb-3" />
-            <p className="text-white font-semibold">Looking up...</p>
+            <div className="bg-black/60 backdrop-blur-md rounded-2xl p-6 flex flex-col items-center shadow-2xl pointer-events-auto">
+              <Loader2 className="h-10 w-10 text-white animate-spin mb-3" />
+              <p className="text-white font-semibold">Looking up...</p>
+            </div>
           </motion.div>
         )}
-        {successFlash && (
+        {toastMessage && (
           <motion.div 
-            key="success-flash"
-            initial={{ opacity: 0, scale: 0.8, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute top-1/3 left-1/2 -translate-x-1/2 z-40 bg-emerald-500 rounded-2xl p-4 px-6 flex flex-col items-center shadow-2xl border border-emerald-400"
+            key="toast"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            className="absolute inset-x-0 bottom-[calc(80px+env(safe-area-inset-bottom)+8px)] z-40 flex justify-center px-4"
           >
-            <CheckCircle2 className="h-12 w-12 text-white mb-2" />
-            <p className="text-white font-bold text-center">{successFlash}</p>
+            <button 
+              onClick={() => setActiveView('CART')}
+              className="bg-[#2a2f45] text-white rounded-2xl px-5 py-3.5 shadow-xl border border-gray-700 w-full max-w-sm flex items-center justify-between active:scale-95 transition-transform"
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                <span className="font-semibold text-[14px] truncate">Added {toastMessage.title}</span>
+              </div>
+              <div className="flex items-center gap-2 pl-3 border-l border-gray-600 ml-3 shrink-0">
+                <span className="text-[13px] font-bold text-gray-300">Open Cart</span>
+                <span className="bg-[#d97757] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+                  {toastMessage.count}
+                </span>
+              </div>
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -264,7 +301,7 @@ export function MobileAddFlow({ onClose }) {
           <motion.div 
             key="fab-batch"
             initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-            className="absolute bottom-[90px] right-6 z-40"
+            className="absolute bottom-[calc(80px+env(safe-area-inset-bottom)+16px)] right-6 z-40"
           >
             <button
               onClick={() => setActiveView('CART')}
@@ -299,7 +336,7 @@ export function MobileAddFlow({ onClose }) {
           <motion.div 
             key="known-sheet"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="absolute bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.2)] pb-[calc(100px+env(safe-area-inset-bottom))] flex flex-col max-h-[85vh]"
+            className="absolute bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.2)] pb-[calc(80px+env(safe-area-inset-bottom))] flex flex-col max-h-[70vh]"
           >
             <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto my-3" />
             <div className="px-6 pb-6 overflow-y-auto">
@@ -320,7 +357,7 @@ export function MobileAddFlow({ onClose }) {
                 </div>
               </div>
 
-              <div className="mb-8">
+              <div className="mb-6">
                 <label className="block text-[13px] font-bold text-gray-700 mb-3">Quantity to Add</label>
                 <div className="flex items-center justify-center gap-6 bg-gray-50 rounded-2xl p-4 border border-gray-100">
                   <button 
@@ -344,12 +381,31 @@ export function MobileAddFlow({ onClose }) {
                 </div>
               </div>
 
+              <div className="mb-8">
+                <MobileFieldLabel label="Expiration Date" optional>
+                  <input 
+                    type="date" 
+                    value={formExpDate} 
+                    onChange={e => setFormExpDate(e.target.value)}
+                    className="w-full h-[52px] px-4 rounded-xl border border-gray-200/80 bg-white text-[16px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all max-w-full box-border"
+                  />
+                </MobileFieldLabel>
+              </div>
+
               <button 
                 onClick={addToBatch}
-                className="w-full h-14 rounded-2xl bg-[#d97757] text-white font-bold text-[16px] shadow-[0_8px_20px_rgba(217,119,87,0.3)] active:scale-95 transition-transform flex items-center justify-center gap-2"
+                disabled={isAdding}
+                className={`w-full h-14 rounded-2xl font-bold text-[16px] shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
+                  isAdding 
+                    ? 'bg-emerald-500 text-white shadow-[0_8px_20px_rgba(16,185,129,0.3)]' 
+                    : 'bg-[#d97757] text-white shadow-[0_8px_20px_rgba(217,119,87,0.3)]'
+                }`}
               >
-                <Plus className="w-5 h-5" strokeWidth={3} />
-                Add to Batch
+                {isAdding ? (
+                  <><CheckCircle2 className="w-6 h-6" strokeWidth={2.5} /> Added</>
+                ) : (
+                  <><Plus className="w-5 h-5" strokeWidth={3} /> Add to Batch</>
+                )}
               </button>
             </div>
           </motion.div>

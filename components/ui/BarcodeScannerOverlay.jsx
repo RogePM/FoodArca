@@ -115,7 +115,7 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
       )}
 
       {/* THE SCANNING HUD */}
-      <div className="absolute inset-0 z-10 pointer-events-none">
+      <div className="absolute inset-0 z-10 pointer-events-none flex flex-col">
         <AnimatePresence>
           {detectedItem ? (
             /* LOCK-ON RETICLE: Snaps to the barcode anywhere on screen */
@@ -130,7 +130,7 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
                 height: detectedItem.height 
               }}
               exit={{ opacity: 0 }}
-              className="absolute border-[6px] border-[#22c55e] rounded-2xl shadow-[0_0_50px_rgba(34,197,94,0.8)]"
+              className="absolute border-[4px] border-[#22c55e] rounded-2xl shadow-[0_0_40px_rgba(34,197,94,0.6)]"
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
                 {/* Internal Scanning Glow */}
@@ -138,20 +138,31 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
             </motion.div>
           ) : (
             /* CENTER TARGET: Clear sign for where to aim */
-            <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-80 h-56 flex items-center justify-center">
-                    {/* Glowing Brackets */}
-                    <div className="absolute top-0 left-0 w-16 h-16 border-t-8 border-l-8 border-white/40 rounded-tl-3xl shadow-lg" />
-                    <div className="absolute top-0 right-0 w-16 h-16 border-t-8 border-r-8 border-white/40 rounded-tr-3xl shadow-lg" />
-                    <div className="absolute bottom-0 left-0 w-16 h-16 border-b-8 border-l-8 border-white/40 rounded-bl-3xl shadow-lg" />
-                    <div className="absolute bottom-0 right-0 w-16 h-16 border-b-8 border-r-8 border-white/40 rounded-br-3xl shadow-lg" />
-                    
-                    {/* Center Laser Line */}
-                    <motion.div 
-                        animate={{ opacity: [0.2, 0.8, 0.2], scaleX: [0.95, 1.05, 0.95] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="w-[80%] h-1 bg-[#d97757] shadow-[0_0_20px_#d97757]" 
-                    />
+            <div className="absolute inset-0">
+                {/* Dark Vignette Overlay */}
+                <div className="absolute inset-0 bg-black/40" style={{ 
+                  maskImage: 'radial-gradient(circle at center 40%, transparent 120px, black 160px)',
+                  WebkitMaskImage: 'radial-gradient(circle at center 40%, transparent 120px, black 160px)'
+                }} />
+
+                <div className="absolute left-1/2 -translate-x-1/2 top-[40%] -translate-y-1/2 flex flex-col items-center gap-6">
+                  <div className="relative w-64 h-44 flex items-center justify-center">
+                      {/* Glowing Brackets */}
+                      <div className="absolute top-0 left-0 w-10 h-10 border-t-[3px] border-l-[3px] border-white/80 rounded-tl-2xl shadow-lg" />
+                      <div className="absolute top-0 right-0 w-10 h-10 border-t-[3px] border-r-[3px] border-white/80 rounded-tr-2xl shadow-lg" />
+                      <div className="absolute bottom-0 left-0 w-10 h-10 border-b-[3px] border-l-[3px] border-white/80 rounded-bl-2xl shadow-lg" />
+                      <div className="absolute bottom-0 right-0 w-10 h-10 border-b-[3px] border-r-[3px] border-white/80 rounded-br-2xl shadow-lg" />
+                      
+                      {/* Center Laser Line */}
+                      <motion.div 
+                          animate={{ opacity: [0.3, 0.7, 0.3], scaleX: [0.98, 1.02, 0.98] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="w-[85%] h-[2px] bg-[#d97757] shadow-[0_0_15px_#d97757]" 
+                      />
+                  </div>
+                  <p className="text-white/60 font-medium text-[13px] tracking-wide">
+                    Point camera at barcode
+                  </p>
                 </div>
             </div>
           )}
