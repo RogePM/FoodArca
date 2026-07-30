@@ -131,7 +131,7 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
                 height: detectedItem.height 
               }}
               exit={{ opacity: 0 }}
-              className="absolute border-[4px] border-[#22c55e] rounded-2xl shadow-[0_0_40px_rgba(34,197,94,0.6)]"
+              className="absolute border-[2px] border-[#22c55e] shadow-[0_0_15px_rgba(34,197,94,0.4)]"
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
                 {/* Internal Scanning Glow */}
@@ -140,30 +140,26 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
           ) : (
             /* CENTER TARGET: Clear sign for where to aim */
             <div className="absolute inset-0">
-                {/* Dark Vignette Overlay */}
-                <div className="absolute inset-0 bg-black/40" style={{ 
-                  maskImage: 'radial-gradient(circle at center 40%, transparent 120px, black 160px)',
-                  WebkitMaskImage: 'radial-gradient(circle at center 40%, transparent 120px, black 160px)'
+                {/* Lighter Vignette Overlay */}
+                <div className="absolute inset-0 bg-black/15" style={{ 
+                  maskImage: 'radial-gradient(circle at center 40%, transparent 120px, black 180px)',
+                  WebkitMaskImage: 'radial-gradient(circle at center 40%, transparent 120px, black 180px)'
                 }} />
 
                 <div className="absolute left-1/2 -translate-x-1/2 top-[40%] -translate-y-1/2 flex flex-col items-center gap-6">
-                  <div className="relative w-64 h-44 flex items-center justify-center">
-                      {/* Glowing Brackets */}
-                      <div className="absolute top-0 left-0 w-10 h-10 border-t-[3px] border-l-[3px] border-white/80 rounded-tl-2xl shadow-lg" />
-                      <div className="absolute top-0 right-0 w-10 h-10 border-t-[3px] border-r-[3px] border-white/80 rounded-tr-2xl shadow-lg" />
-                      <div className="absolute bottom-0 left-0 w-10 h-10 border-b-[3px] border-l-[3px] border-white/80 rounded-bl-2xl shadow-lg" />
-                      <div className="absolute bottom-0 right-0 w-10 h-10 border-b-[3px] border-r-[3px] border-white/80 rounded-br-2xl shadow-lg" />
+                  <div className="relative w-64 h-48 flex items-center justify-center">
+                      {/* Sharp White Corners (Sam's Club Style) */}
+                      <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-white shadow-sm" />
+                      <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-white shadow-sm" />
+                      <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-white shadow-sm" />
+                      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-white shadow-sm" />
                       
-                      {/* Center Laser Line */}
-                      <motion.div 
-                          animate={{ opacity: [0.3, 0.7, 0.3], scaleX: [0.98, 1.02, 0.98] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          className="w-[85%] h-[2px] bg-[#d97757] shadow-[0_0_15px_#d97757]" 
-                      />
+                      {/* Center Crosshair */}
+                      <div className="relative w-8 h-8 flex items-center justify-center opacity-80">
+                        <div className="absolute w-[2px] h-full bg-white shadow-sm" />
+                        <div className="absolute h-[2px] w-full bg-white shadow-sm" />
+                      </div>
                   </div>
-                  <p className="text-white/60 font-medium text-[13px] tracking-wide">
-                    Point camera at barcode
-                  </p>
                 </div>
             </div>
           )}

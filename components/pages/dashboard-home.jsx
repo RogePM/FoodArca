@@ -47,7 +47,7 @@ export function DashboardHome({ setActiveView }) {
   }, [pantryId, selectedRange]);
 
   return (
-    <div className="max-w-[1400px] mx-auto px-6 py-6 md:px-8 space-y-4 font-sans">
+    <div className="max-w-[1400px] mx-auto px-6 pt-6 pb-24 md:px-8 space-y-4 font-sans">
       <WelcomeModal />
 
       {/* SECTION 1: TODAY HERO (OPEN CANVAS LAYOUT WITH INTRA-DAY TIMELINE & 2 STAT CARDS) */}

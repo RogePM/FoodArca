@@ -122,13 +122,8 @@ export function OverviewGrid({
   if (loading) return <OverviewGridSkeleton />;
 
   // Time-series arrays
-  const intakeSeries = stats?.intakeTimeSeries?.length > 0 
-    ? stats.intakeTimeSeries 
-    : [{ date: 'Jul 16', amount: 0 }, { date: 'Jul 22', amount: 0 }];
-
-  const distributionSeries = stats?.distributionTimeSeries?.length > 0 
-    ? stats.distributionTimeSeries 
-    : [{ date: 'Jul 16', amount: 0 }, { date: 'Jul 22', amount: 0 }];
+  const intakeSeries = stats?.intakeTimeSeries || [];
+  const distributionSeries = stats?.distributionTimeSeries || [];
 
   const wasteSeries = stats?.wasteTimeSeries?.length > 0 
     ? stats.wasteTimeSeries 
@@ -167,7 +162,7 @@ export function OverviewGrid({
               <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] group-hover:text-[#4f566b] transition-colors" />
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" className="w-48 p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-50 animate-in fade-in-80 zoom-in-95">
+            <DropdownMenuContent align="start" className="w-48 p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-50 animate-in fade-in-80 zoom-in-95">
               {RANGE_OPTIONS.map((opt) => {
                 const isSelected = opt.key === selectedRange;
                 return (

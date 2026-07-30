@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { categories } from '@/lib/constants';
 import { 
   X, ShoppingBag, Plus, Minus, 
-  CheckCircle2, Package, Loader2, Keyboard 
+  CheckCircle2, Package, Loader2, Keyboard, ChevronLeft 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -46,13 +46,14 @@ export function MobileAddFlow({ onClose }) {
   const { pantryId } = usePantry();
 
   // --- CART STATE ---
-  const [cartItems, setCartItems] = useState(() => {
-    if (typeof window === 'undefined') return [];
+  const [cartItems, setCartItems] = useState([]);
+
+  useEffect(() => {
     try {
       const saved = sessionStorage.getItem('foodarca_staged_batch');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) { return []; }
-  });
+      if (saved) setCartItems(JSON.parse(saved));
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     try {
@@ -62,13 +63,14 @@ export function MobileAddFlow({ onClose }) {
 
   // --- VIEW ROUTING ---
   // activeView: 'CAMERA', 'CART', 'MANUAL_ENTRY'
-  const [activeView, setActiveView] = useState('CAMERA');
+  const [activeView, setActiveView] = useState('CART');
 
   // --- SCANNER & SHEET STATE ---
   // sheetState: 'CLOSED', 'KNOWN'
   const [sheetState, setSheetState] = useState('CLOSED'); 
   const [scannedItem, setScannedItem] = useState(null);
-  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [manualEntryReturnView, setManualEntryReturnView] = useState('CART');
+  const [pendingScans, setPendingScans] = useState(new Set()); // Queue system for concurrent scans
   const [toastMessage, setToastMessage] = useState(null); // { title: string, count: number }
   const [isAdding, setIsAdding] = useState(false);
   
@@ -81,11 +83,41 @@ export function MobileAddFlow({ onClose }) {
   const [formBarcode, setFormBarcode] = useState('');
   const [formExpDate, setFormExpDate] = useState('');
 
+  const lastScanRef = useRef({ code: null, time: 0 });
+
+  // --- INSTANT SYNC HELPERS (For Continuous Mode) ---
+  const syncQuantity = (newQty) => {
+    setFormQty(newQty);
+    if (!scannedItem?.id) return;
+    setCartItems(prev => prev.map(i => i.id === scannedItem.id ? { ...i, quantity: parseInt(newQty) || 1 } : i));
+  };
+
+  const syncExpDate = (newDate) => {
+    setFormExpDate(newDate);
+    if (!scannedItem?.id) return;
+    setCartItems(prev => prev.map(i => i.id === scannedItem.id ? { ...i, expirationDate: newDate } : i));
+  };
+
   // --- ACTIONS ---
   
   const handleScan = async (code) => {
-    if (sheetState !== 'CLOSED' || isLookingUp) return; // Prevent duplicate scans
-    setIsLookingUp(true);
+    // 1. Continuous Mode Debounce: 
+    // Prevent scanning the EXACT same barcode within 1.5 seconds.
+    const now = Date.now();
+    if (lastScanRef.current.code === code && (now - lastScanRef.current.time) < 1500) {
+      return;
+    }
+    
+    // 2. Concurrency Safety: Prevent duplicate lookups of the same barcode in flight
+    if (pendingScans.has(code)) return;
+
+    lastScanRef.current = { code, time: now };
+    
+    setPendingScans(prev => {
+      const newSet = new Set(prev);
+      newSet.add(code);
+      return newSet;
+    });
     setFormBarcode(code);
 
     try {
@@ -96,32 +128,58 @@ export function MobileAddFlow({ onClose }) {
       const data = await res.json();
       
       if (data.found && data.data) {
-        setScannedItem(data.data);
-        setFormName(data.data.name || '');
-        setFormCategory(data.data.category || categories[0].value);
+        // Continuous Mode: Auto-add 1 to batch instantly!
+        const autoAddedItem = {
+          id: crypto.randomUUID(),
+          barcode: code,
+          name: data.data.name || 'Unknown Item',
+          category: data.data.category || categories[0].value,
+          quantity: 1,
+          totalWeightLbs: data.data.weightPerUnit || 0,
+          unit: 'units',
+          expirationDate: ''
+        };
+        
+        setCartItems(prev => [autoAddedItem, ...prev]);
+
+        // Populate the Quick Edit Popup with this exact instance
+        setScannedItem(autoAddedItem); 
+        setFormName(autoAddedItem.name);
+        setFormCategory(autoAddedItem.category);
         setFormQty('1');
-        setFormWeight(data.data.weightPerUnit ? String(data.data.weightPerUnit) : '');
+        setFormWeight(autoAddedItem.totalWeightLbs ? String(autoAddedItem.totalWeightLbs) : '');
         setFormExpDate('');
         setSheetState('KNOWN');
+
+        // Optional haptic
+        if (navigator.vibrate) navigator.vibrate(100);
+
       } else {
         // Not found -> go to full screen manual entry
-        setScannedItem({ barcode: code });
-        setActiveView('MANUAL_ENTRY');
+        openManualEntry({ barcode: code }, 'CAMERA');
       }
     } catch (err) {
       console.error(err);
-      // Fallback to unknown if API fails
-      setScannedItem({ barcode: code });
-      setActiveView('MANUAL_ENTRY');
+      openManualEntry({ barcode: code }, 'CAMERA');
     } finally {
-      setIsLookingUp(false);
+      setPendingScans(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(code);
+        return newSet;
+      });
     }
+  };
+
+  const openManualEntry = (itemToEdit = null, returnTo = 'CAMERA') => {
+    setScannedItem(itemToEdit);
+    setSheetState('CLOSED');
+    setManualEntryReturnView(returnTo);
+    setActiveView('MANUAL_ENTRY');
   };
 
   const handleManualEntry = () => {
     const randomCode = `INT-${Math.floor(100000 + Math.random() * 900000)}`;
-    setScannedItem({ barcode: randomCode, isInternal: true });
-    setActiveView('MANUAL_ENTRY');
+    openManualEntry({ barcode: randomCode, isInternal: true }, 'CAMERA');
   };
 
   const closeSheet = () => {
@@ -189,23 +247,36 @@ export function MobileAddFlow({ onClose }) {
 
   if (activeView === 'CART') {
     return (
-      <MobileCartView 
-        onBack={() => setActiveView('CAMERA')} 
-        cartItems={cartItems}
-        setCartItems={setCartItems}
-        pantryId={pantryId}
-        onEdit={(item) => {
-          setScannedItem(item);
-          setActiveView('MANUAL_ENTRY');
-        }}
-      />
+      <AnimatePresence>
+        <MobileCartView 
+          cartItems={cartItems} 
+          setCartItems={setCartItems}
+          pantryId={pantryId}
+          onBack={(viewName) => {
+            // If called with no arguments (Back button), return to Dashboard
+            if (!viewName || typeof viewName !== 'string') {
+              if (onClose) onClose();
+              return;
+            }
+            if (viewName === 'MANUAL_ENTRY') {
+              const randomCode = `INT-${Math.floor(100000 + Math.random() * 900000)}`;
+              openManualEntry({ barcode: randomCode, isInternal: true }, 'CART');
+              return;
+            }
+            setActiveView(viewName);
+          }}
+          onEdit={(item) => {
+            openManualEntry(item, 'CART');
+          }}
+        />
+      </AnimatePresence>
     );
   }
 
   if (activeView === 'MANUAL_ENTRY') {
     return (
       <MobileManualEntryView 
-        onBack={() => setActiveView('CAMERA')} 
+        onBack={() => setActiveView(manualEntryReturnView)} 
         initialItem={scannedItem}
         onSave={(updatedItem) => {
           setCartItems(prev => {
@@ -215,7 +286,7 @@ export function MobileAddFlow({ onClose }) {
             }
             return [updatedItem, ...prev];
           });
-          setActiveView('CAMERA');
+          setActiveView(manualEntryReturnView);
           showToast(updatedItem.name, cartItems.length + (cartItems.find(i => i.id === updatedItem.id) ? 0 : 1));
         }}
       />
@@ -224,52 +295,38 @@ export function MobileAddFlow({ onClose }) {
 
   // default: activeView === 'CAMERA'
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col w-full h-[100dvh] bg-black overflow-hidden">
+    <div className="fixed inset-0 z-[9999] flex flex-col w-full h-[100dvh] bg-black overflow-hidden">
       
       {/* 1. BACKGROUND CAMERA LAYER (Unmounts when navigating away) */}
       <BarcodeScannerOverlay 
         onScan={handleScan}
-        isPaused={sheetState !== 'CLOSED' || isLookingUp}
+        isPaused={false} // True continuous mode! Never pause!
         showCloseButton={false} 
         className="absolute inset-0 z-0"
       />
 
       {/* 2. TOP CONTROLS */}
       <div className="absolute top-0 inset-x-0 p-4 pt-safe z-40 flex justify-between items-start pointer-events-none">
-        {onClose ? (
-          <Button 
-            variant="secondary" 
-            onClick={onClose} 
-            className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/20 shadow-lg pointer-events-auto"
-          >
-            <X className="h-6 w-6" />
-          </Button>
-        ) : <div />}
+        <Button 
+          variant="secondary" 
+          onClick={() => setActiveView('CART')}
+          className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 shadow-lg pointer-events-auto"
+        >
+          <ChevronLeft className="h-7 w-7" strokeWidth={2.5} />
+        </Button>
         
         <Button 
           variant="secondary" 
           onClick={handleManualEntry}
-          className="h-12 px-4 rounded-full bg-white/10 backdrop-blur-md text-white font-medium border border-white/20 shadow-lg pointer-events-auto flex items-center gap-2"
+          className="h-12 px-4 rounded-full bg-white/20 backdrop-blur-md text-white font-semibold text-[13px] tracking-wide border border-white/30 shadow-lg pointer-events-auto flex items-center gap-2"
         >
-          <Keyboard className="h-5 w-5" />
+          <Keyboard className="h-5 w-5" strokeWidth={2.5} />
           Manual
         </Button>
       </div>
 
-      {/* 3. CENTER LOADING / SUCCESS FLASH */}
+      {/* 3. CENTER SUCCESS FLASH (Loader Removed for Continuous Flow) */}
       <AnimatePresence>
-        {isLookingUp && (
-          <motion.div 
-            key="lookup-loader"
-            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
-          >
-            <div className="bg-black/60 backdrop-blur-md rounded-2xl p-6 flex flex-col items-center shadow-2xl pointer-events-auto">
-              <Loader2 className="h-10 w-10 text-white animate-spin mb-3" />
-              <p className="text-white font-semibold">Looking up...</p>
-            </div>
-          </motion.div>
-        )}
         {toastMessage && (
           <motion.div 
             key="toast"
@@ -295,29 +352,35 @@ export function MobileAddFlow({ onClose }) {
         )}
       </AnimatePresence>
 
-      {/* 4. FLOATING BATCH BUTTON */}
-      <AnimatePresence>
-        {sheetState === 'CLOSED' && (
-          <motion.div 
-            key="fab-batch"
-            initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-            className="absolute bottom-[calc(80px+env(safe-area-inset-bottom)+16px)] right-6 z-40"
-          >
-            <button
-              onClick={() => setActiveView('CART')}
-              className="h-16 px-6 rounded-full bg-white text-[#d97757] font-bold shadow-[0_8px_30px_rgba(0,0,0,0.2)] flex items-center gap-3 border-2 border-white active:scale-95 transition-transform"
-            >
-              <ShoppingBag className="h-6 w-6" strokeWidth={2.5} />
-              <span className="text-lg">Batch</span>
+      {/* 4. MINI-CART BAR (Replaces FAB) */}
+      <div className="absolute bottom-0 inset-x-0 bg-white shadow-[0_-20px_40px_rgba(0,0,0,0.12)] pb-[env(safe-area-inset-bottom)] z-40 pointer-events-auto">
+        <div className="h-[76px] px-6 flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <div className="relative">
+              <ShoppingBag className="w-[26px] h-[26px] text-[#1a1f36]" strokeWidth={2.5} />
               {cartItems.length > 0 && (
-                <span className="bg-[#d97757] text-white h-7 min-w-[28px] px-2 rounded-full flex items-center justify-center text-sm">
+                <div className="absolute -top-1.5 -right-2 bg-[#FF3B30] text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
                   {cartItems.length}
-                </span>
+                </div>
               )}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[15px] font-bold text-[#1a1f36] tracking-tight">
+                {cartItems.length === 0 ? 'Batch is empty' : `${cartItems.length} items staged`}
+              </span>
+              {cartItems.length > 0 && (
+                <span className="text-[13px] font-medium text-[#8792a2]">Ready for intake</span>
+              )}
+            </div>
+          </div>
+          <Button
+            onClick={() => setActiveView('CART')}
+            className="h-11 px-5 rounded-full bg-[#f4f4f6] text-[#1a1f36] font-bold text-[14px] hover:bg-gray-200"
+          >
+            View Cart
+          </Button>
+        </div>
+      </div>
 
       {/* 5. BOTTOM SHEETS (Only Known Item left) */}
       <AnimatePresence>
@@ -331,87 +394,70 @@ export function MobileAddFlow({ onClose }) {
           />
         )}
 
-        {/* KNOWN ITEM SHEET */}
+        {/* INLINE "ITEM ADDED" POPUP (For Continuous Scanning) */}
         {sheetState === 'KNOWN' && (
           <motion.div 
-            key="known-sheet"
-            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="absolute bottom-0 inset-x-0 z-50 bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.2)] pb-[calc(80px+env(safe-area-inset-bottom))] flex flex-col max-h-[70vh]"
+            key="known-popup"
+            initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} 
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="absolute bottom-[calc(76px+12px+env(safe-area-inset-bottom))] inset-x-4 z-50 bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.2)] p-4 border border-gray-100"
           >
-            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto my-3" />
-            <div className="px-6 pb-6 overflow-y-auto">
-              <div className="flex items-start gap-4 mb-6">
-                {scannedItem?.photoUrl ? (
-                  <img src={scannedItem.photoUrl} alt="" className="w-16 h-16 rounded-xl object-cover border border-gray-100 shadow-sm shrink-0" />
-                ) : (
-                  <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
-                    <Package className="h-8 w-8 text-gray-400" />
-                  </div>
-                )}
-                <div className="flex-1 pt-1">
-                  <h3 className="text-[18px] font-bold text-gray-900 leading-tight mb-1">{formName}</h3>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 text-[12px] font-semibold text-gray-600">
-                    {React.createElement(getCategoryMeta(formCategory).icon, { className: "w-3.5 h-3.5" })}
-                    {getCategoryMeta(formCategory).name}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-[13px] font-bold text-gray-700 mb-3">Quantity to Add</label>
-                <div className="flex items-center justify-center gap-6 bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                  <button 
-                    onClick={() => setFormQty(prev => String(Math.max(1, parseInt(prev || '1') - 1)))}
-                    className="h-12 w-12 rounded-full bg-white shadow-sm border border-gray-200 flex items-center justify-center text-gray-600 active:scale-90"
-                  >
-                    <Minus className="w-6 h-6" />
-                  </button>
-                  <input 
-                    type="number" 
-                    value={formQty} 
-                    onChange={(e) => setFormQty(e.target.value)}
-                    className="w-20 bg-transparent text-center text-3xl font-black text-gray-900 outline-none"
-                  />
-                  <button 
-                    onClick={() => setFormQty(prev => String(parseInt(prev || '1') + 1))}
-                    className="h-12 w-12 rounded-full bg-white shadow-sm border border-gray-200 flex items-center justify-center text-gray-600 active:scale-90"
-                  >
-                    <Plus className="w-6 h-6" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mb-8">
-                <MobileFieldLabel label="Expiration Date" optional>
-                  <input 
-                    type="date" 
-                    value={formExpDate} 
-                    onChange={e => setFormExpDate(e.target.value)}
-                    className="w-full h-[52px] px-4 rounded-xl border border-gray-200/80 bg-white text-[16px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all max-w-full box-border"
-                  />
-                </MobileFieldLabel>
-              </div>
-
-              <button 
-                onClick={addToBatch}
-                disabled={isAdding}
-                className={`w-full h-14 rounded-2xl font-bold text-[16px] shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
-                  isAdding 
-                    ? 'bg-emerald-500 text-white shadow-[0_8px_20px_rgba(16,185,129,0.3)]' 
-                    : 'bg-[#d97757] text-white shadow-[0_8px_20px_rgba(217,119,87,0.3)]'
-                }`}
-              >
-                {isAdding ? (
-                  <><CheckCircle2 className="w-6 h-6" strokeWidth={2.5} /> Added</>
-                ) : (
-                  <><Plus className="w-5 h-5" strokeWidth={3} /> Add to Batch</>
-                )}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[13px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Item Added
+              </span>
+              <button onClick={() => setSheetState('CLOSED')} className="text-[#8792a2] text-[13px] font-bold underline active:opacity-70">
+                Dismiss
               </button>
+            </div>
+
+            <div className="flex items-start gap-4 mb-4">
+              {scannedItem?.photoUrl ? (
+                <img src={scannedItem.photoUrl} alt="" className="w-14 h-14 rounded-lg object-cover border border-gray-100 shadow-sm shrink-0" />
+              ) : (
+                <div className="w-14 h-14 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
+                  <Package className="h-7 w-7 text-gray-400" />
+                </div>
+              )}
+              <div className="flex-1 pt-0.5">
+                <h3 className="text-[16px] font-bold text-[#1a1f36] leading-tight mb-1">{formName}</h3>
+                <div className="text-[13px] font-medium text-[#8792a2]">
+                  {formWeight ? `${formWeight} ${formWeightUnit}` : getCategoryMeta(formCategory).name}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              {/* QUANTITY */}
+              <div className="flex-1 flex items-center justify-between bg-gray-50 rounded-xl p-1.5 border border-gray-100">
+                <button 
+                  onClick={() => syncQuantity(String(Math.max(1, parseInt(formQty || '1') - 1)))}
+                  className="h-10 w-10 rounded-lg bg-white shadow-sm flex items-center justify-center text-[#4f566b] active:scale-95"
+                >
+                  <Minus className="w-5 h-5" strokeWidth={2.5} />
+                </button>
+                <span className="text-[18px] font-black text-[#1a1f36] px-2">{formQty}</span>
+                <button 
+                  onClick={() => syncQuantity(String(parseInt(formQty || '1') + 1))}
+                  className="h-10 w-10 rounded-lg bg-white shadow-sm flex items-center justify-center text-[#4f566b] active:scale-95"
+                >
+                  <Plus className="w-5 h-5" strokeWidth={2.5} />
+                </button>
+              </div>
+
+              {/* EXP DATE */}
+              <div className="flex-1">
+                <input 
+                  type="date" 
+                  value={formExpDate} 
+                  onChange={e => syncExpDate(e.target.value)}
+                  className="w-full h-full min-h-[52px] px-3 rounded-xl border border-gray-100 bg-gray-50 text-[13px] font-bold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors"
+                />
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }

@@ -84,6 +84,7 @@ export default function DashboardClientApp({ initialUser, initialPantryId }) {
           animate="animate"
           exit="exit"
           transition={{ type: 'tween', duration: 0.3 }}
+          className="flex-1 flex flex-col h-full w-full"
         >
           {renderView()}
         </motion.div>

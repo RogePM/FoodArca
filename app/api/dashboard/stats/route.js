@@ -177,41 +177,75 @@ export async function GET(req) {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5);
 
-    // 3. Fetch Historical Stats from daily_org_stats filtered by Date Range
-    const { data: dailyStats } = await auth.supabase
-      .from('daily_org_stats')
-      .select('stat_date, lbs_in, lbs_out, lbs_wasted, distinct_categories, distinct_volunteers')
+    // 3. Fetch Historical Stats dynamically from activity_logs filtered by Date Range
+    const { data: logStats } = await auth.supabase
+      .from('activity_logs')
+      .select('created_at, action_type, total_weight_lbs_changed, quantity_changed')
       .eq('organization_id', orgId)
-      .gte('stat_date', startDateYMD)
-      .order('stat_date', { ascending: true });
+      .gte('created_at', startDateISO);
 
     let totalLbsIn = 0;
     let totalLbsOut = 0;
     let totalLbsWasted = 0;
-    let maxCategories = 0;
-    let maxVolunteers = 0;
+    let maxCategories = 0; // Legacy fallback
+    let maxVolunteers = 0; // Legacy fallback
 
     const intakeTimeSeries = [];
     const distributionTimeSeries = [];
     const wasteTimeSeries = [];
 
-    (dailyStats || []).forEach(row => {
-      const dateLabel = new Date(row.stat_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const lbsIn = Number(row.lbs_in || 0);
-      const lbsOut = Number(row.lbs_out || 0);
-      const lbsWasted = Number(row.lbs_wasted || 0);
+    // Pre-fill zero-padded date arrays for the selected range (up to 'now')
+    const generateEmptySeries = (startD, endD) => {
+      const arr = [];
+      const cur = new Date(startD);
+      // For 'all' range, cap the padding to the last 30 days to avoid huge arrays
+      if (rangeParam === 'all') {
+        const thirtyDaysAgo = new Date(endD);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        if (cur < thirtyDaysAgo) cur.setTime(thirtyDaysAgo.getTime());
+      }
+      while (cur <= endD) {
+        const ymd = cur.toISOString().split('T')[0];
+        arr.push({ dateStr: ymd, date: cur.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), amount: 0 });
+        cur.setDate(cur.getDate() + 1);
+      }
+      return arr;
+    };
 
-      totalLbsIn += lbsIn;
-      totalLbsOut += lbsOut;
-      totalLbsWasted += lbsWasted;
+    const emptyIntake = generateEmptySeries(startDate, now);
+    const emptyDist = generateEmptySeries(startDate, now);
+    const emptyWaste = generateEmptySeries(startDate, now);
 
-      if ((row.distinct_categories || 0) > maxCategories) maxCategories = row.distinct_categories;
-      if ((row.distinct_volunteers || 0) > maxVolunteers) maxVolunteers = row.distinct_volunteers;
+    // Build lookup maps by YMD
+    const intakeMap = new Map(emptyIntake.map(i => [i.dateStr, i]));
+    const distMap = new Map(emptyDist.map(i => [i.dateStr, i]));
+    const wasteMap = new Map(emptyWaste.map(i => [i.dateStr, i]));
 
-      intakeTimeSeries.push({ date: dateLabel, amount: lbsIn });
-      distributionTimeSeries.push({ date: dateLabel, amount: lbsOut });
-      wasteTimeSeries.push({ date: dateLabel, amount: lbsWasted });
+    (logStats || []).forEach(log => {
+      const logDate = new Date(log.created_at);
+      const ymd = logDate.toISOString().split('T')[0];
+      const action = (log.action_type || '').toLowerCase();
+      const lbs = Math.abs(Number(log.total_weight_lbs_changed || log.quantity_changed || 0));
+
+      const isIntake = action.includes('in') || action.includes('intake') || action.includes('receive');
+      const isDist = action.includes('out') || action.includes('distribut') || action.includes('checkout');
+      const isWaste = action.includes('waste') || action.includes('disposal') || action.includes('audit');
+
+      if (isIntake) {
+        totalLbsIn += lbs;
+        if (intakeMap.has(ymd)) intakeMap.get(ymd).amount += lbs;
+      } else if (isDist) {
+        totalLbsOut += lbs;
+        if (distMap.has(ymd)) distMap.get(ymd).amount += lbs;
+      } else if (isWaste) {
+        totalLbsWasted += lbs;
+        if (wasteMap.has(ymd)) wasteMap.get(ymd).amount += lbs;
+      }
     });
+
+    intakeMap.forEach(v => intakeTimeSeries.push({ date: v.date, amount: parseFloat(v.amount.toFixed(1)) }));
+    distMap.forEach(v => distributionTimeSeries.push({ date: v.date, amount: parseFloat(v.amount.toFixed(1)) }));
+    wasteMap.forEach(v => wasteTimeSeries.push({ date: v.date, amount: parseFloat(v.amount.toFixed(1)) }));
 
     // 4. Intra-day Timeline & Today/Yesterday Stats from activity_logs & daily_org_stats
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -275,14 +309,12 @@ export async function GET(req) {
       }
     });
 
-    // Fallback yesterday values from daily_org_stats if activity logs were missing
-    if (yesterdayIntakeLbs === 0 || yesterdayDistributedLbs === 0) {
-      const yesterdayStat = (dailyStats || []).find(s => s.stat_date === yesterdayYMD);
-      if (yesterdayStat) {
-        if (yesterdayIntakeLbs === 0) yesterdayIntakeLbs = Number(yesterdayStat.lbs_in || 0);
-        if (yesterdayDistributedLbs === 0) yesterdayDistributedLbs = Number(yesterdayStat.lbs_out || 0);
-        if (yesterdayWasteLbs === 0) yesterdayWasteLbs = Number(yesterdayStat.lbs_wasted || 0);
-      }
+    // Fallback yesterday values
+    if (yesterdayIntakeLbs === 0 && distMap) {
+      const yYMD = yesterdayDate.toISOString().split('T')[0];
+      if (intakeMap.has(yYMD)) yesterdayIntakeLbs = intakeMap.get(yYMD).amount;
+      if (distMap.has(yYMD)) yesterdayDistributedLbs = distMap.get(yYMD).amount;
+      if (wasteMap.has(yYMD)) yesterdayWasteLbs = wasteMap.get(yYMD).amount;
     }
 
     const todayHeroTimeline = Object.keys(intakeBuckets).map(time => ({
@@ -341,7 +373,7 @@ export async function GET(req) {
       inventoryCount: Math.round(currentStockUnits),
       totalPeopleServed,
       totalValue,
-      totalWeight: parseFloat(totalLbsOut.toFixed(2)),
+      totalWeight: parseFloat(totalLbsIn.toFixed(2)),
       totalItemsDistributed: parseFloat(totalLbsOut.toFixed(2)),
       billing: {
         totalSkus: itemMap.size,
