@@ -124,7 +124,7 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
             </p>
             <button 
               onClick={() => setShowHowItWorks(true)}
-              className="text-[#d97757] text-[15px] font-bold hover:underline active:opacity-70"
+              className="text-[#006bb6] text-[15px] font-bold hover:underline active:opacity-70"
             >
               How it works
             </button>
@@ -309,7 +309,7 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
                   </div>
                   
                   <div className="flex gap-4 items-start">
-                    <div className="bg-emerald-500/10 p-2.5 rounded-xl text-emerald-600 shrink-0">
+                    <div className="bg-[#d97757]/10 p-2.5 rounded-xl text-[#d97757] shrink-0">
                       <CheckCircle2 className="w-6 h-6" strokeWidth={2.5}/>
                     </div>
                     <div>

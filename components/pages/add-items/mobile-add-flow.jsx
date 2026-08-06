@@ -10,6 +10,12 @@ import {
   CheckCircle2, Package, Loader2, Keyboard, ChevronLeft, ChevronDown, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 
 // Helper for labels
 function MobileFieldLabel({ label, optional, children }) {
@@ -67,10 +73,13 @@ export function MobileAddFlow({ onClose }) {
 
   // --- SCANNER & SHEET STATE ---
   // sheetState: 'CLOSED', 'KNOWN'
-  const [sheetState, setSheetState] = useState('CLOSED'); 
+  const [sheetState, setSheetState] = useState('CLOSED');
   const [scannedItem, setScannedItem] = useState(null);
   const [manualEntryReturnView, setManualEntryReturnView] = useState('CART');
-  const [pendingScans, setPendingScans] = useState(new Set()); // Queue system for concurrent scans
+  // Pure bookkeeping, not rendered — kept as a ref so a scan-in-flight doesn't
+  // re-render the component (a re-render here recreates handleScan, which used
+  // to force the camera to tear down and reacquire mid-scan; see BarcodeScannerOverlay).
+  const pendingScansRef = useRef(new Set());
   const [toastMessage, setToastMessage] = useState(null); // { title: string, count: number }
   const [isAdding, setIsAdding] = useState(false);
   
@@ -83,7 +92,6 @@ export function MobileAddFlow({ onClose }) {
   const [formBarcode, setFormBarcode] = useState('');
   const [formExpDate, setFormExpDate] = useState('');
   const [formUnit, setFormUnit] = useState('units');
-  const [unitDropOpen, setUnitDropOpen] = useState(false);
 
   const QUICK_UNIT_OPTIONS = [
     { value: 'units', label: 'Units' },
@@ -120,15 +128,10 @@ export function MobileAddFlow({ onClose }) {
     }
     
     // 2. Concurrency Safety: Prevent duplicate lookups of the same barcode in flight
-    if (pendingScans.has(code)) return;
+    if (pendingScansRef.current.has(code)) return;
 
     lastScanRef.current = { code, time: now };
-    
-    setPendingScans(prev => {
-      const newSet = new Set(prev);
-      newSet.add(code);
-      return newSet;
-    });
+    pendingScansRef.current.add(code);
     setFormBarcode(code);
 
     try {
@@ -160,7 +163,6 @@ export function MobileAddFlow({ onClose }) {
         setFormWeight(pendingItem.totalWeightLbs ? String(pendingItem.totalWeightLbs) : '');
         setFormExpDate('');
         setFormUnit(pendingItem.unit || 'units');
-        setUnitDropOpen(false);
         setSheetState('KNOWN');
 
         // Optional haptic
@@ -174,11 +176,7 @@ export function MobileAddFlow({ onClose }) {
       console.error(err);
       openManualEntry({ barcode: code }, 'CART');
     } finally {
-      setPendingScans(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(code);
-        return newSet;
-      });
+      pendingScansRef.current.delete(code);
     }
   };
 
@@ -408,34 +406,34 @@ export function MobileAddFlow({ onClose }) {
 
         {/* FAST INTAKE POPUP (For Known Barcodes) */}
         {sheetState === 'KNOWN' && (
-          <motion.div 
+          <motion.div
             key="known-popup"
-            initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} 
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="absolute bottom-[calc(76px+12px+env(safe-area-inset-bottom))] inset-x-4 z-50 bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)] border border-gray-100"
+            initial={{ y: 40, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 40, opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", damping: 28, stiffness: 260 }}
+            className="absolute bottom-[calc(76px+12px+env(safe-area-inset-bottom))] inset-x-4 z-50 bg-white rounded-[24px] shadow-[0_20px_50px_-10px_rgba(26,31,54,0.35)] border border-gray-100 overflow-hidden"
           >
             {/* Header */}
-            <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[13px] font-bold text-[#d97757] bg-[#fff0eb] px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+            <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[12px] font-bold text-[#d97757] bg-[#fff0eb] px-2.5 py-1 rounded-full flex items-center gap-1.5 tracking-wide">
                   <Package className="w-3.5 h-3.5" /> Item Found
                 </span>
-                <button onClick={() => setSheetState('CLOSED')} className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center text-[#8792a2] active:bg-gray-200">
+                <button onClick={() => setSheetState('CLOSED')} className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-[#8792a2] active:bg-gray-200 transition-colors shrink-0">
                   <X className="w-4 h-4" strokeWidth={2.5} />
                 </button>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3.5 min-w-0">
                 {scannedItem?.photoUrl ? (
-                  <img src={scannedItem.photoUrl} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-100 shadow-sm shrink-0" />
+                  <img src={scannedItem.photoUrl} alt="" className="w-14 h-14 rounded-2xl object-cover border border-gray-100 shadow-sm shrink-0" />
                 ) : (
-                  <div className="w-12 h-12 rounded-xl bg-[#fff0eb] border border-[#d97757]/10 flex items-center justify-center shrink-0">
+                  <div className="w-14 h-14 rounded-2xl bg-[#fff0eb] border border-[#d97757]/10 flex items-center justify-center shrink-0">
                     <Package className="h-6 w-6 text-[#d97757]" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-[15px] font-bold text-[#1a1f36] leading-tight truncate">{formName}</h3>
-                  <p className="text-[12px] font-medium text-[#8792a2] mt-0.5">
+                  <h3 className="text-[16px] font-bold text-[#1a1f36] leading-tight tracking-tight truncate">{formName}</h3>
+                  <p className="text-[12px] font-medium text-[#8792a2] mt-1 truncate">
                     {formWeight ? `${formWeight} ${formWeightUnit} · ` : ''}{getCategoryMeta(formCategory).name}
                   </p>
                 </div>
@@ -443,21 +441,22 @@ export function MobileAddFlow({ onClose }) {
             </div>
 
             {/* Controls */}
-            <div className="px-4 py-3.5 space-y-3">
+            <div className="px-5 py-4 space-y-4">
 
               {/* Row 1: Quantity + Unit */}
-              <div className="flex gap-2.5">
+              <div className="flex gap-3 min-w-0">
                 {/* Quantity Stepper */}
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Qty</span>
-                  <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200/80 h-[48px]">
-                    <button 
+                  <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200/80 h-[48px] min-w-0">
+                    <button
+                      type="button"
                       onClick={() => syncQuantity(String(Math.max(1, parseInt(formQty || '1') - 1)))}
-                      className="h-full w-12 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-l-xl transition-colors"
+                      className="h-full w-11 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-l-xl transition-colors"
                     >
                       <Minus className="w-4 h-4" strokeWidth={2.5} />
                     </button>
-                    <input 
+                    <input
                       type="text"
                       inputMode="numeric"
                       value={formQty}
@@ -465,45 +464,43 @@ export function MobileAddFlow({ onClose }) {
                         const val = e.target.value.replace(/[^0-9]/g, '');
                         syncQuantity(val || '1');
                       }}
-                      className="flex-1 text-center text-[18px] font-black text-[#1a1f36] bg-transparent outline-none h-full min-w-0"
+                      className="w-0 flex-1 min-w-0 text-center text-[18px] font-black text-[#1a1f36] bg-transparent outline-none h-full"
                     />
-                    <button 
+                    <button
+                      type="button"
                       onClick={() => syncQuantity(String(parseInt(formQty || '1') + 1))}
-                      className="h-full w-12 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-r-xl transition-colors"
+                      className="h-full w-11 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-r-xl transition-colors"
                     >
                       <Plus className="w-4 h-4" strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
 
-                {/* Unit Dropdown */}
-                <div className="w-[120px] relative">
+                {/* Unit Dropdown (Radix — portal-based, can never clip/overflow the sheet) */}
+                <div className="w-[112px] shrink-0">
                   <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Counted as</span>
-                  <button 
-                    onClick={() => setUnitDropOpen(!unitDropOpen)}
-                    className="w-full h-[48px] px-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[13px] font-bold text-[#1a1f36] flex items-center justify-between active:bg-gray-100 transition-colors"
-                  >
-                    <span>{QUICK_UNIT_OPTIONS.find(o => o.value === formUnit)?.label || 'Units'}</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] shrink-0" />
-                  </button>
-                  {unitDropOpen && (
-                    <div className="absolute bottom-full mb-1.5 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 max-h-[200px] overflow-y-auto">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="w-full h-[48px] px-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[13px] font-bold text-[#1a1f36] flex items-center justify-between outline-none data-[state=open]:border-[#d97757] data-[state=open]:bg-white transition-colors">
+                      <span className="truncate">{QUICK_UNIT_OPTIONS.find(o => o.value === formUnit)?.label || 'Units'}</span>
+                      <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] shrink-0" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-36 p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[60]">
                       {QUICK_UNIT_OPTIONS.map(opt => (
-                        <button
+                        <DropdownMenuItem
                           key={opt.value}
-                          onClick={() => { syncUnit(opt.value); setUnitDropOpen(false); }}
-                          className={`w-full text-left px-3 py-2 text-[13px] flex items-center justify-between transition-colors ${
-                            formUnit === opt.value 
-                              ? 'bg-gray-50 text-[#d97757] font-bold' 
-                              : 'text-[#3c4257] font-medium active:bg-gray-50'
+                          onClick={() => syncUnit(opt.value)}
+                          className={`flex items-center justify-between px-3 py-2 text-[13px] rounded-lg cursor-pointer ${
+                            formUnit === opt.value
+                              ? 'bg-[#fff0eb] text-[#d97757] font-bold'
+                              : 'text-[#3c4257] font-medium'
                           }`}
                         >
                           <span>{opt.label}</span>
                           {formUnit === opt.value && <Check className="h-3.5 w-3.5 text-[#d97757]" />}
-                        </button>
+                        </DropdownMenuItem>
                       ))}
-                    </div>
-                  )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
@@ -512,12 +509,12 @@ export function MobileAddFlow({ onClose }) {
                 <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Expiration Date</span>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#a3acb9] pointer-events-none z-10" />
-                  <input 
-                    type="date" 
-                    value={formExpDate} 
+                  <input
+                    type="date"
+                    value={formExpDate}
                     onChange={e => syncExpDate(e.target.value)}
                     placeholder="MM/DD/YYYY"
-                    className="w-full h-[48px] pl-9 pr-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[16px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors appearance-none box-border max-w-full"
+                    className="w-full h-[48px] pl-9 pr-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors appearance-none box-border"
                     style={{ colorScheme: 'light' }}
                   />
                   {!formExpDate && (
@@ -530,8 +527,8 @@ export function MobileAddFlow({ onClose }) {
             </div>
 
             {/* Confirm Button */}
-            <div className="px-4 pb-4 pt-1">
-              <button 
+            <div className="px-5 pb-5 pt-1">
+              <button
                 onClick={() => {
                   // Confirmed — NOW add to cart
                   const confirmedItem = {
@@ -554,7 +551,7 @@ export function MobileAddFlow({ onClose }) {
                   closeSheet();
                   showToast(confirmedItem.name, cartItems.length + 1);
                 }}
-                className="w-full h-[48px] rounded-xl bg-[#d97757] text-white font-bold text-[14px] active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(217,119,87,0.3)]"
+                className="w-full h-[50px] rounded-2xl bg-[#d97757] text-white font-bold text-[14px] active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-[0_8px_20px_-4px_rgba(217,119,87,0.45)]"
               >
                 <Plus className="w-4 h-4" strokeWidth={3} />
                 Add to Batch

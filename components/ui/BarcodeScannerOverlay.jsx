@@ -12,6 +12,17 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
   const [detectedItem, setDetectedItem] = useState(null);
   const [useNative, setUseNative] = useState(false);
 
+  // onScan/isPaused change identity on every parent re-render (e.g. while a scan
+  // is being looked up). Read them via refs inside the hunt loops instead of
+  // closing over the props directly, so neither engine's setup effect below has
+  // to depend on them — that dependency was tearing down and re-acquiring the
+  // camera (getUserMedia/video.play() race) on every re-render, which is what
+  // made scans feel slow/glitchy even though per-frame detection itself was fine.
+  const onScanRef = useRef(onScan);
+  useEffect(() => { onScanRef.current = onScan; }, [onScan]);
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+
   // 1. Detect if the device supports the native high-speed GPU engine
   useEffect(() => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
@@ -49,11 +60,11 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
     };
 
     const nativeHunt = async () => {
-      if (isPaused) {
+      if (isPausedRef.current) {
         animationFrameId = requestAnimationFrame(nativeHunt);
         return;
       }
-      
+
       if (videoRef.current?.readyState === 4) {
         try {
           const barcodes = await detector.detect(videoRef.current);
@@ -65,10 +76,10 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
             const scaleY = rect.height / video.videoHeight;
 
             setDetectedItem({ left: x * scaleX, top: y * scaleY, width: width * scaleX, height: height * scaleY });
-            
+
             // Physical vibration feedback
             if (navigator.vibrate) navigator.vibrate(60);
-            onScan(barcodes[0].rawValue);
+            onScanRef.current(barcodes[0].rawValue);
             return;
           } else { setDetectedItem(null); }
         } catch (e) { console.error(e); }
@@ -81,7 +92,7 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
       cancelAnimationFrame(animationFrameId);
       if (videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t => t.stop());
     };
-  }, [useNative, onScan, isPaused]);
+  }, [useNative]);
 
   // --- ENGINE B: Fallback Optimized (iOS Safari) ---
   const zxingConstraints = useMemo(() => ({
@@ -94,16 +105,21 @@ export function BarcodeScannerOverlay({ onScan, onClose, isPaused = false, class
     }
   }), []);
 
-  const { ref: zxingRef } = useZxing({
+  // Memoized so this options object only changes identity when useNative flips
+  // (once, on mount) — otherwise react-zxing tears down and replays the video
+  // on every parent re-render, racing its own play()/pause() calls.
+  const zxingOptions = useMemo(() => ({
     paused: useNative, // Do not toggle this rapidly with isPaused, it causes browser .play() race conditions
     onDecodeResult(result) {
-      if (isPaused) return; // Ignore scans while sheet is open or looking up
+      if (isPausedRef.current) return; // Ignore scans while sheet is open or looking up
       if (navigator.vibrate) navigator.vibrate(60);
-      onScan(result.getText());
+      onScanRef.current(result.getText());
     },
     constraints: zxingConstraints,
     timeBetweenDecodingAttempts: 100, // Ultra-fast polling
-  });
+  }), [useNative, zxingConstraints]);
+
+  const { ref: zxingRef } = useZxing(zxingOptions);
 
   return (
     <div className={`${className} bg-black overflow-hidden touch-none select-none`}>
