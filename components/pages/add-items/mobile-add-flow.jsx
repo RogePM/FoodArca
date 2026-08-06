@@ -39,6 +39,12 @@ const BarcodeScannerOverlay = dynamic(
   { ssr: false }
 );
 
+function formatExpDateDisplay(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function getCategoryMeta(catName) {
   const safeStr = String(catName || '').toLowerCase();
   const found = categories.find(
@@ -484,7 +490,7 @@ export function MobileAddFlow({ onClose }) {
                       <span className="truncate">{QUICK_UNIT_OPTIONS.find(o => o.value === formUnit)?.label || 'Units'}</span>
                       <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] shrink-0" />
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-36 p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[60]">
+                    <DropdownMenuContent align="end" className="w-36 p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[10050]">
                       {QUICK_UNIT_OPTIONS.map(opt => (
                         <DropdownMenuItem
                           key={opt.value}
@@ -509,18 +515,32 @@ export function MobileAddFlow({ onClose }) {
                 <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Expiration Date</span>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#a3acb9] pointer-events-none z-10" />
+                  {/* The input's own text/placeholder is hidden (text-transparent) — every
+                      browser renders its native date placeholder differently (iOS shows
+                      none, Chrome/Android show their own "mm/dd/yyyy" regardless of the
+                      placeholder attribute), so we render one consistent label ourselves
+                      instead of layering a second one on top and doubling up. */}
                   <input
                     type="date"
                     value={formExpDate}
                     onChange={e => syncExpDate(e.target.value)}
-                    placeholder="MM/DD/YYYY"
-                    className="w-full h-[48px] pl-9 pr-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors appearance-none box-border"
+                    className="w-full h-[48px] pl-9 pr-9 rounded-xl border border-gray-200/80 bg-gray-50 text-transparent caret-transparent outline-none focus:border-[#d97757] focus:bg-white transition-colors appearance-none box-border"
                     style={{ colorScheme: 'light' }}
                   />
-                  {!formExpDate && (
-                    <span className="absolute left-9 top-1/2 -translate-y-1/2 text-[14px] font-medium text-[#a3acb9] pointer-events-none">
-                      No date set
-                    </span>
+                  <span className={`absolute left-9 right-9 top-1/2 -translate-y-1/2 truncate pointer-events-none text-[15px] ${formExpDate ? 'font-semibold text-[#1a1f36]' : 'font-medium text-[#a3acb9]'}`}>
+                    {formExpDate ? formatExpDateDisplay(formExpDate) : 'No date set'}
+                  </span>
+                  {/* Explicit clear button — appearance-none above also hides the
+                      browser's own native "clear" control, so this is the only way
+                      to reset the date once one is picked. */}
+                  {formExpDate && (
+                    <button
+                      type="button"
+                      onClick={() => syncExpDate('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 active:bg-gray-300 transition-colors z-10"
+                    >
+                      <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </button>
                   )}
                 </div>
               </div>
