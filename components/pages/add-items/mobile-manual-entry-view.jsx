@@ -2,14 +2,8 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Save, AlertCircle, Plus, Settings2, ChevronDown, Check, Calendar, X } from 'lucide-react';
+import { ChevronLeft, Save, AlertCircle, Plus, Minus, Settings2, ChevronDown, Calendar, X } from 'lucide-react';
 import { categories } from '@/lib/constants';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
 
 function formatExpDateDisplay(dateStr) {
   if (!dateStr) return '';
@@ -49,76 +43,6 @@ function MobileFieldLabel({ label, required, optional, hint, children }) {
 function SectionLabel({ children }) {
   return (
     <span className="text-[12px] font-medium text-[#c1c7d0] ml-1">{children}</span>
-  );
-}
-
-// Shared dropdown for every "pick one" field on this form — a styled trigger
-// backed by Radix's portal-rendered content, so options can never get clipped
-// by a card's rounded corners/overflow the way a plain <select> or a manually
-// absolutely-positioned menu could. Font stays 16px so iOS doesn't zoom on tap.
-function FieldSelect({ value, onChange, options, placeholder = 'Select...' }) {
-  const selected = options.find(o => o.value === value);
-  const SelectedIcon = selected?.Icon;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="w-full h-[52px] px-4 rounded-xl border border-gray-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none flex items-center justify-between text-[16px] font-medium text-[#1a1f36] data-[state=open]:border-[#d97757] data-[state=open]:ring-2 data-[state=open]:ring-[#d97757]/10 transition-all">
-        <span className="flex items-center gap-2.5 truncate min-w-0">
-          {SelectedIcon && <SelectedIcon className={`h-4 w-4 shrink-0 ${selected.iconClass || 'text-[#8792a2]'}`} strokeWidth={2} />}
-          <span className="truncate">{selected?.label || placeholder}</span>
-        </span>
-        <ChevronDown className="h-4 w-4 text-[#a3acb9] shrink-0" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="w-[var(--radix-dropdown-menu-trigger-width)] p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[10050] max-h-[280px] overflow-y-auto"
-      >
-        {options.map(opt => {
-          const isSelected = value === opt.value;
-          const OptIcon = opt.Icon;
-          return (
-            <DropdownMenuItem
-              key={opt.value}
-              onClick={() => onChange(opt.value)}
-              className={`flex items-center gap-2.5 px-3 py-2.5 text-[14px] rounded-lg cursor-pointer ${isSelected ? 'bg-[#fff0eb] text-[#d97757] font-bold' : 'text-[#3c4257] font-medium'}`}
-            >
-              {OptIcon && <OptIcon className={`h-4 w-4 shrink-0 ${isSelected ? 'text-[#d97757]' : (opt.iconClass || 'text-[#8792a2]')}`} strokeWidth={2} />}
-              <span className="truncate flex-1">{opt.label}</span>
-              {isSelected && <Check className="h-3.5 w-3.5 text-[#d97757] shrink-0" />}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-// Compact variant of FieldSelect for the unit dropdowns that sit merged
-// into a number input's own box (Quantity, Per-Unit Weight) — same Radix
-// portal-based popup, just without its own border/background since the
-// parent wrapper already supplies that.
-function InlineUnitSelect({ value, onChange, options }) {
-  const selected = options.find(o => o.value === value);
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="h-full w-full pl-3 pr-8 flex items-center text-[16px] font-bold text-[#1a1f36] outline-none data-[state=open]:bg-white transition-colors">
-        <span className="truncate">{selected?.label || options[0]?.label}</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40 p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[10050] max-h-[280px] overflow-y-auto">
-        {options.map(opt => {
-          const isSelected = value === opt.value;
-          return (
-            <DropdownMenuItem
-              key={opt.value}
-              onClick={() => onChange(opt.value)}
-              className={`flex items-center justify-between px-3 py-2.5 text-[14px] rounded-lg cursor-pointer ${isSelected ? 'bg-[#fff0eb] text-[#d97757] font-bold' : 'text-[#3c4257] font-medium'}`}
-            >
-              <span>{opt.label}</span>
-              {isSelected && <Check className="h-3.5 w-3.5 text-[#d97757]" />}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -266,7 +190,11 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
           </div>
         )}
 
-        {/* CARD 1: CORE DETAILS */}
+        {/* CARD 1: CORE DETAILS — label sits tight against its card (space-y-2)
+            so it reads as this card's own header, not extra space pushing
+            the first field down; the gap between sections (space-y-4 on the
+            outer list) is what gives the actual section break. */}
+        <div className="space-y-2">
         <SectionLabel>Product</SectionLabel>
         <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 space-y-5">
           <MobileFieldLabel label="Item Name" required>
@@ -280,44 +208,97 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
           </MobileFieldLabel>
 
           <MobileFieldLabel label="Category" required>
-            <FieldSelect
-              value={formCategory}
-              onChange={setFormCategory}
-              options={categories.map(c => ({ value: c.value, label: c.name, Icon: c.icon, iconClass: c.style.text }))}
-            />
+            <div className="relative">
+              <select
+                value={formCategory}
+                onChange={e => setFormCategory(e.target.value)}
+                className={`${inputClass} appearance-none pr-10`}
+              >
+                {categories.map(c => <option key={c.value} value={c.value}>{c.name}</option>)}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronDown className="w-4 h-4 text-[#8792a2]" />
+              </div>
+            </div>
           </MobileFieldLabel>
+        </div>
         </div>
 
         {/* CARD 2: MEASUREMENTS */}
+        <div className="space-y-2">
         <SectionLabel>Measurements</SectionLabel>
         <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 space-y-5">
           <MobileFieldLabel label="Quantity" required>
-            <div className="flex shadow-[0_1px_2px_rgba(0,0,0,0.04)] rounded-xl">
-              <input
-                type="number"
-                value={formQty}
-                onChange={e => setFormQty(e.target.value)}
-                className="w-full h-[52px] pl-4 rounded-l-xl border border-gray-200/80 border-r-0 bg-white text-[16px] font-bold text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 relative z-10"
-              />
-              <div className="relative border border-gray-200/80 rounded-r-xl bg-gray-50 shrink-0 w-[110px]">
-                <InlineUnitSelect value={formUnit} onChange={setFormUnit} options={UNIT_OPTIONS} />
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <ChevronDown className="w-4 h-4 text-[#8792a2]" />
+            {/* Same stepper as the "Item Found" popup — minus/plus for quick bumps,
+                and the number itself is a real input so a large count can just be
+                typed directly instead of tapped up one at a time. */}
+            <div className="flex gap-3">
+              <div className="flex-1 min-w-0">
+                <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Qty</span>
+                <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200/80 h-[52px] min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setFormQty(String(Math.max(1, (parseInt(formQty, 10) || 1) - 1)))}
+                    className="h-full w-12 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-l-xl transition-colors"
+                  >
+                    <Minus className="w-4 h-4" strokeWidth={2.5} />
+                  </button>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formQty}
+                    onChange={e => setFormQty(e.target.value.replace(/[^0-9]/g, ''))}
+                    className="w-0 flex-1 min-w-0 text-center text-[18px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormQty(String((parseInt(formQty, 10) || 1) + 1))}
+                    className="h-full w-12 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-r-xl transition-colors"
+                  >
+                    <Plus className="w-4 h-4" strokeWidth={2.5} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Counted as — a plain native <select>, not a custom popup, so it
+                  can't mistake a scroll-drag through the form for a tap the way
+                  the earlier Radix version here did. */}
+              <div className="w-[124px] shrink-0">
+                <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Counted as</span>
+                <div className="relative h-[52px]">
+                  <select
+                    value={formUnit}
+                    onChange={e => setFormUnit(e.target.value)}
+                    className="h-full w-full pl-3 pr-8 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-bold text-[#1a1f36] outline-none appearance-none"
+                  >
+                    {UNIT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <ChevronDown className="w-4 h-4 text-[#8792a2]" />
+                  </div>
                 </div>
               </div>
             </div>
           </MobileFieldLabel>
 
           <MobileFieldLabel label="Items per Pack" optional hint="How many come in one case or bag?">
-            <FieldSelect
-              value={packSizeMode}
-              onChange={(val) => {
-                setPackSizeMode(val);
-                if (val === 'none') setPackSize('');
-                else if (val !== 'custom') setPackSize(val);
-              }}
-              options={PACK_SIZE_OPTIONS}
-            />
+            <div className="relative">
+              <select
+                value={packSizeMode}
+                onChange={e => {
+                  const val = e.target.value;
+                  setPackSizeMode(val);
+                  if (val === 'none') setPackSize('');
+                  else if (val !== 'custom') setPackSize(val);
+                }}
+                className={`${inputClass} appearance-none pr-10`}
+              >
+                {PACK_SIZE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronDown className="w-4 h-4 text-[#8792a2]" />
+              </div>
+            </div>
             {packSizeMode === 'custom' && (
               <input
                 type="number"
@@ -340,7 +321,13 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
                 className="w-full h-[52px] px-4 rounded-l-xl border border-gray-200/80 border-r-0 bg-white text-[16px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 relative z-10 placeholder:text-[#a3acb9]"
               />
               <div className="relative border border-gray-200/80 rounded-r-xl bg-gray-50 shrink-0 w-[90px]">
-                <InlineUnitSelect value={formWeightUnit} onChange={setFormWeightUnit} options={WEIGHT_UNIT_OPTIONS} />
+                <select
+                  value={formWeightUnit}
+                  onChange={e => setFormWeightUnit(e.target.value)}
+                  className="h-full w-full pl-3 pr-8 bg-transparent text-[16px] font-bold text-[#1a1f36] outline-none appearance-none"
+                >
+                  {WEIGHT_UNIT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
                   <ChevronDown className="w-4 h-4 text-[#8792a2]" />
                 </div>
@@ -348,8 +335,10 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
             </div>
           </MobileFieldLabel>
         </div>
+        </div>
 
         {/* CARD 3: METADATA */}
+        <div className="space-y-2">
         <SectionLabel>Details</SectionLabel>
         <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 space-y-5 overflow-hidden">
           <MobileFieldLabel label="Expiration Date" optional>
@@ -383,8 +372,20 @@ export function MobileManualEntryView({ onBack, initialItem, onSave }) {
           </MobileFieldLabel>
 
           <MobileFieldLabel label="Source Type">
-            <FieldSelect value={formSource} onChange={setFormSource} options={SOURCE_OPTIONS} />
+            <div className="relative">
+              <select
+                value={formSource}
+                onChange={e => setFormSource(e.target.value)}
+                className={`${inputClass} appearance-none pr-10`}
+              >
+                {SOURCE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronDown className="w-4 h-4 text-[#8792a2]" />
+              </div>
+            </div>
           </MobileFieldLabel>
+        </div>
         </div>
 
         {/* CARD 4: MORE DETAILS ACCORDION */}
