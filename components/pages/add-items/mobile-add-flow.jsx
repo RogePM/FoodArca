@@ -6,8 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { categories } from '@/lib/constants';
 import { 
-  X, ShoppingBag, Plus, Minus, 
-  CheckCircle2, Package, Loader2, Keyboard, ChevronLeft 
+  X, ShoppingBag, Plus, Minus, Calendar,
+  CheckCircle2, Package, Loader2, Keyboard, ChevronLeft, ChevronDown, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -82,6 +82,17 @@ export function MobileAddFlow({ onClose }) {
   const [formWeightUnit, setFormWeightUnit] = useState('lbs');
   const [formBarcode, setFormBarcode] = useState('');
   const [formExpDate, setFormExpDate] = useState('');
+  const [formUnit, setFormUnit] = useState('units');
+  const [unitDropOpen, setUnitDropOpen] = useState(false);
+
+  const QUICK_UNIT_OPTIONS = [
+    { value: 'units', label: 'Units' },
+    { value: 'cans', label: 'Cans' },
+    { value: 'boxes', label: 'Boxes' },
+    { value: 'bottles', label: 'Bottles' },
+    { value: 'bags', label: 'Bags' },
+    { value: 'cases', label: 'Cases' },
+  ];
 
   const lastScanRef = useRef({ code: null, time: 0 });
 
@@ -96,6 +107,12 @@ export function MobileAddFlow({ onClose }) {
     setFormExpDate(newDate);
     if (!scannedItem?.id) return;
     setCartItems(prev => prev.map(i => i.id === scannedItem.id ? { ...i, expirationDate: newDate } : i));
+  };
+
+  const syncUnit = (newUnit) => {
+    setFormUnit(newUnit);
+    if (!scannedItem?.id) return;
+    setCartItems(prev => prev.map(i => i.id === scannedItem.id ? { ...i, unit: newUnit } : i));
   };
 
   // --- ACTIONS ---
@@ -136,7 +153,7 @@ export function MobileAddFlow({ onClose }) {
           category: data.data.category || categories[0].value,
           quantity: 1,
           totalWeightLbs: data.data.weightPerUnit || 0,
-          unit: 'units',
+          unit: data.data.unit || 'units',
           expirationDate: ''
         };
         
@@ -149,6 +166,8 @@ export function MobileAddFlow({ onClose }) {
         setFormQty('1');
         setFormWeight(autoAddedItem.totalWeightLbs ? String(autoAddedItem.totalWeightLbs) : '');
         setFormExpDate('');
+        setFormUnit(autoAddedItem.unit || 'units');
+        setUnitDropOpen(false);
         setSheetState('KNOWN');
 
         // Optional haptic
@@ -156,11 +175,11 @@ export function MobileAddFlow({ onClose }) {
 
       } else {
         // Not found -> go to full screen manual entry
-        openManualEntry({ barcode: code }, 'CAMERA');
+        openManualEntry({ barcode: code }, 'CART');
       }
     } catch (err) {
       console.error(err);
-      openManualEntry({ barcode: code }, 'CAMERA');
+      openManualEntry({ barcode: code }, 'CART');
     } finally {
       setPendingScans(prev => {
         const newSet = new Set(prev);
@@ -394,66 +413,138 @@ export function MobileAddFlow({ onClose }) {
           />
         )}
 
-        {/* INLINE "ITEM ADDED" POPUP (For Continuous Scanning) */}
+        {/* FAST INTAKE POPUP (For Known Barcodes) */}
         {sheetState === 'KNOWN' && (
           <motion.div 
             key="known-popup"
             initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} 
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="absolute bottom-[calc(76px+12px+env(safe-area-inset-bottom))] inset-x-4 z-50 bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.2)] p-4 border border-gray-100"
+            className="absolute bottom-[calc(76px+12px+env(safe-area-inset-bottom))] inset-x-4 z-50 bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)] border border-gray-100 overflow-hidden"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[13px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Item Added
-              </span>
-              <button onClick={() => setSheetState('CLOSED')} className="text-[#8792a2] text-[13px] font-bold underline active:opacity-70">
-                Dismiss
+            {/* Header */}
+            <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[13px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Added to Batch
+                </span>
+                <button onClick={() => setSheetState('CLOSED')} className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center text-[#8792a2] active:bg-gray-200">
+                  <X className="w-4 h-4" strokeWidth={2.5} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {scannedItem?.photoUrl ? (
+                  <img src={scannedItem.photoUrl} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-100 shadow-sm shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-[#fff0eb] border border-[#d97757]/10 flex items-center justify-center shrink-0">
+                    <Package className="h-6 w-6 text-[#d97757]" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-[15px] font-bold text-[#1a1f36] leading-tight truncate">{formName}</h3>
+                  <p className="text-[12px] font-medium text-[#8792a2] mt-0.5">
+                    {formWeight ? `${formWeight} ${formWeightUnit} · ` : ''}{getCategoryMeta(formCategory).name}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="px-4 py-3.5 space-y-3">
+
+              {/* Row 1: Quantity + Unit */}
+              <div className="flex gap-2.5">
+                {/* Quantity Stepper */}
+                <div className="flex-1">
+                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Qty</span>
+                  <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200/80 h-[48px]">
+                    <button 
+                      onClick={() => syncQuantity(String(Math.max(1, parseInt(formQty || '1') - 1)))}
+                      className="h-full w-12 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-l-xl transition-colors"
+                    >
+                      <Minus className="w-4 h-4" strokeWidth={2.5} />
+                    </button>
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      value={formQty}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        syncQuantity(val || '1');
+                      }}
+                      className="flex-1 text-center text-[18px] font-black text-[#1a1f36] bg-transparent outline-none h-full min-w-0"
+                    />
+                    <button 
+                      onClick={() => syncQuantity(String(parseInt(formQty || '1') + 1))}
+                      className="h-full w-12 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-r-xl transition-colors"
+                    >
+                      <Plus className="w-4 h-4" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Unit Dropdown */}
+                <div className="w-[120px] relative">
+                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Counted as</span>
+                  <button 
+                    onClick={() => setUnitDropOpen(!unitDropOpen)}
+                    className="w-full h-[48px] px-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[13px] font-bold text-[#1a1f36] flex items-center justify-between active:bg-gray-100 transition-colors"
+                  >
+                    <span>{QUICK_UNIT_OPTIONS.find(o => o.value === formUnit)?.label || 'Units'}</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] shrink-0" />
+                  </button>
+                  {unitDropOpen && (
+                    <div className="absolute bottom-full mb-1.5 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-1 max-h-[200px] overflow-y-auto">
+                      {QUICK_UNIT_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => { syncUnit(opt.value); setUnitDropOpen(false); }}
+                          className={`w-full text-left px-3 py-2 text-[13px] flex items-center justify-between transition-colors ${
+                            formUnit === opt.value 
+                              ? 'bg-gray-50 text-[#d97757] font-bold' 
+                              : 'text-[#3c4257] font-medium active:bg-gray-50'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {formUnit === opt.value && <Check className="h-3.5 w-3.5 text-[#d97757]" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 2: Expiration Date */}
+              <div>
+                <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Expiration Date</span>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#a3acb9] pointer-events-none z-10" />
+                  <input 
+                    type="date" 
+                    value={formExpDate} 
+                    onChange={e => syncExpDate(e.target.value)}
+                    placeholder="MM/DD/YYYY"
+                    className="w-full h-[48px] pl-9 pr-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[16px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors appearance-none box-border max-w-full"
+                    style={{ colorScheme: 'light' }}
+                  />
+                  {!formExpDate && (
+                    <span className="absolute left-9 top-1/2 -translate-y-1/2 text-[14px] font-medium text-[#a3acb9] pointer-events-none">
+                      No date set
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Confirm Button */}
+            <div className="px-4 pb-4 pt-1">
+              <button 
+                onClick={() => setSheetState('CLOSED')}
+                className="w-full h-[48px] rounded-xl bg-[#d97757] text-white font-bold text-[14px] active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(217,119,87,0.3)]"
+              >
+                <Check className="w-4 h-4" strokeWidth={3} />
+                Done
               </button>
-            </div>
-
-            <div className="flex items-start gap-4 mb-4">
-              {scannedItem?.photoUrl ? (
-                <img src={scannedItem.photoUrl} alt="" className="w-14 h-14 rounded-lg object-cover border border-gray-100 shadow-sm shrink-0" />
-              ) : (
-                <div className="w-14 h-14 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
-                  <Package className="h-7 w-7 text-gray-400" />
-                </div>
-              )}
-              <div className="flex-1 pt-0.5">
-                <h3 className="text-[16px] font-bold text-[#1a1f36] leading-tight mb-1">{formName}</h3>
-                <div className="text-[13px] font-medium text-[#8792a2]">
-                  {formWeight ? `${formWeight} ${formWeightUnit}` : getCategoryMeta(formCategory).name}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              {/* QUANTITY */}
-              <div className="flex-1 flex items-center justify-between bg-gray-50 rounded-xl p-1.5 border border-gray-100">
-                <button 
-                  onClick={() => syncQuantity(String(Math.max(1, parseInt(formQty || '1') - 1)))}
-                  className="h-10 w-10 rounded-lg bg-white shadow-sm flex items-center justify-center text-[#4f566b] active:scale-95"
-                >
-                  <Minus className="w-5 h-5" strokeWidth={2.5} />
-                </button>
-                <span className="text-[18px] font-black text-[#1a1f36] px-2">{formQty}</span>
-                <button 
-                  onClick={() => syncQuantity(String(parseInt(formQty || '1') + 1))}
-                  className="h-10 w-10 rounded-lg bg-white shadow-sm flex items-center justify-center text-[#4f566b] active:scale-95"
-                >
-                  <Plus className="w-5 h-5" strokeWidth={2.5} />
-                </button>
-              </div>
-
-              {/* EXP DATE */}
-              <div className="flex-1">
-                <input 
-                  type="date" 
-                  value={formExpDate} 
-                  onChange={e => syncExpDate(e.target.value)}
-                  className="w-full h-full min-h-[52px] px-3 rounded-xl border border-gray-100 bg-gray-50 text-[13px] font-bold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors"
-                />
-              </div>
             </div>
           </motion.div>
         )}

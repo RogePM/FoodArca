@@ -22,10 +22,13 @@ export function DashboardLayout({ activeView, setActiveView, children }) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:pl-[280px] transition-all duration-300 ease-in-out h-[100dvh]">
-        <TopBar
-          activeView={activeView}
-          setActiveView={setActiveView} 
-        />
+        {/* Hide top bar on mobile for Add Items (full-screen flow) */}
+        <div className={activeView === 'Add Items' ? 'hidden md:block' : ''}>
+          <TopBar
+            activeView={activeView}
+            setActiveView={setActiveView} 
+          />
+        </div>
         
         {/* Spacer: Height of bottom-nav + safe-area on mobile, standard padding on desktop */}
         <main className="flex-1 flex flex-col overflow-x-hidden overflow-y-auto pb-[calc(90px+env(safe-area-inset-bottom))] md:pb-6">

@@ -69,10 +69,7 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
       {/* HEADER (ONLY VISIBLE IF CART HAS ITEMS) */}
       {cartItems.length > 0 && (
         <div className="p-4 pt-safe flex items-center justify-between border-b bg-white shadow-sm shrink-0 relative z-10">
-          <button onClick={onBack} className="flex items-center text-gray-600 font-medium active:scale-95 transition-transform -ml-2 p-2">
-            <ChevronLeft className="w-6 h-6 mr-1" />
-            Back
-          </button>
+          <div className="w-16" /> {/* Spacer for centering */}
           <div className="flex flex-col items-center">
             <h1 className="font-bold text-lg text-gray-900 leading-tight">Staged Batch</h1>
             <span className="text-[13px] font-semibold text-gray-500">{cartItems.length} items</span>
