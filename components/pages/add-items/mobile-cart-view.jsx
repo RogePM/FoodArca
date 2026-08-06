@@ -114,34 +114,38 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
         {cartItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full pb-16 pt-4">
             {/* Title above illustration */}
-            <h2 className="text-[24px] font-bold text-[#1a1f36] mb-8 tracking-tight text-center">
+            <h2 className="text-[20px] font-bold text-[#1a1f36] mb-4 tracking-tight text-center">
               Scan to Add Items
             </h2>
 
-            {/* Custom Empty State Illustration */}
-            <div className="relative w-56 h-56 mb-10 flex items-center justify-center bg-[#f0f4f8] rounded-full overflow-hidden shadow-inner">
-              {/* Background Bags */}
-              <div className="absolute w-28 h-40 bg-[#ef6c00] rounded-lg rotate-12 opacity-90 shadow-sm" />
-              <div className="absolute w-28 h-40 bg-[#fb8c00] rounded-lg -rotate-6 opacity-90 shadow-sm" />
-              
-              {/* Phone Outline */}
-              <div className="absolute w-24 h-40 bg-[#424242] rounded-xl border-4 border-[#424242] flex flex-col items-center shadow-lg">
-                <div className="w-full flex-1 bg-white rounded-t-xl relative flex items-center justify-center overflow-hidden">
-                   {/* Checkmark inside phone */}
-                   <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center z-10 shadow-sm">
-                     <CheckCircle2 className="w-8 h-8 text-white" />
-                   </div>
-                </div>
-                <div className="w-full h-6 bg-[#424242] rounded-b-xl flex items-center justify-center">
-                  <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
+            {/* Custom Empty State Illustration — sized down via a scaled, clipped
+                wrapper rather than resizing every piece by hand, so all the
+                internal proportions/overlaps stay exactly as designed. */}
+            <div className="w-44 h-44 mb-6 overflow-hidden flex items-center justify-center">
+              <div className="relative w-56 h-56 shrink-0 scale-[0.786] flex items-center justify-center bg-[#f0f4f8] rounded-full overflow-hidden shadow-inner">
+                {/* Background Bags */}
+                <div className="absolute w-28 h-40 bg-[#ef6c00] rounded-lg rotate-12 opacity-90 shadow-sm" />
+                <div className="absolute w-28 h-40 bg-[#fb8c00] rounded-lg -rotate-6 opacity-90 shadow-sm" />
+
+                {/* Phone Outline */}
+                <div className="absolute w-24 h-40 bg-[#424242] rounded-xl border-4 border-[#424242] flex flex-col items-center shadow-lg">
+                  <div className="w-full flex-1 bg-white rounded-t-xl relative flex items-center justify-center overflow-hidden">
+                     {/* Checkmark inside phone */}
+                     <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center z-10 shadow-sm">
+                       <CheckCircle2 className="w-8 h-8 text-white" />
+                     </div>
+                  </div>
+                  <div className="w-full h-6 bg-[#424242] rounded-b-xl flex items-center justify-center">
+                    <div className="w-2.5 h-2.5 rounded-full bg-white/30" />
+                  </div>
                 </div>
               </div>
             </div>
-            
-            <p className="text-[#4f566b] text-[16px] text-center font-medium px-8 leading-relaxed mb-4">
+
+            <p className="text-[#4f566b] text-[14px] text-center font-medium px-6 leading-snug mb-3">
               Point your camera at a product barcode to instantly add it to your batch.
             </p>
-            <button 
+            <button
               onClick={() => setShowHowItWorks(true)}
               className="text-[#006bb6] text-[15px] font-bold hover:underline active:opacity-70"
             >
@@ -229,10 +233,14 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
       {/* FLOATING ACTION BUTTONS (ALWAYS VISIBLE) — stacked so the typed-entry
           button sits above the scan button, in both the empty and filled states */}
       <div className={`absolute right-5 flex flex-col gap-3 z-50 transition-all duration-300 ${cartItems.length > 0 ? 'bottom-[calc(90px+env(safe-area-inset-bottom))]' : 'bottom-[calc(30px+env(safe-area-inset-bottom))]'}`}>
-        <button 
+        {/* Back to white (grey read as harder to see, not easier) — the
+            contrast now comes from a real edge and a stronger lift, not
+            from the fill color, so it still stays neutral/secondary next
+            to the orange Scan button below it. */}
+        <button
           type="button"
-          onClick={() => onBack('MANUAL_ENTRY')} 
-          className="w-14 h-14 rounded-full bg-white text-[#4f566b] shadow-[0_4px_16px_rgba(0,0,0,0.1)] flex items-center justify-center active:scale-90 transition-transform border border-gray-100"
+          onClick={() => onBack('MANUAL_ENTRY')}
+          className="w-14 h-14 rounded-full bg-white text-[#4f566b] shadow-[0_6px_18px_rgba(26,31,54,0.18)] flex items-center justify-center active:scale-90 transition-transform border-2 border-gray-300"
         >
           <Keyboard className="w-6 h-6" strokeWidth={2} />
         </button>
