@@ -3,11 +3,23 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronLeft, Trash2, Edit3, ShoppingBag, 
-  Loader2, CheckCircle2, Package, AlertTriangle,
-  Scan, Keyboard, Smartphone
+import {
+  ChevronLeft, Trash2, Edit3, ShoppingBag,
+  Loader2, CheckCircle2, AlertTriangle,
+  Scan, Keyboard, Smartphone, Minus, Plus
 } from 'lucide-react';
+import { categories } from '@/lib/constants';
+
+function getCategoryVisual(value) {
+  const cat = categories.find(c => c.value === value) || categories[categories.length - 1];
+  return { Icon: cat.icon, style: cat.style, name: cat.name };
+}
+
+function formatItemExpiration(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEdit }) {
   const [isSubmittingCart, setIsSubmittingCart] = useState(false);
@@ -24,11 +36,23 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
   const clearBatch = () => {
     setCartItems([]);
     try { sessionStorage.removeItem('foodarca_staged_batch'); } catch (_) {}
-    onBack();
+    // Emptying the cart already reverts this view to its inline (non-fullscreen)
+    // layout on its own, which brings the bottom nav back — no navigation needed.
+    // The old onBack() call here was a no-op anyway (add-item-view.jsx never
+    // passes an onClose down), which is why this dialog used to stay stuck open.
+    setShowClearConfirm(false);
   };
 
   const removeFromBatch = (id) => {
     setCartItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const updateItemQty = (id, delta) => {
+    setCartItems(prev => prev.map(i => {
+      if (i.id !== id) return i;
+      const next = Math.max(1, (parseInt(i.quantity, 10) || 1) + delta);
+      return { ...i, quantity: String(next) };
+    }));
   };
 
   const submitBatch = async () => {
@@ -62,33 +86,28 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="flex-1 w-full relative bg-[#f8fafb] flex flex-col min-h-full"
+      className={cartItems.length > 0
+        // Once a batch is staged the user is mid-task — go full-screen (same trick
+        // the camera view uses) so the bottom tab bar is covered rather than
+        // inviting a jump to another tab mid-batch. Submit or Clear is the way out.
+        ? 'fixed inset-0 z-[9999] w-full h-[100dvh] bg-[#f8fafb] flex flex-col'
+        : 'flex-1 w-full relative bg-[#f8fafb] flex flex-col min-h-full'
+      }
     >
-      {/* HEADER (ONLY VISIBLE IF CART HAS ITEMS) */}
-      {cartItems.length > 0 && (
-        <div className="p-4 pt-safe flex items-center justify-between border-b bg-white shadow-sm shrink-0 relative z-10">
-          <div className="w-16" /> {/* Spacer for centering */}
-          <div className="flex flex-col items-center">
-            <h1 className="font-bold text-lg text-gray-900 leading-tight">Staged Batch</h1>
-            <span className="text-[13px] font-semibold text-gray-500">{cartItems.length} items</span>
-          </div>
-          <button 
-            onClick={() => setShowClearConfirm(true)} 
-            className="text-rose-500 font-bold px-2 py-2 -mr-2 active:bg-rose-50 rounded-lg transition-colors"
+      {/* HEADER — same lightweight bar in both states; Clear only appears once there's something to clear */}
+      <div className="px-5 pt-safe pb-3 border-b border-gray-200/60 bg-white/80 shrink-0 flex items-center justify-between">
+        <h1 className="text-[17px] font-bold text-[#1a1f36] pt-2">Add Items</h1>
+        {cartItems.length > 0 && (
+          <button
+            onClick={() => setShowClearConfirm(true)}
+            className="text-rose-500 font-bold text-[14px] pt-2 active:opacity-60 transition-opacity"
           >
             Clear
           </button>
-        </div>
-      )}
-
-      {/* LIGHTWEIGHT HEADER (EMPTY STATE) */}
-      {cartItems.length === 0 && (
-        <div className="px-5 pt-safe pb-3 border-b border-gray-200/60 bg-white/80 shrink-0">
-          <h1 className="text-[17px] font-bold text-[#1a1f36] pt-2">Add Items</h1>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ITEM LIST */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 relative">
@@ -131,57 +150,85 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
           </div>
         ) : (
           <AnimatePresence>
-            {cartItems.map((item) => (
-              <motion.div 
-                key={item.id}
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 flex gap-4 relative items-center"
-              >
-                <div className="flex-1 min-w-0 pr-[90px]">
-                  <div className="flex items-start gap-2.5 mb-1.5">
-                    <span className="font-bold text-[#d97757] text-[13px] bg-[#d97757]/10 px-2 py-0.5 rounded-md shrink-0">x{item.quantity}</span>
-                    <h4 className="font-bold text-[#1a1f36] text-[16px] leading-snug">{item.name}</h4>
+            {cartItems.map((item) => {
+              const catVisual = getCategoryVisual(item.category);
+              const expLabel = formatItemExpiration(item.expirationDate);
+
+              return (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-4 flex gap-3.5 items-center"
+                >
+                  {/* IMAGE, OR A CATEGORY-COLORED FALLBACK WHEN THERE ISN'T ONE —
+                      once there's no image, this icon is the only place category
+                      color shows; the category label below stays plain/dark. */}
+                  {item.photoUrl ? (
+                    <img src={item.photoUrl} alt="" className="w-14 h-14 rounded-2xl object-cover border border-gray-100 shadow-sm shrink-0" />
+                  ) : (
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border ${catVisual.style.border} ${catVisual.style.bg}`}>
+                      <catVisual.Icon className={`h-6 w-6 ${catVisual.style.text}`} strokeWidth={2} />
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-[#1a1f36] text-[15px] leading-snug truncate">{item.name}</h4>
+                    <p className="text-[13px] font-medium text-[#4f566b] mt-0.5 truncate">
+                      {item.categoryName || catVisual.name}
+                      {expLabel && <span className="text-[#a3acb9] font-normal"> · Exp {expLabel}</span>}
+                    </p>
+                    <div className="flex items-center gap-4 mt-2">
+                      <button
+                        onClick={() => onEdit(item)}
+                        className="flex items-center gap-1 text-[12px] font-semibold text-[#8792a2] active:text-[#d97757] transition-colors"
+                      >
+                        <Edit3 className="h-3 w-3" strokeWidth={2.5} /> Edit
+                      </button>
+                      <button
+                        onClick={() => removeFromBatch(item.id)}
+                        className="flex items-center gap-1 text-[12px] font-semibold text-[#8792a2] active:text-rose-500 transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" strokeWidth={2.5} /> Remove
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold text-[#8792a2]">
-                    <span className="uppercase tracking-widest">{item.barcode}</span>
-                    {item.totalWeightLbs > 0 && (
-                      <>
-                        <div className="w-1 h-1 rounded-full bg-gray-300" />
-                        <span>{item.totalWeightLbs} {item.weightUnit || 'lbs'}</span>
-                      </>
-                    )}
+
+                  {/* QUANTITY — quick inline adjust, sits where a price would;
+                      centered on the row (via items-center above) instead of
+                      pinned to the top, and sized to actually read as the
+                      row's second focal point rather than an afterthought. */}
+                  <div className="flex flex-col items-center gap-1.5 shrink-0">
+                    <div className="flex items-center bg-gray-50 border border-gray-200/80 rounded-full h-11 px-1.5">
+                      <button
+                        type="button"
+                        onClick={() => updateItemQty(item.id, -1)}
+                        className="h-8 w-8 flex items-center justify-center rounded-full text-[#4f566b] active:bg-gray-200 transition-colors"
+                      >
+                        <Minus className="h-4 w-4" strokeWidth={2.5} />
+                      </button>
+                      <span className="w-7 text-center text-[16px] font-bold text-[#1a1f36]">{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => updateItemQty(item.id, 1)}
+                        className="h-8 w-8 flex items-center justify-center rounded-full text-[#4f566b] active:bg-gray-200 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" strokeWidth={2.5} />
+                      </button>
+                    </div>
                     {item.unit && item.unit !== 'units' && (
-                      <>
-                        <div className="w-1 h-1 rounded-full bg-gray-300" />
-                        <span className="capitalize">{item.unit}</span>
-                      </>
+                      <span className="text-[10px] font-semibold text-[#a3acb9] uppercase tracking-wide">{item.unit}</span>
                     )}
                   </div>
-                </div>
-                
-                {/* ACTION BUTTONS */}
-                <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <button 
-                    onClick={() => onEdit(item)}
-                    className="p-3 text-[#8792a2] hover:text-[#d97757] bg-gray-50 hover:bg-[#d97757]/10 rounded-xl active:scale-95 transition-all border border-gray-200/60"
-                  >
-                    <Edit3 className="w-4 h-4" strokeWidth={2.5} />
-                  </button>
-                  <button 
-                    onClick={() => removeFromBatch(item.id)}
-                    className="p-3 text-[#8792a2] hover:text-rose-500 bg-gray-50 hover:bg-rose-50 rounded-xl active:scale-95 transition-all border border-gray-200/60"
-                  >
-                    <Trash2 className="w-4 h-4" strokeWidth={2.5} />
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         )}
       </div>
 
-      {/* FLOATING ACTION BUTTONS (ALWAYS VISIBLE) */}
-      <div className={`absolute right-5 flex gap-3 z-50 transition-all duration-300 ${cartItems.length > 0 ? 'bottom-[calc(90px+env(safe-area-inset-bottom))]' : 'bottom-[calc(30px+env(safe-area-inset-bottom))]'}`}>
+      {/* FLOATING ACTION BUTTONS (ALWAYS VISIBLE) — stacked so the typed-entry
+          button sits above the scan button, in both the empty and filled states */}
+      <div className={`absolute right-5 flex flex-col gap-3 z-50 transition-all duration-300 ${cartItems.length > 0 ? 'bottom-[calc(90px+env(safe-area-inset-bottom))]' : 'bottom-[calc(30px+env(safe-area-inset-bottom))]'}`}>
         <button 
           type="button"
           onClick={() => onBack('MANUAL_ENTRY')} 
@@ -238,27 +285,27 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={() => setShowClearConfirm(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 shadow-2xl relative z-10 w-full max-w-[340px]"
+              className="bg-white rounded-[28px] p-6 shadow-2xl relative z-10 w-full max-w-[340px] border border-gray-100"
             >
-              <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle className="w-6 h-6 text-rose-500" />
+              <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-6 h-6 text-rose-500" strokeWidth={2.25} />
               </div>
-              <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Clear entire batch?</h3>
-              <p className="text-center text-gray-500 text-[14px] mb-6">
-                This will instantly remove all {cartItems.length} items from your staged batch. This action cannot be undone.
+              <h3 className="text-[18px] font-bold text-center text-[#1a1f36] tracking-tight mb-1.5">Clear this batch?</h3>
+              <p className="text-center text-[#8792a2] text-[14px] leading-relaxed mb-6">
+                This removes all {cartItems.length} staged {cartItems.length === 1 ? 'item' : 'items'}. You won't be able to undo it.
               </p>
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="flex-1 h-12 bg-gray-100 text-gray-700 font-bold rounded-xl active:bg-gray-200"
+                  className="flex-1 h-12 bg-[#f4f4f6] text-[#1a1f36] font-bold text-[14px] rounded-2xl active:bg-gray-200 transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={clearBatch}
-                  className="flex-1 h-12 bg-rose-500 text-white font-bold rounded-xl active:bg-rose-600 shadow-[0_4px_14px_rgba(244,63,94,0.3)]"
+                  className="flex-1 h-12 bg-rose-500 text-white font-bold text-[14px] rounded-2xl active:bg-rose-600 shadow-[0_4px_14px_rgba(244,63,94,0.3)] transition-colors"
                 >
                   Clear Batch
                 </button>
