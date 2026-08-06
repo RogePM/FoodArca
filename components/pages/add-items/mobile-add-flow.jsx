@@ -96,23 +96,17 @@ export function MobileAddFlow({ onClose }) {
 
   const lastScanRef = useRef({ code: null, time: 0 });
 
-  // --- INSTANT SYNC HELPERS (For Continuous Mode) ---
+  // --- FORM STATE HELPERS (update local form only, NOT cart) ---
   const syncQuantity = (newQty) => {
     setFormQty(newQty);
-    if (!scannedItem?.id) return;
-    setCartItems(prev => prev.map(i => i.id === scannedItem.id ? { ...i, quantity: parseInt(newQty) || 1 } : i));
   };
 
   const syncExpDate = (newDate) => {
     setFormExpDate(newDate);
-    if (!scannedItem?.id) return;
-    setCartItems(prev => prev.map(i => i.id === scannedItem.id ? { ...i, expirationDate: newDate } : i));
   };
 
   const syncUnit = (newUnit) => {
     setFormUnit(newUnit);
-    if (!scannedItem?.id) return;
-    setCartItems(prev => prev.map(i => i.id === scannedItem.id ? { ...i, unit: newUnit } : i));
   };
 
   // --- ACTIONS ---
@@ -145,8 +139,8 @@ export function MobileAddFlow({ onClose }) {
       const data = await res.json();
       
       if (data.found && data.data) {
-        // Continuous Mode: Auto-add 1 to batch instantly!
-        const autoAddedItem = {
+        // Known item found — populate popup for user confirmation (do NOT add to cart yet)
+        const pendingItem = {
           id: crypto.randomUUID(),
           barcode: code,
           name: data.data.name || 'Unknown Item',
@@ -154,19 +148,18 @@ export function MobileAddFlow({ onClose }) {
           quantity: 1,
           totalWeightLbs: data.data.weightPerUnit || 0,
           unit: data.data.unit || 'units',
-          expirationDate: ''
+          expirationDate: '',
+          photoUrl: data.data.photoUrl || null
         };
-        
-        setCartItems(prev => [autoAddedItem, ...prev]);
 
-        // Populate the Quick Edit Popup with this exact instance
-        setScannedItem(autoAddedItem); 
-        setFormName(autoAddedItem.name);
-        setFormCategory(autoAddedItem.category);
+        // Populate the confirmation popup
+        setScannedItem(pendingItem); 
+        setFormName(pendingItem.name);
+        setFormCategory(pendingItem.category);
         setFormQty('1');
-        setFormWeight(autoAddedItem.totalWeightLbs ? String(autoAddedItem.totalWeightLbs) : '');
+        setFormWeight(pendingItem.totalWeightLbs ? String(pendingItem.totalWeightLbs) : '');
         setFormExpDate('');
-        setFormUnit(autoAddedItem.unit || 'units');
+        setFormUnit(pendingItem.unit || 'units');
         setUnitDropOpen(false);
         setSheetState('KNOWN');
 
@@ -419,13 +412,13 @@ export function MobileAddFlow({ onClose }) {
             key="known-popup"
             initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} 
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="absolute bottom-[calc(76px+12px+env(safe-area-inset-bottom))] inset-x-4 z-50 bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)] border border-gray-100 overflow-hidden"
+            className="absolute bottom-[calc(76px+12px+env(safe-area-inset-bottom))] inset-x-4 z-50 bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)] border border-gray-100"
           >
             {/* Header */}
             <div className="px-4 pt-4 pb-3 border-b border-gray-100">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[13px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Added to Batch
+                <span className="text-[13px] font-bold text-[#d97757] bg-[#fff0eb] px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5" /> Item Found
                 </span>
                 <button onClick={() => setSheetState('CLOSED')} className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center text-[#8792a2] active:bg-gray-200">
                   <X className="w-4 h-4" strokeWidth={2.5} />
@@ -539,11 +532,32 @@ export function MobileAddFlow({ onClose }) {
             {/* Confirm Button */}
             <div className="px-4 pb-4 pt-1">
               <button 
-                onClick={() => setSheetState('CLOSED')}
+                onClick={() => {
+                  // Confirmed — NOW add to cart
+                  const confirmedItem = {
+                    id: scannedItem?.id || crypto.randomUUID(),
+                    barcode: formBarcode,
+                    name: formName.trim(),
+                    category: formCategory,
+                    categoryName: getCategoryMeta(formCategory).name,
+                    quantity: String(parseInt(formQty) || 1),
+                    unit: formUnit,
+                    weightPerUnit: formWeight ? (formWeightUnit === 'oz' ? (parseFloat(formWeight) / 16).toFixed(2) : parseFloat(formWeight).toFixed(2)) : '0',
+                    totalWeightLbs: formWeight ? Number(((formWeightUnit === 'oz' ? parseFloat(formWeight) / 16 : parseFloat(formWeight)) * (parseInt(formQty) || 1)).toFixed(2)) : 0,
+                    intakeMode: 'count',
+                    expirationDate: formExpDate || null,
+                    expirationPrecision: formExpDate ? 'day' : 'none',
+                    sourceType: 'donation',
+                    photoUrl: scannedItem?.photoUrl || null
+                  };
+                  setCartItems(prev => [confirmedItem, ...prev]);
+                  closeSheet();
+                  showToast(confirmedItem.name, cartItems.length + 1);
+                }}
                 className="w-full h-[48px] rounded-xl bg-[#d97757] text-white font-bold text-[14px] active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(217,119,87,0.3)]"
               >
-                <Check className="w-4 h-4" strokeWidth={3} />
-                Done
+                <Plus className="w-4 h-4" strokeWidth={3} />
+                Add to Batch
               </button>
             </div>
           </motion.div>

@@ -83,6 +83,13 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
         </div>
       )}
 
+      {/* LIGHTWEIGHT HEADER (EMPTY STATE) */}
+      {cartItems.length === 0 && (
+        <div className="px-5 pt-safe pb-3 border-b border-gray-200/60 bg-white/80 shrink-0">
+          <h1 className="text-[17px] font-bold text-[#1a1f36] pt-2">Add Items</h1>
+        </div>
+      )}
+
       {/* ITEM LIST */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 relative">
         {cartItems.length === 0 ? (
@@ -117,7 +124,7 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
             </p>
             <button 
               onClick={() => setShowHowItWorks(true)}
-              className="text-[#006bb6] text-[15px] font-bold hover:underline active:opacity-70"
+              className="text-[#d97757] text-[15px] font-bold hover:underline active:opacity-70"
             >
               How it works
             </button>
@@ -292,7 +299,7 @@ export function MobileCartView({ onBack, cartItems, setCartItems, pantryId, onEd
                   </div>
                   
                   <div className="flex gap-4 items-start">
-                    <div className="bg-[#006bb6]/10 p-2.5 rounded-xl text-[#006bb6] shrink-0">
+                    <div className="bg-[#d97757]/10 p-2.5 rounded-xl text-[#d97757] shrink-0">
                       <Smartphone className="w-6 h-6" strokeWidth={2.5}/>
                     </div>
                     <div>
