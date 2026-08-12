@@ -109,7 +109,7 @@ export function BarcodeScannerOverlay({
             setTimeout(() => {
               scanCooldown = false;
               setDetectedItem(null);
-            }, 1500);
+            }, 500);
           } else {
             setDetectedItem(null);
           }
@@ -177,7 +177,7 @@ export function BarcodeScannerOverlay({
 
     // Small delay lets React Strict Mode's cleanup/remount cycle settle
     // before we acquire the camera, preventing the double-play race.
-    startTimer = setTimeout(startZxing, 120);
+    startTimer = setTimeout(startZxing, 50);
 
     return () => {
       cancelled = true;

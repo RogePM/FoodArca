@@ -1,452 +1,671 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Save, AlertCircle, Plus, Minus, Settings2, ChevronDown, Calendar, X } from 'lucide-react';
-import { categories } from '@/lib/constants';
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ChevronLeft,
+  Save,
+  AlertCircle,
+  Plus,
+  Minus,
+  ChevronDown,
+  Calendar,
+  X,
+  Loader2,
+  Search,
+  ArrowRight,
+} from "lucide-react";
+import { categories } from "@/lib/constants";
 
 function formatExpDateDisplay(dateStr) {
-  if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
   const parsed = new Date(y, m - 1, d);
-  return isNaN(parsed.getTime()) ? '' : parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return isNaN(parsed.getTime())
+    ? ""
+    : parsed.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
 }
 
 function getCategoryMeta(catName) {
-  const safeStr = String(catName || '').toLowerCase();
+  const safeStr = String(catName || "").toLowerCase();
   const found = categories.find(
-    (c) => c.name.toLowerCase() === safeStr || c.value.toLowerCase() === safeStr
+    (c) =>
+      c.name.toLowerCase() === safeStr || c.value.toLowerCase() === safeStr,
   );
   if (found) return { name: found.name, value: found.value };
-  return { name: 'Other', value: 'other' };
+  return { name: "Other", value: "other" };
 }
 
-// Custom Field Label mirroring Desktop but tailored for Mobile spacing
-function MobileFieldLabel({ label, required, optional, hint, children }) {
+function CleanField({ label, required, optional, hint, children }) {
   return (
     <div className="space-y-1.5 w-full">
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-1 text-[13px] font-bold text-[#1a1f36] leading-none ml-0.5">
-          <span>{label}</span>
-          {required && <span className="text-[#d97757] text-[14px] leading-none">*</span>}
+      <div className="flex items-center justify-between ml-1">
+        <label className="text-[14px] font-semibold text-gray-700">
+          {label} {required && <span className="text-[#d97757]">*</span>}
         </label>
-        {optional && <span className="text-[11px] font-semibold text-[#a3acb9] uppercase tracking-wide mr-1">Optional</span>}
+        {optional && (
+          <span className="text-[12px] font-medium text-[#a3acb9] tracking-wide">
+            Optional
+          </span>
+        )}
       </div>
-      {hint && <p className="text-[12px] text-[#697386] leading-snug ml-0.5">{hint}</p>}
       {children}
+      {hint && (
+        <p className="text-[13px] text-gray-500 ml-1">{hint}</p>
+      )}
     </div>
   );
 }
 
-// Quiet section label above a card — just enough to orient, not shout.
-// Sentence case + a lighter weight reads as far less heavy than bold+uppercase.
-function SectionLabel({ children }) {
-  return (
-    <span className="text-[12px] font-medium text-[#c1c7d0] ml-1">{children}</span>
-  );
-}
-
 const UNIT_OPTIONS = [
-  { value: 'units', label: 'Units' },
-  { value: 'cans', label: 'Cans' },
-  { value: 'boxes', label: 'Boxes' },
-  { value: 'bottles', label: 'Bottles' },
-  { value: 'packets', label: 'Bags' },
-  { value: 'cases', label: 'Cases' },
+  { value: "units", label: "Units" },
+  { value: "cans", label: "Cans" },
+  { value: "boxes", label: "Boxes" },
+  { value: "bottles", label: "Bottles" },
+  { value: "packets", label: "Bags" },
+  { value: "cases", label: "Cases" },
 ];
 
 const WEIGHT_UNIT_OPTIONS = [
-  { value: 'lbs', label: 'lbs' },
-  { value: 'oz', label: 'oz' },
-  { value: 'fl_oz', label: 'fl oz' },
-  { value: 'kg', label: 'kg' },
-  { value: 'g', label: 'g' },
-  { value: 'ml', label: 'mL' },
-  { value: 'l', label: 'L' },
-  { value: 'gal', label: 'gal' },
+  { value: "lbs", label: "lbs" },
+  { value: "oz", label: "oz" },
+  { value: "fl_oz", label: "fl oz" },
+  { value: "kg", label: "kg" },
+  { value: "g", label: "g" },
+  { value: "ml", label: "mL" },
+  { value: "l", label: "L" },
+  { value: "gal", label: "gal" },
 ];
 
 const SOURCE_OPTIONS = [
-  { value: 'not_specified', label: 'Not specified' },
-  { value: 'donation', label: 'Donation' },
-  { value: 'retail_rescue', label: 'Rescue' },
-  { value: 'purchased', label: 'Purchased' },
-  { value: 'usda', label: 'USDA' },
+  { value: "not_specified", label: "Not specified" },
+  { value: "donation", label: "Donation" },
+  { value: "retail_rescue", label: "Rescue" },
+  { value: "purchased", label: "Purchased" },
+  { value: "usda", label: "USDA" },
 ];
 
-const PACK_SIZE_PRESETS = ['3', '6', '8', '12', '24', '36', '48'];
+const PACK_SIZE_PRESETS = ["3", "6", "8", "12", "24", "36", "48"];
 
-export function MobileManualEntryView({ onBack, initialItem, onSave }) {
+export function MobileManualEntryView({ onBack, initialItem, onSave, pantryId }) {
   const isEditing = !!initialItem?.id;
-  const displayBarcode = initialItem?.barcode || '';
-  
-  const [formName, setFormName] = useState(initialItem?.name || '');
-  const [formCategory, setFormCategory] = useState(initialItem?.category || categories[0].value);
-  const [formQty, setFormQty] = useState(initialItem?.quantity || '1');
-  
-  // Mobile defaults to per-unit weight entry
+  const displayBarcode = initialItem?.barcode || "";
+
+  const [currentStep, setCurrentStep] = useState(1);
+
+  // Step 1: Identify
+  const [formName, setFormName] = useState(initialItem?.name || "");
+  const [formCategory, setFormCategory] = useState(initialItem?.category || "");
+  const [formPhotoUrl, setFormPhotoUrl] = useState(initialItem?.photoUrl || null);
+
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+
+  useEffect(() => {
+    if (!isTyping || formName.trim().length < 2) {
+      setSuggestions([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/foods/search?q=${encodeURIComponent(formName.trim())}`, {
+          headers: { 'x-pantry-id': pantryId || '' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data.products || []);
+          setShowSuggestions(true);
+        }
+      } catch (error) {
+        console.error("Autocomplete failed:", error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [formName, isTyping, pantryId]);
+
+  // Step 2: Quantify
+  const [formQty, setFormQty] = useState(initialItem?.quantity || "1");
   const [formWeight, setFormWeight] = useState(
-    initialItem?.weightPerUnit && initialItem?.weightPerUnit !== '0' && initialItem?.weightPerUnit !== '0.00'
-      ? String(initialItem.weightPerUnit) 
-      : ''
+    initialItem?.weightPerUnit &&
+      initialItem?.weightPerUnit !== "0" &&
+      initialItem?.weightPerUnit !== "0.00"
+      ? String(initialItem.weightPerUnit)
+      : "",
   );
-  const [formWeightUnit, setFormWeightUnit] = useState('lbs'); 
-  const [expirationDate, setExpirationDate] = useState(initialItem?.expirationDate || '');
-  const [formUnit, setFormUnit] = useState(initialItem?.unit || 'units');
-  const [formSource, setFormSource] = useState(initialItem?.sourceType || 'not_specified');
+  const [formWeightUnit, setFormWeightUnit] = useState("lbs");
+  const [formUnit, setFormUnit] = useState(initialItem?.unit || "units");
   
-  // Items per pack — a preset dropdown for the common cases (packs of 6, 12, 24...)
-  // with a "Custom amount" escape hatch for anything unusual.
-  const [packSize, setPackSize] = useState(initialItem?.packSize || '');
+  const [packSize, setPackSize] = useState(initialItem?.packSize || "");
   const [packSizeMode, setPackSizeMode] = useState(() => {
-    const v = initialItem?.packSize ? String(initialItem.packSize) : '';
-    if (!v) return 'none';
-    return PACK_SIZE_PRESETS.includes(v) ? v : 'custom';
+    const v = initialItem?.packSize ? String(initialItem.packSize) : "";
+    if (!v) return "none";
+    return PACK_SIZE_PRESETS.includes(v) ? v : "custom";
   });
 
-  // More Details
-  const [donorName, setDonorName] = useState(initialItem?.donorName || '');
-  const [isMoreDetailsOpen, setIsMoreDetailsOpen] = useState(false);
-
   const PACK_SIZE_OPTIONS = [
-    { value: 'none', label: 'Not packaged' },
-    ...PACK_SIZE_PRESETS.map(n => ({ value: n, label: `${n} per pack` })),
-    { value: 'custom', label: 'Custom amount…' },
+    { value: "none", label: "Not packaged" },
+    ...PACK_SIZE_PRESETS.map((n) => ({ value: n, label: `${n} per pack` })),
+    { value: "custom", label: "Custom amount…" },
   ];
 
+  // Step 3: Details
+  const [expirationDate, setExpirationDate] = useState(initialItem?.expirationDate || "");
+  const [formSource, setFormSource] = useState(initialItem?.sourceType || "not_specified");
+  const [donorName, setDonorName] = useState(initialItem?.donorName || "");
+
   const handleSave = () => {
-    if (!formName.trim() || !formQty) return;
-    
+    if (!formName.trim() || !formQty || !formCategory) return;
+
     const qtyNum = parseFloat(formQty) || 1;
     let perUnitLbs = 0;
-    if (formWeight && formWeightUnit === 'oz') {
+    if (formWeight && formWeightUnit === "oz") {
       perUnitLbs = parseFloat(formWeight) / 16;
     } else if (formWeight) {
       perUnitLbs = parseFloat(formWeight);
     }
-    
+
     const newItem = {
-      id: initialItem?.id || `${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id:
+        initialItem?.id ||
+        `${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       barcode: displayBarcode,
       name: formName.trim(),
       category: formCategory,
       categoryName: getCategoryMeta(formCategory).name,
       quantity: String(qtyNum),
       unit: formUnit,
-      weightPerUnit: perUnitLbs > 0 ? perUnitLbs.toFixed(2) : '0',
+      weightPerUnit: perUnitLbs > 0 ? perUnitLbs.toFixed(2) : "0",
       totalWeightLbs: Number((perUnitLbs * qtyNum).toFixed(2)),
-      intakeMode: 'count',
+      intakeMode: "count",
       expirationDate: expirationDate || null,
-      expirationPrecision: expirationDate ? 'day' : 'none',
+      expirationPrecision: expirationDate ? "day" : "none",
       sourceType: formSource,
       packSize: packSize ? String(packSize) : null,
       donorName: donorName.trim() || null,
-      photoUrl: initialItem?.photoUrl || null
+      photoUrl: formPhotoUrl,
     };
 
     onSave(newItem);
   };
 
-  const inputClass = "w-full h-[52px] px-4 rounded-xl border border-gray-200/80 bg-white text-[16px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all placeholder:text-[#a3acb9]";
+  const handleNextStep = () => {
+    if (currentStep === 1) {
+      if (formName.trim() && formCategory) setCurrentStep(2);
+    } else if (currentStep === 2) {
+      if (formQty) setCurrentStep(3);
+    } else if (currentStep === 3) {
+      handleSave();
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    } else {
+      onBack();
+    }
+  };
+
+  const isNextDisabled = () => {
+    if (currentStep === 1) return !formName.trim() || !formCategory;
+    if (currentStep === 2) return !formQty || parseFloat(formQty) <= 0;
+    return false;
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!isNextDisabled()) {
+        handleNextStep();
+      }
+    }
+  };
+
+  const inputClass =
+    "w-full h-[56px] px-4 rounded-xl border-2 border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none focus:border-[#d97757] focus:ring-4 focus:ring-[#d97757]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
 
   return (
     <motion.div
-      initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      // Fixed + z-[9999], same as the camera view and a populated cart — filling
-      // out this form is just as much "mid-batch" as those, so the bottom tab
-      // bar should stay covered here too instead of floating over the form
-      // (it used to, since z-50 sat below the nav's own z-[100]).
-      className="fixed inset-0 z-[9999] w-full h-[100dvh] bg-[#f8fafb] flex flex-col"
+      initial={{ x: "100%" }}
+      animate={{ x: 0 }}
+      exit={{ x: "100%" }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      className="fixed inset-0 z-[9999] w-full h-[100dvh] bg-white flex flex-col overflow-hidden"
     >
-      {/* HEADER */}
-      <div className="p-4 pt-safe flex items-center justify-between border-b bg-white shadow-sm shrink-0 relative z-10">
-        <button onClick={onBack} className="flex items-center text-[#8792a2] font-semibold active:text-[#4f566b] active:scale-95 transition-all -ml-2 p-2">
-          <ChevronLeft className="w-6 h-6 mr-1" strokeWidth={2.25} />
-          Cancel
-        </button>
-        <div className="flex flex-col items-center">
-          <h1 className="font-bold text-[17px] text-[#1a1f36] tracking-tight leading-tight">
-            {isEditing ? 'Edit Item' : 'Add Item'}
-          </h1>
-          {displayBarcode && !initialItem?.isInternal && (
-            <span className="text-[11px] font-bold text-[#a3acb9] uppercase tracking-widest">{displayBarcode}</span>
-          )}
+      <div className="pt-safe flex flex-col shrink-0 bg-white relative z-10">
+        <div className="p-4 pb-2 flex items-center justify-between">
+          <button
+            onClick={handleBack}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 active:bg-gray-100 text-[#1a1f36] transition-colors"
+          >
+            {currentStep === 1 ? (
+              <X className="w-5 h-5" strokeWidth={2.5} />
+            ) : (
+              <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+            )}
+          </button>
         </div>
-        <div className="w-20" /> {/* Spacer for centering */}
+        
+        <div className="h-1 w-full bg-gray-100 mt-2">
+          <motion.div 
+            className="h-full bg-[#d97757]"
+            initial={{ width: "33%" }}
+            animate={{ width: `${(currentStep / 3) * 100}%` }}
+            transition={{ ease: "easeInOut", duration: 0.3 }}
+          />
+        </div>
       </div>
 
-      {/* FORM BODY */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        
-        {!isEditing && displayBarcode && !initialItem?.isInternal && (
-          <div className="bg-orange-50 border border-[#d97757]/30 rounded-2xl p-4 flex gap-3 items-start">
-            <AlertCircle className="w-5 h-5 text-[#d97757] shrink-0 mt-0.5" />
-            <div>
-              <p className="text-[#c06245] font-bold text-[14px]">Barcode Not Found</p>
-              <p className="text-[#c06245]/80 text-[13px] mt-1 leading-snug">
-                This item isn't in our global database. Fill in the details below and it will be saved for future scans!
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-[140px]">
+        {currentStep === 1 && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-8"
+          >
+            <div className="mt-2">
+              <h1 className="text-[28px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
+                {isEditing ? "Edit item" : "What are you adding?"}
+              </h1>
+              <p className="text-[15px] text-[#697386] mt-1">
+                {isEditing ? "Update the product details below." : "Enter the product name and category."}
               </p>
-            </div>
-          </div>
-        )}
-
-        {/* CARD 1: CORE DETAILS — label sits tight against its card (space-y-2)
-            so it reads as this card's own header, not extra space pushing
-            the first field down; the gap between sections (space-y-4 on the
-            outer list) is what gives the actual section break. */}
-        <div className="space-y-2">
-        <SectionLabel>Product</SectionLabel>
-        <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 space-y-5">
-          <MobileFieldLabel label="Item Name" required>
-            <input
-              type="text"
-              value={formName}
-              onChange={e => setFormName(e.target.value)}
-              placeholder="e.g. Campbell's Tomato Soup"
-              className={inputClass}
-            />
-          </MobileFieldLabel>
-
-          <MobileFieldLabel label="Category" required>
-            <div className="relative">
-              <select
-                value={formCategory}
-                onChange={e => setFormCategory(e.target.value)}
-                className={`${inputClass} appearance-none pr-10`}
-              >
-                {categories.map(c => <option key={c.value} value={c.value}>{c.name}</option>)}
-              </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                <ChevronDown className="w-4 h-4 text-[#8792a2]" />
-              </div>
-            </div>
-          </MobileFieldLabel>
-        </div>
-        </div>
-
-        {/* CARD 2: MEASUREMENTS */}
-        <div className="space-y-2">
-        <SectionLabel>Measurements</SectionLabel>
-        <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 space-y-5">
-          <MobileFieldLabel label="Quantity" required>
-            {/* Same stepper as the "Item Found" popup — minus/plus for quick bumps,
-                and the number itself is a real input so a large count can just be
-                typed directly instead of tapped up one at a time. */}
-            <div className="flex gap-3">
-              <div className="flex-1 min-w-0">
-                <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Qty</span>
-                <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200/80 h-[52px] min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => setFormQty(String(Math.max(1, (parseInt(formQty, 10) || 1) - 1)))}
-                    className="h-full w-12 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-l-xl transition-colors"
-                  >
-                    <Minus className="w-4 h-4" strokeWidth={2.5} />
-                  </button>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formQty}
-                    onChange={e => setFormQty(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-0 flex-1 min-w-0 text-center text-[18px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setFormQty(String((parseInt(formQty, 10) || 1) + 1))}
-                    className="h-full w-12 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-r-xl transition-colors"
-                  >
-                    <Plus className="w-4 h-4" strokeWidth={2.5} />
-                  </button>
+              
+              {displayBarcode && !initialItem?.isInternal && (
+                <div className="inline-flex items-center gap-2 mt-3 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  <span className="text-[12px] font-bold text-gray-600 uppercase tracking-widest">{displayBarcode}</span>
                 </div>
-              </div>
-
-              {/* Counted as — a plain native <select>, not a custom popup, so it
-                  can't mistake a scroll-drag through the form for a tap the way
-                  the earlier Radix version here did. */}
-              <div className="w-[124px] shrink-0">
-                <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Counted as</span>
-                <div className="relative h-[52px]">
-                  <select
-                    value={formUnit}
-                    onChange={e => setFormUnit(e.target.value)}
-                    className="h-full w-full pl-3 pr-8 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-bold text-[#1a1f36] outline-none appearance-none"
-                  >
-                    {UNIT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                  </select>
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <ChevronDown className="w-4 h-4 text-[#8792a2]" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </MobileFieldLabel>
-
-          <MobileFieldLabel label="Items per Pack" optional hint="How many come in one case or bag?">
-            <div className="relative">
-              <select
-                value={packSizeMode}
-                onChange={e => {
-                  const val = e.target.value;
-                  setPackSizeMode(val);
-                  if (val === 'none') setPackSize('');
-                  else if (val !== 'custom') setPackSize(val);
-                }}
-                className={`${inputClass} appearance-none pr-10`}
-              >
-                {PACK_SIZE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                <ChevronDown className="w-4 h-4 text-[#8792a2]" />
-              </div>
-            </div>
-            {packSizeMode === 'custom' && (
-              <input
-                type="number"
-                value={packSize}
-                onChange={e => setPackSize(e.target.value)}
-                placeholder="e.g. 15"
-                autoFocus
-                className={`${inputClass} mt-2`}
-              />
-            )}
-          </MobileFieldLabel>
-
-          <MobileFieldLabel label="Per-Unit Weight" optional hint="Weight of a single item">
-            <div className="flex shadow-[0_1px_2px_rgba(0,0,0,0.04)] rounded-xl">
-              <input 
-                type="number" 
-                value={formWeight} 
-                onChange={e => setFormWeight(e.target.value)}
-                placeholder="e.g. 16"
-                className="w-full h-[52px] px-4 rounded-l-xl border border-gray-200/80 border-r-0 bg-white text-[16px] font-medium text-gray-900 outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 relative z-10 placeholder:text-[#a3acb9]"
-              />
-              <div className="relative border border-gray-200/80 rounded-r-xl bg-gray-50 shrink-0 w-[90px]">
-                <select
-                  value={formWeightUnit}
-                  onChange={e => setFormWeightUnit(e.target.value)}
-                  className="h-full w-full pl-3 pr-8 bg-transparent text-[16px] font-bold text-[#1a1f36] outline-none appearance-none"
-                >
-                  {WEIGHT_UNIT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <ChevronDown className="w-4 h-4 text-[#8792a2]" />
-                </div>
-              </div>
-            </div>
-          </MobileFieldLabel>
-        </div>
-        </div>
-
-        {/* CARD 3: METADATA */}
-        <div className="space-y-2">
-        <SectionLabel>Details</SectionLabel>
-        <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl p-5 space-y-5 overflow-hidden">
-          <MobileFieldLabel label="Expiration Date" optional>
-            {/* The input's own text/placeholder is hidden — iOS never shows a
-                date input's placeholder attribute at all, while Chrome/Android
-                render their own built-in "mm/dd/yyyy" hint regardless of it, so
-                relying on either leaves the other platform with no filler text.
-                One consistent label rendered ourselves fixes both. */}
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#a3acb9] pointer-events-none z-10" />
-              <input
-                type="date"
-                value={expirationDate}
-                onChange={e => setExpirationDate(e.target.value)}
-                className="w-full h-[52px] pl-10 pr-10 rounded-xl border border-gray-200/80 bg-white text-transparent caret-transparent outline-none focus:border-[#d97757] focus:ring-2 focus:ring-[#d97757]/10 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all appearance-none box-border max-w-full"
-                style={{ colorScheme: 'light' }}
-              />
-              <span className={`absolute left-10 right-10 top-1/2 -translate-y-1/2 truncate pointer-events-none text-[16px] ${expirationDate ? 'font-medium text-gray-900' : 'font-medium text-[#a3acb9]'}`}>
-                {expirationDate ? formatExpDateDisplay(expirationDate) : 'No date set'}
-              </span>
-              {expirationDate && (
-                <button
-                  type="button"
-                  onClick={() => setExpirationDate('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 active:bg-gray-300 transition-colors z-10"
-                >
-                  <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-                </button>
               )}
             </div>
-          </MobileFieldLabel>
 
-          <MobileFieldLabel label="Source Type">
-            <div className="relative">
-              <select
-                value={formSource}
-                onChange={e => setFormSource(e.target.value)}
-                className={`${inputClass} appearance-none pr-10`}
-              >
-                {SOURCE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                <ChevronDown className="w-4 h-4 text-[#8792a2]" />
-              </div>
-            </div>
-          </MobileFieldLabel>
-        </div>
-        </div>
-
-        {/* CARD 4: MORE DETAILS ACCORDION */}
-        <div className="bg-white border border-gray-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setIsMoreDetailsOpen(!isMoreDetailsOpen)}
-            className="w-full flex items-center justify-between p-5 bg-white hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center gap-2.5">
-              <Settings2 className="h-4.5 w-4.5 text-[#8792a2]" strokeWidth={2} />
-              <div className="flex flex-col items-start">
-                <span className="text-[14px] font-bold text-[#1a1f36]">More Details</span>
-                <span className="text-[12px] text-[#8792a2] font-medium">Donor Name</span>
-              </div>
-            </div>
-            <ChevronDown 
-              className={`w-5 h-5 text-[#8792a2] transition-transform duration-200 ${isMoreDetailsOpen ? 'rotate-180' : ''}`} 
-              strokeWidth={2} 
-            />
-          </button>
-          
-          <AnimatePresence>
-            {isMoreDetailsOpen && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }} 
-                animate={{ opacity: 1, height: 'auto' }} 
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden border-t border-gray-100"
-              >
-                <div className="p-5 space-y-5 bg-gray-50/50">
-                  <MobileFieldLabel label="Donor Name" optional>
-                    <input 
-                      type="text" 
-                      value={donorName} 
-                      onChange={e => setDonorName(e.target.value)}
-                      placeholder="e.g. Target"
-                      className={inputClass}
-                    />
-                  </MobileFieldLabel>
+            {!isEditing && displayBarcode && !initialItem?.isInternal && (
+              <div className="bg-orange-50 border-l-4 border-[#d97757] p-4 flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 text-[#d97757] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[#c06245] font-bold text-[15px]">
+                    Barcode not found
+                  </p>
+                  <p className="text-[#c06245]/80 text-[14px] mt-1 leading-snug font-medium">
+                    This item isn't in our database yet. Fill in the details below and it will be saved for future scans!
+                  </p>
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+
+            <div className="space-y-6">
+              <CleanField label="Item name" required>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formName}
+                    onKeyDown={handleKeyDown}
+                    onChange={(e) => {
+                      setFormName(e.target.value);
+                      setIsTyping(true);
+                      setIsSearching(true);
+                    }}
+                    onFocus={() => {
+                      if (suggestions.length > 0) setShowSuggestions(true);
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowSuggestions(false), 200);
+                    }}
+                    placeholder="e.g. Campbell's Tomato Soup"
+                    className={inputClass}
+                    autoFocus
+                  />
+                  {isSearching && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      <Loader2 className="w-5 h-5 animate-spin text-[#d97757]" />
+                    </div>
+                  )}
+
+                  <AnimatePresence>
+                    {showSuggestions && suggestions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 shadow-[0_12px_40px_rgba(0,0,0,0.12)] rounded-2xl overflow-hidden z-[9999]"
+                      >
+                        {suggestions.map((sugg) => (
+                          <button
+                            key={sugg.id || sugg.name}
+                            type="button"
+                            className="w-full px-5 py-4 text-left border-b border-gray-100 last:border-0 hover:bg-gray-50 active:bg-gray-100 flex items-center gap-4 transition-colors"
+                            onClick={() => {
+                              setFormName(sugg.name);
+                              if (sugg.category) setFormCategory(sugg.category);
+                              if (sugg.photoUrl) setFormPhotoUrl(sugg.photoUrl);
+                              setIsTyping(false);
+                              setShowSuggestions(false);
+                              
+                              if (sugg.category) {
+                                setTimeout(() => setCurrentStep(2), 150);
+                              }
+                            }}
+                          >
+                            {sugg.photoUrl ? (
+                              <img
+                                src={sugg.photoUrl}
+                                alt=""
+                                className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-200 shrink-0 flex items-center justify-center">
+                                <Search className="w-5 h-5 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[16px] font-bold text-[#1a1f36] truncate">
+                                {sugg.name}
+                              </p>
+                              <p className="text-[14px] text-[#697386] truncate font-medium mt-0.5">
+                                {sugg.brand ||
+                                  getCategoryMeta(sugg.category).name ||
+                                  "Unknown"}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {formPhotoUrl && (
+                  <div className="mt-4 relative w-20 h-20 rounded-2xl border-2 border-gray-200 overflow-hidden shadow-sm">
+                    <img
+                      src={formPhotoUrl}
+                      alt="Product"
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormPhotoUrl(null)}
+                      className="absolute top-1 right-1 w-6 h-6 bg-white/90 backdrop-blur border border-gray-200 rounded-full flex items-center justify-center text-gray-600 shadow-sm active:scale-95 transition-all"
+                    >
+                      <X className="w-3.5 h-3.5" strokeWidth={3} />
+                    </button>
+                  </div>
+                )}
+              </CleanField>
+
+              <CleanField label="Category" required>
+                <div className="relative">
+                  <select
+                    value={formCategory}
+                    onChange={(e) => {
+                      setFormCategory(e.target.value);
+                      if (e.target.value && formName.trim()) {
+                         setTimeout(() => setCurrentStep(2), 150);
+                      }
+                    }}
+                    className={`${inputClass} appearance-none pr-12 ${!formCategory ? 'text-[#a3acb9]' : 'text-[#1a1f36]'}`}
+                  >
+                    <option value="" disabled>Select a category...</option>
+                    {categories.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
+                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
+                  </div>
+                </div>
+              </CleanField>
+            </div>
+          </motion.div>
+        )}
+
+        {currentStep === 2 && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-8"
+          >
+            <div className="mt-2">
+              <h1 className="text-[28px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
+                How much is there?
+              </h1>
+              <p className="text-[15px] text-[#697386] mt-1">
+                Enter the quantity and measurements.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <CleanField label="Quantity" required>
+                <div className="flex gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center bg-white rounded-xl border-2 border-gray-200 h-[56px] min-w-0 focus-within:border-[#d97757] focus-within:ring-4 focus-within:ring-[#d97757]/10 transition-all overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setFormQty(String(Math.max(1, (parseInt(formQty, 10) || 1) - 1)))}
+                        className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-r-2 border-gray-200 transition-colors"
+                      >
+                        <Minus className="w-5 h-5" strokeWidth={2.5} />
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formQty}
+                        onKeyDown={handleKeyDown}
+                        onChange={(e) => setFormQty(e.target.value.replace(/[^0-9]/g, ""))}
+                        className="w-0 flex-1 min-w-0 text-center text-[20px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormQty(String((parseInt(formQty, 10) || 1) + 1))}
+                        className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-l-2 border-gray-200 transition-colors"
+                      >
+                        <Plus className="w-5 h-5" strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="w-[140px] shrink-0">
+                    <div className="relative h-[56px]">
+                      <select
+                        value={formUnit}
+                        onChange={(e) => setFormUnit(e.target.value)}
+                        className="h-full w-full pl-4 pr-10 rounded-xl border-2 border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#d97757] focus:ring-4 focus:ring-[#d97757]/10 transition-all"
+                      >
+                        {UNIT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-1">
+                        <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CleanField>
+
+              <CleanField label="Items per pack" optional hint="How many come in one case or bag?">
+                <div className="relative">
+                  <select
+                    value={packSizeMode}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPackSizeMode(val);
+                      if (val === "none") setPackSize("");
+                      else if (val !== "custom") setPackSize(val);
+                    }}
+                    className={`${inputClass} appearance-none pr-12`}
+                  >
+                    {PACK_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
+                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
+                  </div>
+                </div>
+                {packSizeMode === "custom" && (
+                  <input
+                    type="number"
+                    value={packSize}
+                    onKeyDown={handleKeyDown}
+                    onChange={(e) => setPackSize(e.target.value)}
+                    placeholder="e.g. 15"
+                    className={`${inputClass} mt-3`}
+                  />
+                )}
+              </CleanField>
+
+              <CleanField label="Per-unit weight" optional hint="Weight of a single item">
+                <div className="flex rounded-xl focus-within:ring-4 focus-within:ring-[#d97757]/10 transition-all overflow-hidden border-2 border-gray-200 focus-within:border-[#d97757] h-[56px]">
+                  <input
+                    type="number"
+                    value={formWeight}
+                    onKeyDown={handleKeyDown}
+                    onChange={(e) => setFormWeight(e.target.value)}
+                    placeholder="e.g. 16"
+                    className="w-full h-full px-4 border-r-2 border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none relative z-10 placeholder:text-[#a3acb9] placeholder:font-normal"
+                  />
+                  <div className="relative bg-gray-50 shrink-0 w-[110px]">
+                    <select
+                      value={formWeightUnit}
+                      onChange={(e) => setFormWeightUnit(e.target.value)}
+                      className="h-full w-full pl-4 pr-10 bg-transparent text-[16px] font-medium text-[#1a1f36] outline-none appearance-none"
+                    >
+                      {WEIGHT_UNIT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
+                    </div>
+                  </div>
+                </div>
+              </CleanField>
+            </div>
+          </motion.div>
+        )}
+
+        {currentStep === 3 && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-8"
+          >
+            <div className="mt-2">
+              <h1 className="text-[28px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
+                Any extra details?
+              </h1>
+              <p className="text-[15px] text-[#697386] mt-1">
+                Add expiration and sourcing info.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <CleanField label="Expiration date" optional>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#a3acb9] pointer-events-none z-10" />
+                  <input
+                    type="date"
+                    value={expirationDate}
+                    onKeyDown={handleKeyDown}
+                    onChange={(e) => setExpirationDate(e.target.value)}
+                    className={`${inputClass} pl-12 pr-12 text-transparent caret-transparent appearance-none box-border max-w-full`}
+                    style={{ colorScheme: "light" }}
+                  />
+                  <span
+                    className={`absolute left-12 right-12 top-1/2 -translate-y-1/2 truncate pointer-events-none text-[16px] ${expirationDate ? "font-medium text-[#1a1f36]" : "font-normal text-[#a3acb9]"}`}
+                  >
+                    {expirationDate ? formatExpDateDisplay(expirationDate) : "No date set"}
+                  </span>
+                  {expirationDate && (
+                    <button
+                      type="button"
+                      onClick={() => setExpirationDate("")}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 active:bg-gray-300 transition-colors z-10"
+                    >
+                      <X className="h-4 w-4" strokeWidth={2.5} />
+                    </button>
+                  )}
+                </div>
+              </CleanField>
+
+              <CleanField label="Source type">
+                <div className="relative">
+                  <select
+                    value={formSource}
+                    onChange={(e) => setFormSource(e.target.value)}
+                    className={`${inputClass} appearance-none pr-12`}
+                  >
+                    {SOURCE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
+                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
+                  </div>
+                </div>
+              </CleanField>
+
+              <CleanField label="Donor name" optional>
+                <input
+                  type="text"
+                  value={donorName}
+                  onKeyDown={handleKeyDown}
+                  onChange={(e) => setDonorName(e.target.value)}
+                  placeholder="e.g. Target"
+                  className={inputClass}
+                />
+              </CleanField>
+            </div>
+          </motion.div>
+        )}
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 z-50 pointer-events-none">
+        <div className="h-10 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+        <div className="bg-white px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-2 pointer-events-auto">
+          <button
+            onClick={handleNextStep}
+            disabled={isNextDisabled()}
+            className="w-full h-[60px] rounded-full bg-[#d97757] hover:bg-[#c66547] text-white font-extrabold text-[16px] uppercase tracking-wider shadow-[0_8px_24px_rgba(217,119,87,0.35)] active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
+          >
+            {currentStep < 3 ? (
+              <>
+                Continue <ArrowRight className="w-5 h-5" strokeWidth={3} />
+              </>
+            ) : (
+               <>
+                {isEditing ? <Save className="w-5 h-5" strokeWidth={3} /> : <Plus className="w-6 h-6" strokeWidth={3} />}
+                {isEditing ? "Save changes" : "Add item"}
+              </>
+            )}
+          </button>
         </div>
-
-        <div className="h-10" /> {/* Bottom Spacer */}
       </div>
-
-      {/* FOOTER BUTTON */}
-      <div className="p-4 shrink-0 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] pb-[calc(1rem+env(safe-area-inset-bottom))] relative z-10">
-        <button 
-          onClick={handleSave}
-          disabled={!formName.trim() || !formQty}
-          className="w-full h-[56px] rounded-xl bg-[#d97757] hover:bg-[#c66547] text-white font-bold text-[16px] shadow-[0_4px_14px_rgba(217,119,87,0.3)] active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
-        >
-          {isEditing ? <Save className="w-5 h-5" strokeWidth={2.5} /> : <Plus className="w-5 h-5" strokeWidth={3} />}
-          {isEditing ? 'Save Changes' : 'Save to Batch'}
-        </button>
-      </div>
-
     </motion.div>
   );
 }

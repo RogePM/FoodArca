@@ -294,6 +294,7 @@ export function MobileAddFlow({ onClose }) {
       <MobileManualEntryView 
         onBack={() => setActiveView(manualEntryReturnView)} 
         initialItem={scannedItem}
+        pantryId={pantryId}
         onSave={(updatedItem) => {
           setCartItems(prev => {
             const exists = prev.find(i => i.id === updatedItem.id);
