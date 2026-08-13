@@ -141,7 +141,11 @@ export function MobileCartView({
       </div>
 
       {/* ITEM LIST */}
-      <div className="flex-1 overflow-y-auto px-6 pb-[240px] space-y-4 relative pt-6">
+      <div
+        className={`flex-1 overflow-y-auto px-6 space-y-4 relative pt-6 ${
+          cartItems.length > 0 ? "pb-[240px]" : "pb-16"
+        }`}
+      >
         {cartItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full pb-16 pt-4">
             {/* Clean Empty Illustration */}
@@ -212,7 +216,7 @@ export function MobileCartView({
                           </span>
                         )}
                       </p>
-                      <div className="flex items-center gap-4 mt-2">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
                         <button
                           onClick={() => onEdit(item)}
                           className="flex items-center gap-1 text-[13px] font-semibold text-gray-400 hover:text-gray-600 active:text-[#d97757] transition-colors"
