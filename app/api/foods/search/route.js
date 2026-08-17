@@ -11,10 +11,13 @@ async function authenticateRequest() {
     { cookies: { getAll() { return cookieStore.getAll(); } } }
   );
 
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { authenticated: false, user: null, supabase: null };
+  // OPTIMIZATION: Use getSession() instead of getUser(). 
+  // getSession() decodes the JWT cookie locally (0ms latency).
+  // getUser() makes a network request to the Auth server (100ms latency).
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session?.user) return { authenticated: false, user: null, supabase: null };
 
-  return { authenticated: true, user, supabase };
+  return { authenticated: true, user: session.user, supabase };
 }
 
 async function resolveLocationAndOrg(supabase, pantryId) {
@@ -101,44 +104,9 @@ export async function GET(request) {
       }
     }
 
-    // 2. EXTERNAL API FALLBACK (Only if local results are few)
-    if (localFound < 3) {
-      try {
-        const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=10`;
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'FoodArca - Web - Version 1.0',
-            'Accept': 'application/json'
-          },
-          signal: AbortSignal.timeout(3000)
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.products && Array.isArray(data.products)) {
-            const offResults = data.products
-              .filter(p => p.product_name)
-              .map(p => {
-                const tags = p.categories_tags || [];
-                const category = mapOpenFoodFactsCategory(tags);
-                return {
-                  id: p.code,
-                  name: p.product_name,
-                  category: category,
-                  photoUrl: p.image_front_url || p.image_url || null,
-                  brand: p.brands ? p.brands.split(',')[0].trim() : null,
-                  source: 'external'
-                };
-              });
-
-            finalResults = [...finalResults, ...offResults];
-          }
-        }
-      } catch (offErr) {
-        console.error('OFF API Error:', offErr);
-        // Fail silently and just return the local results if the external API rate-limits us.
-      }
-    }
+    // 2. EXTERNAL API FALLBACK REMOVED
+    // We no longer query Open Food Facts for fuzzy text searches because it is too slow
+    // and returns generic duplicates. Open Food Facts is now only used for exact barcode scans.
 
     // 3. DEDUPLICATE AND SLICE (O(N) Set-based deduplication)
     const seen = new Set();

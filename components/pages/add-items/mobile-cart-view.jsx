@@ -184,30 +184,30 @@ export function MobileCartView({
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-white border-2 border-gray-100 rounded-2xl p-4 flex gap-4 items-center"
+                    className="bg-white border-2 border-gray-200 rounded-2xl p-3 flex gap-3 items-center"
                   >
                     {item.photoUrl ? (
                       <img
                         src={item.photoUrl}
                         alt=""
-                        className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-50 shrink-0"
+                        className="w-14 h-14 rounded-2xl object-cover border-2 border-gray-50 shrink-0"
                       />
                     ) : (
                       <div
-                        className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 border-2 ${catVisual.style.border} ${catVisual.style.bg}`}
+                        className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border-2 ${catVisual.style.border} ${catVisual.style.bg}`}
                       >
                         <catVisual.Icon
-                          className={`h-7 w-7 ${catVisual.style.text}`}
+                          className={`h-6 w-6 ${catVisual.style.text}`}
                           strokeWidth={2}
                         />
                       </div>
                     )}
 
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-[#1a1f36] text-[16px] leading-snug truncate">
+                      <h4 className="font-semibold text-[#1a1f36] text-[15px] leading-snug truncate">
                         {item.name}
                       </h4>
-                      <p className="text-[13px] font-medium text-gray-500 mt-0.5 truncate">
+                      <p className="text-[12px] font-medium text-gray-500 mt-0.5 truncate">
                         {item.categoryName || catVisual.name}
                         {expLabel && (
                           <span className="text-[#a3acb9] font-normal">
@@ -216,16 +216,16 @@ export function MobileCartView({
                           </span>
                         )}
                       </p>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
+                      <div className="flex items-center gap-3 mt-1.5">
                         <button
                           onClick={() => onEdit(item)}
-                          className="flex items-center gap-1 text-[13px] font-semibold text-gray-400 hover:text-gray-600 active:text-[#d97757] transition-colors"
+                          className="flex items-center gap-1 text-[12px] font-semibold text-gray-400 hover:text-gray-600 active:text-[#d97757] transition-colors"
                         >
                           <Edit3 className="h-3.5 w-3.5" strokeWidth={2.5} /> Edit
                         </button>
                         <button
                           onClick={() => removeFromBatch(item.id)}
-                          className="flex items-center gap-1 text-[13px] font-semibold text-gray-400 hover:text-gray-600 active:text-rose-500 transition-colors"
+                          className="flex items-center gap-1 text-[12px] font-semibold text-gray-400 hover:text-gray-600 active:text-rose-500 transition-colors"
                         >
                           <Trash2 className="h-3.5 w-3.5" strokeWidth={2.5} />{" "}
                           Remove

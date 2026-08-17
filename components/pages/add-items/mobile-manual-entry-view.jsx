@@ -108,32 +108,45 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, pantryId })
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
 
+  const [dictionary, setDictionary] = useState([]);
+  const [isDictionaryLoaded, setIsDictionaryLoaded] = useState(false);
+
+  // Fetch local dictionary on mount for instant autocomplete
   useEffect(() => {
-    if (!isTyping || formName.trim().length < 2) {
+    let mounted = true;
+    const fetchDictionary = async () => {
+      try {
+        const res = await fetch('/api/foods/dictionary', {
+          headers: { 'x-pantry-id': pantryId || '' }
+        });
+        if (res.ok && mounted) {
+          const data = await res.json();
+          setDictionary(data.dictionary || []);
+          setIsDictionaryLoaded(true);
+        }
+      } catch (error) {
+        console.error("Dictionary fetch failed:", error);
+      }
+    };
+    fetchDictionary();
+    return () => { mounted = false; };
+  }, [pantryId]);
+
+  // Instantaneous 0ms local filtering
+  useEffect(() => {
+    if (!isTyping || formName.trim().length < 2 || !isDictionaryLoaded) {
       setSuggestions([]);
-      setIsSearching(false);
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const res = await fetch(`/api/foods/search?q=${encodeURIComponent(formName.trim())}`, {
-          headers: { 'x-pantry-id': pantryId || '' }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data.products || []);
-          setShowSuggestions(true);
-        }
-      } catch (error) {
-        console.error("Autocomplete failed:", error);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [formName, isTyping, pantryId]);
+    const query = formName.trim().toLowerCase();
+    const filtered = dictionary
+      .filter(item => item.name.toLowerCase().includes(query))
+      .slice(0, 5); // Max 5 suggestions
+
+    setSuggestions(filtered);
+    setShowSuggestions(filtered.length > 0);
+  }, [formName, isTyping, dictionary, isDictionaryLoaded]);
 
   // Step 2: Quantify
   const [formQty, setFormQty] = useState(initialItem?.quantity || "1");
