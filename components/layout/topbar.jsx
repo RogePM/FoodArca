@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     Menu, ChevronDown, Copy, Check, MapPin, Settings, Leaf, Search, Command,
     Building2, LogOut, RefreshCw, Bell, AlertTriangle, ArrowUpCircle, Package, X as XIcon, CreditCard, Sparkles, Plus, Minus, LayoutDashboard
@@ -14,8 +14,14 @@ import {
 import { usePantry } from '@/components/providers/PantryProvider';
 import { createBrowserClient } from '@supabase/ssr';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { useDashboardRoute } from './use-dashboard-route';
 
 export function TopBar({ activeView, onMenuClick, setActiveView }) {
+    const router = useRouter();
+    const { navigateToView } = useDashboardRoute(activeView);
+    const handleNav = setActiveView || navigateToView;
+
     const {
         pantryId,
         pantryDetails,
@@ -74,6 +80,11 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
         }
     }, [supabase, pantryId]);
 
+    const dismissedIdsRef = useRef(dismissedIds);
+    useEffect(() => {
+        dismissedIdsRef.current = dismissedIds;
+    }, [dismissedIds]);
+
     useEffect(() => {
         if (!pantryId) return;
 
@@ -86,7 +97,7 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                 if (res.ok) {
                     const data = await res.json();
                     const allAlerts = data.alerts || [];
-                    const activeAlerts = allAlerts.filter(alert => !dismissedIds.includes(alert.id));
+                    const activeAlerts = allAlerts.filter(alert => !dismissedIdsRef.current.includes(alert.id));
 
                     setNotifications(activeAlerts);
                     setUnreadCount(activeAlerts.length);
@@ -106,8 +117,7 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
         fetchNotifications();
         const interval = setInterval(fetchNotifications, 60000);
         return () => clearInterval(interval);
-
-    }, [pantryId, dismissedIds]);
+    }, [pantryId]);
 
     const handleDismiss = (e, id) => {
         e.preventDefault();
@@ -115,6 +125,13 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
         const newDismissed = [...dismissedIds, id];
         setDismissedIds(newDismissed);
         localStorage.setItem(`dismissed-alerts-${pantryId}`, JSON.stringify(newDismissed));
+        
+        // Optimistically update the notifications list
+        setNotifications(prev => {
+            const next = prev.filter(n => n.id !== id);
+            setUnreadCount(next.length);
+            return next;
+        });
     };
 
     const handleOpenChange = (isOpen) => {
@@ -127,13 +144,15 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
 
     const handleNotificationClick = (notification) => {
         setIsNotifOpen(false);
-        if (notification.targetView && setActiveView) {
-            setActiveView(notification.targetView);
-        } else if (notification.action === 'billing' && setActiveView) {
-            setActiveView('Settings');
-        }
         if (notification.action === 'billing' || notification.id?.includes('limit')) {
-            window.location.hash = 'billing';
+            handleNav('/dashboard/settings#billing');
+            if (typeof window !== 'undefined') {
+                window.location.hash = 'billing';
+            }
+            return;
+        }
+        if (notification.targetView) {
+            handleNav(notification.targetView);
         }
     };
 
@@ -161,11 +180,11 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
     const getInitials = (name) => name ? name.substring(0, 2).toUpperCase() : 'U';
 
     const quickNavigation = [
-        { name: 'Dashboard', icon: LayoutDashboard, view: 'Overview', category: 'Navigation' },
-        { name: 'Add Items (Receive Intake)', icon: Plus, view: 'Add Items', category: 'Actions' },
-        { name: 'Full Inventory Table', icon: Package, view: 'Inventory', category: 'Navigation' },
-        { name: 'Remove Items (Distribution)', icon: Minus, view: 'Remove Items', category: 'Actions' },
-        { name: 'Settings & Organization', icon: Settings, view: 'Settings', category: 'Preferences' }
+        { name: 'Dashboard', icon: LayoutDashboard, view: 'Dashboard', href: '/dashboard', category: 'Navigation' },
+        { name: 'Add Items (Receive Intake)', icon: Plus, view: 'Add Items', href: '/dashboard/add', category: 'Actions' },
+        { name: 'Full Inventory Table', icon: Package, view: 'View Inventory', href: '/dashboard/inventory', category: 'Navigation' },
+        { name: 'Remove Items (Distribution)', icon: Minus, view: 'Remove Items', href: '/dashboard/remove', category: 'Actions' },
+        { name: 'Settings & Organization', icon: Settings, view: 'Settings', href: '/dashboard/settings', category: 'Preferences' }
     ];
 
     const filteredNav = quickNavigation.filter(item =>
@@ -173,8 +192,8 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
         item.category.toLowerCase().includes(commandQuery.toLowerCase())
     );
 
-    const handleSelectView = (view) => {
-        if (setActiveView) setActiveView(view);
+    const handleSelectView = (item) => {
+        handleNav(item.href || item.view);
         setIsCommandOpen(false);
         setCommandQuery('');
     };
@@ -243,7 +262,7 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                         </DropdownMenuTrigger>
 
                         <DropdownMenuContent align="end" className="w-72 p-2 rounded-2xl shadow-xl border-gray-100/50 bg-white/95 backdrop-blur-sm mt-2">
-                            <DropdownMenuItem className="p-0 focus:bg-transparent outline-none mb-2" onClick={() => setActiveView && setActiveView('Settings')}>
+                            <DropdownMenuItem className="p-0 focus:bg-transparent outline-none mb-2" onClick={() => handleNav('/dashboard/settings')}>
                                 <div className="w-full bg-gray-50/80 p-3 rounded-xl border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors group/card">
                                     <div className="flex justify-between items-start">
                                         <div>
@@ -396,7 +415,7 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                             {/* Settings moved here! */}
                             <DropdownMenuItem
                                 className="cursor-pointer rounded-lg text-gray-700 text-sm py-2.5 px-3 font-medium transition-colors"
-                                onClick={() => setActiveView && setActiveView('Settings')}
+                                onClick={() => handleNav('/dashboard/settings')}
                             >
                                 <Settings className="mr-2 h-4 w-4 text-gray-400" /> Settings
                             </DropdownMenuItem>
@@ -465,7 +484,7 @@ export function TopBar({ activeView, onMenuClick, setActiveView }) {
                                 filteredNav.map((item) => (
                                     <button
                                         key={item.name}
-                                        onClick={() => handleSelectView(item.view)}
+                                        onClick={() => handleSelectView(item)}
                                         className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[#f4f4f6] transition-all text-left group"
                                     >
                                         <div className="flex items-center gap-3">

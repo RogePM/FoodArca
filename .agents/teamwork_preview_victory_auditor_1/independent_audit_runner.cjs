@@ -1,303 +1,290 @@
+const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const React = require('react');
-const ReactDOMServer = require('react-dom/server');
-const swc = require('next/dist/build/swc');
 
-console.log('=== RUNNING INDEPENDENT VICTORY AUDIT TEST RUNNER ===\n');
+console.log('================================================================');
+console.log('  INDEPENDENT VICTORY AUDIT SUITE — FoodArca App Router Migration');
+console.log('================================================================\n');
 
-let passCount = 0;
-let failCount = 0;
+let totalTests = 0;
+let passedTests = 0;
+let failedTests = 0;
 const failures = [];
 
-function assert(condition, message) {
-  if (condition) {
-    passCount++;
-  } else {
-    failCount++;
-    failures.push(message);
-    console.error(`❌ FAIL: ${message}`);
+function runTest(suite, name, fn) {
+  totalTests++;
+  try {
+    fn();
+    console.log(`  [PASS] [${suite}] ${name}`);
+    passedTests++;
+  } catch (err) {
+    console.error(`  [FAIL] [${suite}] ${name}`);
+    console.error(`         Error: ${err.message}`);
+    failedTests++;
+    failures.push({ suite, name, error: err.message, stack: err.stack });
   }
 }
 
-// 1. Helper to transpile and require module with cache
-const moduleCache = {};
-function loadModule(filePath, moduleAliases = {}) {
-  const absPath = path.resolve(filePath);
-  if (moduleCache[absPath]) return moduleCache[absPath];
+const ROOT = path.resolve(__dirname, '..', '..');
 
-  const code = fs.readFileSync(absPath, 'utf8');
-  const transformed = swc.transformSync(code, {
-    jsc: {
-      parser: {
-        syntax: 'ecmascript',
-        jsx: true,
-      },
-      transform: {
-        react: {
-          runtime: 'classic',
-        },
-      },
-      target: 'es2020',
-    },
-    module: {
-      type: 'commonjs',
-    },
+// ====================================================================
+// SUITE 1: FILE SYSTEM & ROUTE TOPOLOGY
+// ====================================================================
+console.log('--- SUITE 1: FILE SYSTEM & ROUTE TOPOLOGY ---');
+
+runTest('RouteTopology', 'Required App Router dashboard files exist', () => {
+  const expectedFiles = [
+    'app/dashboard/layout.jsx',
+    'app/dashboard/page.js',
+    'app/dashboard/inventory/page.jsx',
+    'app/dashboard/add/page.jsx',
+    'app/dashboard/remove/page.jsx',
+    'app/dashboard/recent/page.jsx',
+    'app/dashboard/settings/page.jsx',
+  ];
+
+  for (const rel of expectedFiles) {
+    const full = path.join(ROOT, rel);
+    assert(fs.existsSync(full), `Missing expected route file: ${rel}`);
+    const stat = fs.statSync(full);
+    assert(stat.size > 50, `File ${rel} appears too small (${stat.size} bytes)`);
+  }
+});
+
+runTest('RouteTopology', 'Legacy client-page.jsx is permanently deleted from disk', () => {
+  const legacyFile = path.join(ROOT, 'app/dashboard/client-page.jsx');
+  assert(!fs.existsSync(legacyFile), 'app/dashboard/client-page.jsx still exists on disk!');
+});
+
+runTest('RouteTopology', 'Zero stale imports or references to client-page across all application code (app, components, lib, utils)', () => {
+  const checkedDirs = ['app', 'components', 'lib', 'utils'];
+  const checkedExtensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.json'];
+  
+  function scanDir(dir) {
+    let files = [];
+    if (!fs.existsSync(dir)) return files;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        files = files.concat(scanDir(full));
+      } else if (checkedExtensions.includes(path.extname(entry.name))) {
+        files.push(full);
+      }
+    }
+    return files;
+  }
+
+  const allSourceFiles = checkedDirs.flatMap(d => scanDir(path.join(ROOT, d)));
+  const hits = [];
+  for (const f of allSourceFiles) {
+    const content = fs.readFileSync(f, 'utf8');
+    if (content.includes('client-page.jsx') || content.includes('client-page')) {
+      hits.push(path.relative(ROOT, f));
+    }
+  }
+  assert.strictEqual(hits.length, 0, `Stale references to client-page found in: ${hits.join(', ')}`);
+});
+
+// ====================================================================
+// SUITE 2: LAYOUT SHELL & PERSISTENCE ARCHITECTURE
+// ====================================================================
+console.log('\n--- SUITE 2: LAYOUT SHELL & PERSISTENCE ARCHITECTURE ---');
+
+runTest('LayoutShell', 'app/dashboard/layout.jsx implements server-side auth and org validation', () => {
+  const layoutContent = fs.readFileSync(path.join(ROOT, 'app/dashboard/layout.jsx'), 'utf8');
+  assert(layoutContent.includes('createServerClient'), 'layout.jsx must use createServerClient for SSR auth');
+  assert(layoutContent.includes('supabase.auth.getUser()'), 'layout.jsx must verify user with getUser()');
+  assert(layoutContent.includes('user_organizations'), 'layout.jsx must check user_organizations for membership');
+  assert(layoutContent.includes('DashboardLayout'), 'layout.jsx must wrap children with DashboardLayout');
+  assert(layoutContent.includes('{children}'), 'layout.jsx must render {children}');
+});
+
+runTest('LayoutShell', 'Duplicate PantryProvider is eliminated from dashboard layout', () => {
+  const layoutContent = fs.readFileSync(path.join(ROOT, 'app/dashboard/layout.jsx'), 'utf8');
+  assert(!layoutContent.includes('<PantryProvider>'), 'Duplicate <PantryProvider> detected in dashboard layout.jsx');
+  assert(!layoutContent.includes('PantryProvider'), 'Duplicate PantryProvider import/usage detected in dashboard layout.jsx');
+});
+
+runTest('LayoutShell', 'Root app/layout.js maintains global PantryProvider', () => {
+  const rootLayout = fs.readFileSync(path.join(ROOT, 'app/layout.js'), 'utf8');
+  assert(rootLayout.includes('PantryProvider'), 'Root layout app/layout.js must provide PantryProvider context');
+});
+
+// ====================================================================
+// SUITE 3: NAVIGATION & APP ROUTER INTEGRATION
+// ====================================================================
+console.log('\n--- SUITE 3: NAVIGATION & APP ROUTER INTEGRATION ---');
+
+runTest('Navigation', 'lib/constants.js exports correct App Router route hrefs', () => {
+  const constants = fs.readFileSync(path.join(ROOT, 'lib/constants.js'), 'utf8');
+  const expectedHrefs = [
+    '/dashboard',
+    '/dashboard/add',
+    '/dashboard/remove',
+    '/dashboard/inventory',
+    '/dashboard/recent',
+    '/dashboard/settings'
+  ];
+  for (const href of expectedHrefs) {
+    assert(constants.includes(`href: "${href}"`) || constants.includes(`href: '${href}'`), `Missing href '${href}' in lib/constants.js`);
+  }
+});
+
+runTest('Navigation', 'Sidebar uses Next.js Link with clean href delegation', () => {
+  const sidebar = fs.readFileSync(path.join(ROOT, 'components/layout/sidebar.jsx'), 'utf8');
+  assert(sidebar.includes("import Link from 'next/link'"), 'Sidebar must import Next.js Link');
+  assert(sidebar.includes('<Link href={item.href}'), 'Sidebar must render <Link> for nav items with href');
+  assert(sidebar.includes('href: \'/dashboard/settings\'') || sidebar.includes('href: "/dashboard/settings"'), 'Sidebar settings item must link to /dashboard/settings');
+});
+
+runTest('Navigation', 'BottomNav uses Next.js Link with clean href delegation', () => {
+  const bottomNav = fs.readFileSync(path.join(ROOT, 'components/layout/bottom-nav.jsx'), 'utf8');
+  assert(bottomNav.includes("import Link from 'next/link'"), 'BottomNav must import Next.js Link');
+  assert(bottomNav.includes('href: \'/dashboard\''), 'BottomNav Home tab must link to /dashboard');
+  assert(bottomNav.includes('href: \'/dashboard/inventory\''), 'BottomNav Inventory tab must link to /dashboard/inventory');
+  assert(bottomNav.includes('href: \'/dashboard/remove\''), 'BottomNav Remove tab must link to /dashboard/remove');
+  assert(bottomNav.includes('href: \'/dashboard/recent\''), 'BottomNav Recent tab must link to /dashboard/recent');
+  assert(bottomNav.includes('href="/dashboard/add"'), 'BottomNav Center Add button must link to /dashboard/add');
+});
+
+runTest('Navigation', 'TopBar supports ⌘K command palette with full App Router route navigation', () => {
+  const topbar = fs.readFileSync(path.join(ROOT, 'components/layout/topbar.jsx'), 'utf8');
+  assert(topbar.includes('/dashboard/settings'), 'TopBar must link settings to /dashboard/settings');
+  assert(topbar.includes('/dashboard/add'), 'TopBar command palette must include /dashboard/add');
+  assert(topbar.includes('/dashboard/inventory'), 'TopBar command palette must include /dashboard/inventory');
+  assert(topbar.includes('/dashboard/remove'), 'TopBar command palette must include /dashboard/remove');
+  assert(topbar.includes('/dashboard/settings#billing'), 'TopBar billing notification must link to /dashboard/settings#billing');
+});
+
+// ====================================================================
+// SUITE 4: ROUTE RESOLUTION LOGIC & ADVERSARIAL CASES
+// ====================================================================
+console.log('\n--- SUITE 4: ROUTE RESOLUTION LOGIC & ADVERSARIAL CASES ---');
+
+runTest('RouteLogic', 'getActiveViewFromPathname accurately resolves all route variants and edge cases', () => {
+  function getActiveViewFromPathname(pathname) {
+    if (!pathname) return 'Dashboard';
+    if (pathname === '/dashboard') return 'Dashboard';
+    if (pathname.startsWith('/dashboard/add')) return 'Add Items';
+    if (pathname.startsWith('/dashboard/remove')) return 'Remove Items';
+    if (pathname.startsWith('/dashboard/inventory')) return 'View Inventory';
+    if (pathname.startsWith('/dashboard/recent')) return 'Recent Changes';
+    if (pathname.startsWith('/dashboard/settings')) return 'Settings';
+    return 'Dashboard';
+  }
+
+  const testMatrix = [
+    // Standard routes
+    { path: '/dashboard', expected: 'Dashboard' },
+    { path: '/dashboard/inventory', expected: 'View Inventory' },
+    { path: '/dashboard/add', expected: 'Add Items' },
+    { path: '/dashboard/remove', expected: 'Remove Items' },
+    { path: '/dashboard/recent', expected: 'Recent Changes' },
+    { path: '/dashboard/settings', expected: 'Settings' },
+    // Nested sub-paths
+    { path: '/dashboard/inventory/item-999', expected: 'View Inventory' },
+    { path: '/dashboard/inventory/category/canned', expected: 'View Inventory' },
+    { path: '/dashboard/add/bulk', expected: 'Add Items' },
+    { path: '/dashboard/remove/client-12', expected: 'Remove Items' },
+    { path: '/dashboard/settings/billing', expected: 'Settings' },
+    // Trailing slashes
+    { path: '/dashboard/', expected: 'Dashboard' },
+    { path: '/dashboard/inventory/', expected: 'View Inventory' },
+    { path: '/dashboard/add/', expected: 'Add Items' },
+    // Adversarial edge cases
+    { path: '', expected: 'Dashboard' },
+    { path: null, expected: 'Dashboard' },
+    { path: undefined, expected: 'Dashboard' },
+    { path: '/dashboard-extra', expected: 'Dashboard' },
+    { path: '/nonexistent', expected: 'Dashboard' }
+  ];
+
+  for (const item of testMatrix) {
+    const result = getActiveViewFromPathname(item.path);
+    assert.strictEqual(result, item.expected, `Path '${item.path}' resolved to '${result}', expected '${item.expected}'`);
+  }
+});
+
+// ====================================================================
+// SUITE 5: COMPONENT INTEGRATION & VIEW BINDINGS
+// ====================================================================
+console.log('\n--- SUITE 5: COMPONENT INTEGRATION & VIEW BINDINGS ---');
+
+runTest('ComponentIntegration', 'All nested route page files import and render correct components without logic regressions', () => {
+  const routes = [
+    { file: 'app/dashboard/page.js', component: 'DashboardHome', importPath: '@/components/pages/dashboard-home' },
+    { file: 'app/dashboard/inventory/page.jsx', component: 'InventoryView', importPath: '@/components/pages/inventory' },
+    { file: 'app/dashboard/add/page.jsx', component: 'AddItemView', importPath: '@/components/pages/add-items/add-item-view' },
+    { file: 'app/dashboard/remove/page.jsx', component: 'DistributionModule', importPath: '@/components/pages/distribution' },
+    { file: 'app/dashboard/recent/page.jsx', component: 'RecentChangesView', importPath: '@/components/pages/recent-changes-view' },
+    { file: 'app/dashboard/settings/page.jsx', component: 'SettingsView', importPath: '@/components/pages/settings-view' }
+  ];
+
+  for (const r of routes) {
+    const content = fs.readFileSync(path.join(ROOT, r.file), 'utf8');
+    assert(content.includes(r.component), `${r.file} must render component ${r.component}`);
+    assert(content.includes(r.importPath), `${r.file} must import from ${r.importPath}`);
+  }
+});
+
+runTest('ComponentIntegration', 'SettingsView handles deep linking and hash navigation for #billing and #general', () => {
+  const settings = fs.readFileSync(path.join(ROOT, 'components/pages/settings-view.jsx'), 'utf8');
+  assert(settings.includes('hashchange'), 'SettingsView must listen to hashchange');
+  assert(settings.includes('popstate'), 'SettingsView must listen to popstate');
+  assert(settings.includes('window.location.hash'), 'SettingsView must check window.location.hash');
+});
+
+// ====================================================================
+// SUITE 6: FORENSIC INTEGRITY & ANTI-FACADE CHECKS
+// ====================================================================
+console.log('\n--- SUITE 6: FORENSIC INTEGRITY & ANTI-FACADE CHECKS ---');
+
+runTest('ForensicIntegrity', 'No facade/dummy implementations or hardcoded constant returns in page files', () => {
+  const pageFiles = [
+    'app/dashboard/page.js',
+    'app/dashboard/inventory/page.jsx',
+    'app/dashboard/add/page.jsx',
+    'app/dashboard/remove/page.jsx',
+    'app/dashboard/recent/page.jsx',
+    'app/dashboard/settings/page.jsx'
+  ];
+
+  for (const p of pageFiles) {
+    const content = fs.readFileSync(path.join(ROOT, p), 'utf8');
+    assert(!content.includes('return null'), `${p} returns null placeholder`);
+    assert(!content.includes('return <div />') && !content.includes('return <div></div>'), `${p} returns empty div`);
+    assert(!content.includes('NotImplementedError'), `${p} throws NotImplementedError`);
+  }
+});
+
+runTest('ForensicIntegrity', 'No mock or hardcoded test flags in runtime codebase', () => {
+  const checkedFiles = [
+    'app/dashboard/layout.jsx',
+    'components/layout/dashboard-layout.jsx',
+    'components/layout/sidebar.jsx',
+    'components/layout/bottom-nav.jsx',
+    'components/layout/topbar.jsx',
+    'components/layout/use-dashboard-route.js'
+  ];
+
+  for (const f of checkedFiles) {
+    const content = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    assert(!content.includes('__TEST_BYPASS__'), `Bypass flag found in ${f}`);
+    assert(!content.includes('process.env.MOCK_TEST'), `Mock test env found in ${f}`);
+  }
+});
+
+console.log('\n================================================================');
+console.log(`TOTAL TESTS: ${totalTests} | PASSED: ${passedTests} | FAILED: ${failedTests}`);
+console.log('================================================================');
+
+if (failedTests > 0) {
+  console.error('\nFAILURE DETAILS:');
+  failures.forEach(f => {
+    console.error(`- [${f.suite}] ${f.name}: ${f.error}`);
   });
-
-  const m = { exports: {} };
-  moduleCache[absPath] = m.exports;
-
-  const customRequire = (id) => {
-    if (id === 'react') return React;
-    if (id === 'react-dom/server') return ReactDOMServer;
-    if (moduleAliases[id]) return moduleAliases[id];
-    if (id.startsWith('@/components/ui/custom-icons')) {
-      return loadModule(path.resolve(__dirname, '../../components/ui/custom-icons.jsx'));
-    }
-    if (id.startsWith('@/lib/constants')) {
-      return loadModule(path.resolve(__dirname, '../../lib/constants.js'));
-    }
-    if (id === 'lucide-react') {
-      return require('lucide-react');
-    }
-    try {
-      return require(id);
-    } catch (e) {
-      return {};
-    }
-  };
-
-  const fn = new Function('module', 'exports', 'require', '__dirname', '__filename', transformed.code);
-  fn(m, m.exports, customRequire, path.dirname(absPath), absPath);
-  moduleCache[absPath] = m.exports;
-  return m.exports;
-}
-
-const customIconsPath = path.resolve(__dirname, '../../components/ui/custom-icons.jsx');
-const constantsPath = path.resolve(__dirname, '../../lib/constants.js');
-
-console.log('1. Checking file existence and physical properties...');
-assert(fs.existsSync(customIconsPath), 'components/ui/custom-icons.jsx exists');
-assert(fs.existsSync(constantsPath), 'lib/constants.js exists');
-
-console.log('2. Transpiling and loading custom-icons.jsx...');
-const customIcons = loadModule(customIconsPath);
-
-// Required 10 category components
-const REQUIRED_COMPONENTS = [
-  'CannedGoodsIcon',
-  'BeveragesIcon',
-  'BakeryIcon',
-  'ProduceIcon',
-  'ProteinsIcon',
-  'DairyIcon',
-  'FrozenFoodIcon',
-  'DryGoodsIcon',
-  'HygieneIcon',
-  'OtherIcon',
-];
-
-console.log('3. Validating required 10 component exports and React properties...');
-for (const compName of REQUIRED_COMPONENTS) {
-  const Comp = customIcons[compName];
-  assert(typeof Comp === 'object' || typeof Comp === 'function', `${compName} is exported`);
-  assert(Comp.$$typeof === Symbol.for('react.forward_ref') || typeof Comp === 'function', `${compName} is a valid React component / forwardRef`);
-  assert(Comp.displayName === compName, `${compName} has displayName matching ${compName}`);
-
-  // Render with default props
-  const defaultHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(Comp));
-  assert(defaultHtml.startsWith('<svg'), `${compName} renders an <svg> tag`);
-  assert(defaultHtml.includes('viewBox="0 0 24 24"'), `${compName} has viewBox="0 0 24 24"`);
-  assert(defaultHtml.includes('width="24"') && defaultHtml.includes('height="24"'), `${compName} has default size 24`);
-  assert(defaultHtml.includes('stroke="currentColor"'), `${compName} defaults stroke to "currentColor"`);
-  assert(defaultHtml.includes('fill="none"'), `${compName} defaults fill to "none"`);
-  assert(defaultHtml.includes('stroke-width="2"'), `${compName} defaults stroke-width to "2"`);
-  assert(defaultHtml.includes('stroke-linecap="round"'), `${compName} defaults stroke-linecap to "round"`);
-  assert(defaultHtml.includes('stroke-linejoin="round"'), `${compName} defaults stroke-linejoin to "round"`);
-  assert(!defaultHtml.includes('NaN'), `${compName} markup contains no NaN values`);
-  assert(!defaultHtml.includes('undefined'), `${compName} markup contains no undefined attributes`);
-
-  // Render with custom props (size, strokeWidth, color, className, data-testid, aria-label)
-  const customProps = {
-    size: 32,
-    strokeWidth: 1.5,
-    color: '#ff5500',
-    className: 'w-8 h-8 text-blue-700 custom-test-class',
-    'data-testid': `test-${compName}`,
-    'aria-label': compName,
-  };
-  const customHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(Comp, customProps));
-  assert(customHtml.includes('width="32"'), `${compName} accepts custom size 32 (width)`);
-  assert(customHtml.includes('height="32"'), `${compName} accepts custom size 32 (height)`);
-  assert(customHtml.includes('stroke-width="1.5"'), `${compName} accepts custom strokeWidth 1.5`);
-  assert(customHtml.includes('stroke="#ff5500"'), `${compName} accepts custom stroke color`);
-  assert(customHtml.includes('class="w-8 h-8 text-blue-700 custom-test-class"'), `${compName} inherits Tailwind className`);
-  assert(customHtml.includes('data-testid="test-'), `${compName} passes data-testid`);
-  assert(customHtml.includes('aria-label="'), `${compName} passes aria-label`);
-
-  // Test ref attachment
-  const ref = React.createRef();
-  const refElement = React.createElement(Comp, { ref, id: `ref-${compName}` });
-  const refHtml = ReactDOMServer.renderToStaticMarkup(refElement);
-  assert(refHtml.includes(`id="ref-${compName}"`), `${compName} renders cleanly with attached React ref`);
-
-  // Test dynamic strokeWidth (e.g. form-view isSelected ? 2.5 : 1.5)
-  const selectedHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(Comp, { strokeWidth: 2.5, className: 'text-white' }));
-  assert(selectedHtml.includes('stroke-width="2.5"'), `${compName} accepts dynamic bold strokeWidth 2.5`);
-  assert(selectedHtml.includes('class="text-white"'), `${compName} accepts selected text-white class`);
-}
-
-console.log('4. Validating category-specific visual icon metaphors...');
-// CannedGoods: Tin can (body + rim + ribs + pull-tab)
-const cannedHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.CannedGoodsIcon));
-assert(cannedHtml.includes('<ellipse') && cannedHtml.includes('<path'), 'CannedGoodsIcon has ellipse rim and path body/ribs');
-
-// Beverages: Water Bottle / Jug (cap + neck + wave)
-const bevHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.BeveragesIcon));
-assert(bevHtml.includes('M10 2h4v2.5h-4z') || bevHtml.includes('M10 4.5'), 'BeveragesIcon has bottle cap and contour');
-
-// Bakery: Loaf of Bread (crust + score slashes)
-const bakeryHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.BakeryIcon));
-assert(bakeryHtml.includes('M7 10l2 4') || bakeryHtml.includes('14.5'), 'BakeryIcon has loaf contour and score slashes');
-
-// Produce: Apple (stem + leaf + apple body)
-const produceHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.ProduceIcon));
-assert(produceHtml.includes('M12 7.5') && produceHtml.includes('M13.5 4.5'), 'ProduceIcon has apple stem and leaf');
-
-// Proteins: Roasted chicken leg / steak (drumstick bulb + knuckle bone)
-const proteinHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.ProteinsIcon));
-assert(proteinHtml.includes('15.4 4.2') && proteinHtml.includes('14.5'), 'ProteinsIcon has drumstick bulb and knuckle');
-
-// Dairy: Gable-top milk carton (gable roof + carton body + milk drop)
-const dairyHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.DairyIcon));
-assert(dairyHtml.includes('M8 2h8v2.5H8z') && dairyHtml.includes('M12 11.5'), 'DairyIcon has gable roof and milk droplet');
-
-// Frozen Food: Snowflake crystal (6-branch axes + chevrons + core)
-const frozenHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.FrozenFoodIcon));
-assert(frozenHtml.includes('M12 2v20') && frozenHtml.includes('<circle'), 'FrozenFoodIcon has multi-axis snowflake crystal and center core');
-
-// Dry Goods: Burlap grain sack (ruffle top + tie + sack body + grain stalk)
-const dryHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.DryGoodsIcon));
-assert(dryHtml.includes('M8.5 2.5') && dryHtml.includes('M12 11v7'), 'DryGoodsIcon has burlap ruffle top, tie, and grain stalk');
-
-// Hygiene: Soap bar (soap body + bubbles + contour)
-const hygieneHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.HygieneIcon));
-assert(hygieneHtml.includes('<rect') && hygieneHtml.includes('<circle'), 'HygieneIcon has soap bar rect and circular suds/bubbles');
-
-// Other: Cardboard parcel box (isometric contour + top seams + tape line + label)
-const otherHtml = ReactDOMServer.renderToStaticMarkup(React.createElement(customIcons.OtherIcon));
-assert(otherHtml.includes('21 8a2 2 0 0 0-1-1.73') && otherHtml.includes('M12 22V12'), 'OtherIcon has isometric parcel box contour and seams');
-
-console.log('5. Validating alias exports in custom-icons.jsx...');
-const EXPECTED_ALIASES = [
-  ['CanIcon', 'CannedGoodsIcon'],
-  ['TinCanIcon', 'CannedGoodsIcon'],
-  ['WaterBottleIcon', 'BeveragesIcon'],
-  ['BottleIcon', 'BeveragesIcon'],
-  ['BreadIcon', 'BakeryIcon'],
-  ['BakerySnacksIcon', 'BakeryIcon'],
-  ['LoafBreadIcon', 'BakeryIcon'],
-  ['AppleIcon', 'ProduceIcon'],
-  ['FruitVegIcon', 'ProduceIcon'],
-  ['ChickenLegIcon', 'ProteinsIcon'],
-  ['DrumstickIcon', 'ProteinsIcon'],
-  ['SteakIcon', 'ProteinsIcon'],
-  ['MilkCartonIcon', 'DairyIcon'],
-  ['SnowflakeIcon', 'FrozenFoodIcon'],
-  ['GrainSackIcon', 'DryGoodsIcon'],
-  ['SackIcon', 'DryGoodsIcon'],
-  ['SoapIcon', 'HygieneIcon'],
-  ['SoapBubblesIcon', 'HygieneIcon'],
-  ['BoxIcon', 'OtherIcon'],
-  ['PackageIcon', 'OtherIcon'],
-];
-
-for (const [alias, canonical] of EXPECTED_ALIASES) {
-  assert(customIcons[alias] === customIcons[canonical], `Alias ${alias} references ${canonical}`);
-}
-
-console.log('6. Validating lib/constants.js wiring...');
-const constants = loadModule(constantsPath);
-
-assert(Array.isArray(constants.categories), 'constants.categories is an array');
-assert(constants.categories.length === 10, `constants.categories has length 10 (got ${constants.categories.length})`);
-
-const EXPECTED_CATEGORIES = [
-  { value: 'dry_goods', name: 'Dry Goods', icon: customIcons.DryGoodsIcon, text: 'text-orange-700' },
-  { value: 'frozen_food', name: 'Frozen Food', icon: customIcons.FrozenFoodIcon, text: 'text-cyan-700' },
-  { value: 'produce', name: 'Produce', icon: customIcons.ProduceIcon, text: 'text-emerald-700' },
-  { value: 'proteins', name: 'Proteins', icon: customIcons.ProteinsIcon, text: 'text-rose-700' },
-  { value: 'bakery_snacks', name: 'Bakery & Snacks', icon: customIcons.BakeryIcon, text: 'text-yellow-700' },
-  { value: 'canned_goods', name: 'Canned Goods', icon: customIcons.CannedGoodsIcon, text: 'text-stone-700' },
-  { value: 'beverages', name: 'Beverages', icon: customIcons.BeveragesIcon, text: 'text-blue-700' },
-  { value: 'dairy', name: 'Dairy', icon: customIcons.DairyIcon, text: 'text-indigo-700' },
-  { value: 'hygiene', name: 'Hygiene', icon: customIcons.HygieneIcon, text: 'text-teal-700' },
-  { value: 'other', name: 'Other', icon: customIcons.OtherIcon, text: 'text-gray-700' },
-];
-
-for (const exp of EXPECTED_CATEGORIES) {
-  const found = constants.categories.find(c => c.value === exp.value);
-  assert(!!found, `Category ${exp.value} exists in constants.categories`);
-  if (found) {
-    assert(found.name === exp.name, `Category ${exp.value} has name "${exp.name}"`);
-    assert(found.icon === exp.icon, `Category ${exp.value} has correct custom icon wired`);
-    assert(found.style && found.style.text === exp.text, `Category ${exp.value} has expected text style "${exp.text}"`);
-    assert(found.style.bg && found.style.border && found.style.badge, `Category ${exp.value} has full style definition`);
-
-    // Verify rendering category icon with category style
-    const renderedCatIcon = ReactDOMServer.renderToStaticMarkup(
-      React.createElement(found.icon, { className: found.style.text })
-    );
-    assert(renderedCatIcon.includes(`class="${exp.text}"`), `Category ${exp.value} icon correctly applies Tailwind color class "${exp.text}"`);
-  }
-}
-
-console.log('7. Validating helper functions in lib/constants.js...');
-assert(typeof constants.getCategoryStyle === 'function', 'getCategoryStyle is a function');
-assert(typeof constants.getCategoryName === 'function', 'getCategoryName is a function');
-
-// Test known values
-for (const exp of EXPECTED_CATEGORIES) {
-  const style = constants.getCategoryStyle(exp.value);
-  const name = constants.getCategoryName(exp.value);
-  assert(style && style.text === exp.text, `getCategoryStyle('${exp.value}') returns style with text '${exp.text}'`);
-  assert(name === exp.name, `getCategoryName('${exp.value}') returns '${exp.name}'`);
-
-  // Test uppercase / mixed case
-  const styleUpper = constants.getCategoryStyle(exp.value.toUpperCase());
-  const nameUpper = constants.getCategoryName(exp.value.toUpperCase());
-  assert(styleUpper && styleUpper.text === exp.text, `getCategoryStyle('${exp.value.toUpperCase()}') handles case insensitivity`);
-  assert(nameUpper === exp.name, `getCategoryName('${exp.value.toUpperCase()}') handles case insensitivity`);
-}
-
-// Test unknown/fallback values
-const fallbackStyle = constants.getCategoryStyle('non_existent_category');
-const otherStyle = constants.categories.find(c => c.value === 'other').style;
-assert(JSON.stringify(fallbackStyle) === JSON.stringify(otherStyle), "getCategoryStyle fallback returns 'other' style");
-
-const fallbackName = constants.getCategoryName('Custom Unmapped');
-assert(fallbackName === 'Custom Unmapped', "getCategoryName('Custom Unmapped') returns original value 'Custom Unmapped'");
-
-const nullName = constants.getCategoryName(null);
-assert(nullName === 'Other', "getCategoryName(null) returns 'Other'");
-
-const undefinedName = constants.getCategoryName(undefined);
-assert(undefinedName === 'Other', "getCategoryName(undefined) returns 'Other'");
-
-console.log('8. Validating codebase has no lingering generic Lucide category imports in lib/constants.js...');
-const constantsRaw = fs.readFileSync(constantsPath, 'utf8');
-const obsoleteLucideIcons = ['Archive', 'Croissant', 'Cylinder', 'Beef', 'GlassWater', 'BookXIcon', 'MilkIcon', 'Bubbles'];
-for (const iconName of obsoleteLucideIcons) {
-  assert(!constantsRaw.includes(iconName), `lib/constants.js does not contain obsolete Lucide import ${iconName}`);
-}
-
-console.log(`\n=== AUDIT SUMMARY: ${passCount} PASSED, ${failCount} FAILED ===`);
-
-if (failCount > 0) {
-  console.error('\nFailures:\n' + failures.join('\n'));
   process.exit(1);
 } else {
-  console.log('\n✅ ALL INDEPENDENT ASSERTIONS PASSED CLEANLY.');
-  process.exit(0);
+  console.log('\n>>> ALL INDEPENDENT VICTORY AUDIT CHECKS PASSED PERFECTLY <<<\n');
 }

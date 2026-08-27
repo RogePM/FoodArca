@@ -3,10 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { WelcomeModal } from '@/components/modals/WelcomeModal';
+import { useDashboardRoute } from '@/components/layout/use-dashboard-route';
 import { TodayHero } from './dashboard/today-hero';
 import { OverviewGrid } from './dashboard/overview-grid';
 
-export function DashboardHome({ setActiveView }) {
+export function DashboardHome({ setActiveView: propSetActiveView }) {
+  const { navigateToView } = useDashboardRoute();
+  const setActiveView = propSetActiveView || navigateToView;
   const { pantryId } = usePantry();
   
   // State

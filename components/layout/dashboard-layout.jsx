@@ -4,11 +4,16 @@ import React from 'react';
 import { Sidebar } from './sidebar';
 import { TopBar } from './topbar';
 import { BottomNav } from './bottom-nav';
+import { useDashboardRoute } from './use-dashboard-route';
 
-export function DashboardLayout({ activeView, setActiveView, children }) {
+export function DashboardLayout({ activeView: propActiveView, setActiveView: propSetActiveView, children }) {
+  const { activeView: routeActiveView, navigateToView } = useDashboardRoute(propActiveView);
+  const activeView = propActiveView || routeActiveView;
+  const setActiveView = propSetActiveView || navigateToView;
+
   return (
     // Outer wrapper uses 100dvh
-    <div className="min-h-[100dvh] w-full bg-[#fafafa] text-gray-900 flex overflow-hidden">      
+    <div className="min-h-[100dvh] w-full bg-white md:bg-[#fafafa] text-gray-900 flex overflow-hidden">      
       
       {/* Desktop Sidebar (Hidden on Mobile) */}
       <div className="hidden md:block">
@@ -37,7 +42,6 @@ export function DashboardLayout({ activeView, setActiveView, children }) {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      {/* We removed the onMenuClick prop because the overlay is gone */}
       <BottomNav 
         activeView={activeView} 
         setActiveView={setActiveView} 

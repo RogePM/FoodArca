@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Layers, Package, Clock, AlertTriangle } from 'lucide-react';
+import { Layers, Package, Clock, AlertTriangle, Pencil } from 'lucide-react';
 import {
   getCategoryName,
   getCategoryVisual,
@@ -145,38 +145,43 @@ export function MobileGridView({
                   <span>{batchCount}</span>
                 </div>
               )}
+
+              {/* Edit Affordance (Top-Right) */}
+              <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-md p-1.5 rounded-full shadow-sm border border-gray-100 text-gray-400 group-active:text-[#d97757] group-active:bg-orange-50 transition-colors flex items-center justify-center">
+                <Pencil className="w-3.5 h-3.5" strokeWidth={2.5} />
+              </div>
             </div>
 
             {/* 2. Product Name */}
-            <h4 className="text-[14px] font-bold text-gray-900 leading-snug line-clamp-2 mb-1 px-0.5">
+            <h4 className="text-[14px] font-semibold text-[#1a1f36] leading-snug line-clamp-2 mb-1.5 px-0.5 tracking-tight">
               {item.name}
             </h4>
 
             {/* 3. Count */}
-            <div className="flex items-baseline gap-1 mb-1 px-0.5">
-              <span className="text-[18px] font-bold text-gray-800 leading-none tracking-tight">
+            <div className="flex items-baseline gap-1 mb-0.5 px-0.5">
+              <span className="text-[22px] font-bold text-[#1a1f36] leading-none tracking-tight">
                 {totalQty}
               </span>
-              <span className="text-[12px] font-semibold text-gray-500 uppercase">
-                {item.unit || 'CT'}
+              <span className="text-[13px] font-medium text-[#8792a2] lowercase">
+                {item.unit || 'units'}
               </span>
             </div>
 
-            {/* 4. Category (Styled like the Item Name in the reference) */}
-            <p className="text-[12px] text-gray-500 mb-2 px-0.5">
+            {/* 4. Category */}
+            <p className="text-[12px] font-medium text-[#a3acb9] mb-2.5 px-0.5">
               {getCategoryName(item.category)}
             </p>
 
-            {/* 5. Expiration (Styled like the Pickup/Delivery badges in the reference) */}
+            {/* 5. Expiration Badge */}
             <div className="mt-auto px-0.5">
               {displayDate ? (
-                <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold w-fit ${
-                  isExpired ? 'bg-red-50 text-red-700' : isExpiring ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'
+                <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold tracking-wide uppercase w-fit ${
+                  isExpired ? 'bg-red-50 text-red-700' : isExpiring ? 'bg-amber-50 text-amber-700' : 'bg-[#f4f5f7] text-[#5469d4]'
                 }`}>
                   {formatDate(displayDate)}
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold w-fit bg-gray-100 text-gray-400">
+                <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold tracking-wide uppercase w-fit bg-gray-50 text-gray-400">
                   No exp date
                 </div>
               )}

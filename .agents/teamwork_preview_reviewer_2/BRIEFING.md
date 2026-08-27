@@ -1,19 +1,19 @@
-# BRIEFING — 2026-08-24T17:44:00Z
+﻿# Briefing - Teamwork Preview Reviewer (Round 2)
 
-## Mission
-Adversarial Review Round 2 of FoodArca UI/UX refinement:
-- Verification of visual grid card stripping and multi-batch badge
-- Verification of quick action sheet mounting logic and simplified row UI
-- Hardening against missing id/_id attributes in inventory payloads (resolving ISSUE-9)
-- Typography and sizing parity verification
+## Task Objective
+Adversarially review, stress-test, and fix any defects in the migration of FoodArca dashboard from legacy single-page hash routing (`client-page.jsx`) to Next.js App Router nested routes (`/dashboard/inventory`, `/dashboard/add`, `/dashboard/remove`, `/dashboard/recent`, `/dashboard/settings`).
 
-## Identity
-- Archetype: reviewer@swe_light, qa@swe_light
-- Working directory: C:\Users\COMP1\.gemini\antigravity\worktrees\FoodArca\migrate-supabase-realtime-inventory\.agents\teamwork_preview_reviewer_2
-- Parent conversation ID: 46787aa3-06e1-4028-942c-4e1a1a910e95
-
-## Requirements Verification
-- R1 (Simplify Visual Grid Cards): Verified. Category text and expiration date text are completely removed from cards. Conditional batch count badge (`batchCount > 1`) renders accurately.
-- R2 (Refine Quick Action Sheet UI): Verified. Component only mounts if `sortedBatches.length > 1`. Batch list displays only expiration date, available stock count, and direct Add to Cart action.
-- R3 (Typography & Sizing Parity): Verified. Heavy font weights (`font-bold`, `font-semibold`) replaced with `font-medium` and `font-normal` across grid and sheet.
-- R4 (Verification & Quality Assurance): 10/10 automated adversarial assertions passed. Next.js production build compiled 23/23 routes successfully.
+## Scope & Requirements
+1. **R1**: App Router nested routes under `/app/dashboard/` (`inventory`, `add`, `remove`, `recent`, `settings`).
+2. **R2**: Preserved shared layout shell (Sidebar, TopBar, BottomNav) in `app/dashboard/layout.jsx`.
+3. **R3**: Component integration (`InventoryView`, `AddItemView`, `DistributionModule`, `SettingsView`, `DashboardHome`, etc.) functioning seamlessly without broken navigation, broken state, or stale router/hash references.
+4. **Acceptance Criteria**:
+   - `npx next build` / `npm run build` succeeds with 0 errors.
+   - Sub-route folders exist with page files.
+   - Legacy `client-page.jsx` router is retired.
+   - Shared layout correctly wraps nested pages.
+5. **Adversarial Checks**:
+   - Check all components for stale `#` hash references, `window.location.hash`, or obsolete navigation callbacks.
+   - Command palette, search query params, barcode scanner navigation callbacks, breadcrumbs, links.
+   - Org switcher cookie/session sync vs localStorage on deep route navigation.
+   - Test suites, linting, build integrity.

@@ -27,13 +27,18 @@ export function SettingsView() {
     // --- Listen for URL Hash on Load ---
     useEffect(() => {
         const checkHash = () => {
-            if (window.location.hash === '#billing') {
-                setActiveTab('billing');
+            const hash = window.location.hash.replace('#', '');
+            if (hash === 'billing' || hash === 'general') {
+                setActiveTab(hash);
             }
         };
         checkHash();
         window.addEventListener('hashchange', checkHash);
-        return () => window.removeEventListener('hashchange', checkHash);
+        window.addEventListener('popstate', checkHash);
+        return () => {
+            window.removeEventListener('hashchange', checkHash);
+            window.removeEventListener('popstate', checkHash);
+        };
     }, []);
 
     useEffect(() => {
@@ -152,7 +157,12 @@ export function SettingsView() {
                             <button
                                 key={tab}
                                 data-tab={tab}
-                                onClick={() => setActiveTab(tab)}
+                                onClick={() => {
+                                    setActiveTab(tab);
+                                    if (typeof window !== 'undefined') {
+                                        window.location.hash = tab;
+                                    }
+                                }}
                                 className={`pb-3 text-sm font-medium transition-all relative ${
                                     activeTab === tab 
                                     ? 'text-gray-900' 

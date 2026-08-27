@@ -39,6 +39,7 @@ import {
   formatDate,
   getUrgentStatusStyles,
 } from './inventory-utils';
+import { MobileGridSkeleton, DesktopTableSkeleton } from './skeletons';
 import { MobileGridView } from './mobile-grid-view';
 import { InventoryBatchSelectionSheet } from './batch-selection-sheet';
 
@@ -110,18 +111,15 @@ export function InventoryView() {
     }
   };
 
+  const hasFetchedInitial = React.useRef(false);
+
   useEffect(() => {
     if (pantryId) {
-      fetchInventory(false);
+      const isInitial = !hasFetchedInitial.current;
+      hasFetchedInitial.current = true;
+      fetchInventory(!isInitial);
     }
-  }, [pantryId, sortConfig]);
-
-  // Listen for real-time Postgres changes pushed from PantryProvider
-  useEffect(() => {
-    if (pantryId && lastInventoryUpdate) {
-      fetchInventory(true);
-    }
-  }, [lastInventoryUpdate]);
+  }, [pantryId, sortConfig, lastInventoryUpdate]);
 
   // Group raw inventory into logical catalog items first
   const allBatchedInventory = useMemo(() => {
@@ -144,11 +142,11 @@ export function InventoryView() {
     });
 
     const list = [
-      { id: 'ALL', name: 'All', count: allBatchedInventory.length },
-      { id: 'EXPIRING', name: 'Expiring Soon', count: expiringSoonCount },
-      { id: 'EXPIRED', name: 'Expired', count: expiredCount },
-      { id: 'LOW', name: 'Low Stock', count: lowStockCount },
-      { id: 'NO_DATE', name: 'No Date', count: noDateCount },
+      { id: 'ALL', name: 'All', count: allBatchedInventory.length, isCategory: false },
+      { id: 'EXPIRING', name: 'Expiring Soon', count: expiringSoonCount, isCategory: false },
+      { id: 'EXPIRED', name: 'Expired', count: expiredCount, isCategory: false },
+      { id: 'LOW', name: 'Low Stock', count: lowStockCount, isCategory: false },
+      { id: 'NO_DATE', name: 'No Date', count: noDateCount, isCategory: false },
     ];
 
     categories.forEach((cat) => {
@@ -161,6 +159,7 @@ export function InventoryView() {
           id: cat.value,
           name: cat.name,
           count,
+          isCategory: true,
         });
       }
     });
@@ -289,149 +288,157 @@ export function InventoryView() {
   };
 
   return (
-    <div className="w-full max-w-[100vw] overflow-x-hidden bg-white md:bg-[#fafafa] font-sans text-sm md:text-base">
-      {/* --- HEADER --- */}
-      <div className="z-10 sticky top-0 shrink-0">
-        {/* UNIFIED BRAND HEADER (Mobile) / White header (Desktop) */}
-        <div className="bg-[#d97757] md:bg-white px-4 md:px-6 pt-3 pb-0 md:py-4">
-
-          {/* DESKTOP HEADER (Hidden on Mobile) */}
-          <div className="hidden md:flex md:items-center justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="h-10 w-10 md:h-12 md:w-12 bg-orange-50 rounded-2xl flex items-center justify-center border border-orange-100/50">
-                {isRefetching ? (
-                  <RefreshCw className="h-5 w-5 text-[#d97757] animate-spin" />
-                ) : (
-                  <Package
-                    className="h-5 w-5 md:h-6 md:w-6 text-[#d97757]"
-                    strokeWidth={2}
-                  />
-                )}
-              </div>
-              <div>
-                <h2 className="text-[22px] md:text-[24px] font-bold text-[#1a1f36] tracking-tight leading-none">
-                  Inventory
-                </h2>
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mt-1">
-                  {batchedInventory.length} Items Stocked
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-2 w-full md:w-auto">
-              <Button
-                className="h-10 bg-[#d97757] hover:bg-[#c06245] text-white rounded-xl font-medium shadow-sm transition-all active:scale-95 flex-1 md:flex-none"
-                onClick={() => router.push('/dashboard/add')}
-              >
-                <Plus className="h-4 w-4 mr-2" /> Add Item
-              </Button>
-            </div>
+    <div className="w-full max-w-[100vw] bg-white md:bg-[#fafafa] font-sans text-sm md:text-base">
+      
+      {/* 1. DESKTOP TITLE (Non-Sticky) */}
+      <div className="hidden md:flex bg-white px-6 pt-4 pb-0 items-center justify-between gap-4 shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 bg-orange-50 rounded-2xl flex items-center justify-center border border-orange-100/50">
+            {isRefetching ? (
+              <RefreshCw className="h-5 w-5 text-[#d97757] animate-spin" />
+            ) : (
+              <Package
+                className="h-6 w-6 text-[#d97757]"
+                strokeWidth={2}
+              />
+            )}
           </div>
-
-          {/* MOBILE FAKE SEARCH BAR */}
-          <div 
-            className="md:hidden relative cursor-text"
-            onClick={() => setIsSearchOverlayOpen(true)}
+          <div>
+            <h2 className="text-[24px] font-bold text-[#1a1f36] tracking-tight leading-none">
+              Inventory
+            </h2>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mt-1">
+              {batchedInventory.length} Items Stocked
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            className="h-10 bg-[#d97757] hover:bg-[#c06245] text-white rounded-xl font-medium shadow-sm transition-all active:scale-95"
+            onClick={() => router.push('/dashboard/add')}
           >
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" strokeWidth={2.5} />
-            <div className="flex items-center pl-11 pr-[52px] h-12 bg-white shadow-[0_4px_20px_-6px_rgba(0,0,0,0.15)] rounded-2xl text-[15px] font-medium overflow-hidden">
-              <span className={searchQuery ? 'text-gray-900 truncate' : 'text-gray-400'}>
-                {searchQuery || "Search by name or barcode..."}
-              </span>
-            </div>
-            {searchQuery ? (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setSearchQuery(''); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 rounded-full"
-                aria-label="Clear search"
-              >
-                <X className="w-4 h-4" strokeWidth={2.5} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setShowScanner(true); }}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-[#d97757]/10 flex items-center justify-center active:scale-95 transition-transform"
-                aria-label="Scan barcode"
-              >
-                <ScanBarcode className="h-[18px] w-[18px] text-[#d97757]" strokeWidth={2.5} />
-              </button>
-            )}
-          </div>
+            <Plus className="h-4 w-4 mr-2" /> Add Item
+          </Button>
+        </div>
+      </div>
 
-          {/* DESKTOP REAL SEARCH BAR */}
-          <div className="hidden md:block relative max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" strokeWidth={2.5} />
-            <Input
-              placeholder="Search by name or barcode..."
-              className="pl-11 pr-[52px] h-11 bg-white border-transparent shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl focus:ring-2 focus:ring-[#d97757]/30 transition-all font-medium text-[15px] placeholder:text-gray-400"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery ? (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 rounded-full"
-                aria-label="Clear search"
-              >
-                <X className="w-4 h-4" strokeWidth={2.5} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowScanner(true)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-gray-100 flex items-center justify-center active:scale-95 transition-transform"
-                aria-label="Scan barcode"
-              >
-                <ScanBarcode className="h-[18px] w-[18px] text-gray-500" strokeWidth={2.5} />
-              </button>
-            )}
+      {/* 2. STICKY SEARCH BAR */}
+      <div className="z-20 sticky top-0 bg-[#d97757] md:bg-white px-4 md:px-6 pt-3 pb-2 shadow-[0_1px_0_0_#d97757] md:shadow-none transition-colors shrink-0">
+        {/* MOBILE FAKE SEARCH BAR */}
+        <div 
+          className="md:hidden relative cursor-text"
+          onClick={() => setIsSearchOverlayOpen(true)}
+        >
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" strokeWidth={2.5} />
+          <div className="flex items-center pl-11 pr-[52px] h-12 bg-white shadow-[0_4px_20px_-6px_rgba(0,0,0,0.15)] rounded-2xl text-base font-medium overflow-hidden">
+            <span className={searchQuery ? 'text-gray-900 truncate' : 'text-gray-400'}>
+              {searchQuery || "Search by name or barcode..."}
+            </span>
           </div>
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setSearchQuery(''); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 rounded-full"
+              aria-label="Clear search"
+            >
+              <X className="w-4 h-4" strokeWidth={2.5} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowScanner(true); }}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-[#d97757]/10 flex items-center justify-center active:scale-95 transition-transform"
+              aria-label="Scan barcode"
+            >
+              <ScanBarcode className="h-[18px] w-[18px] text-[#d97757]" strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
 
-          {/* Filter Pills (inside brand block) */}
-          <div className="pt-3 pb-3 overflow-hidden">
-            <div className="flex gap-2 overflow-x-auto scroll-smooth touch-pan-x overscroll-x-contain pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              {filterPillList.map((pill) => {
-                const isActive = activeFilter === pill.id;
-                return (
-                  <button
-                    key={pill.id}
-                    type="button"
-                    onClick={() => setActiveFilter(pill.id)}
-                    className={`px-3.5 py-[7px] rounded-full text-[13px] tracking-tight whitespace-nowrap shrink-0 transition-all ${
-                      isActive
-                        ? 'bg-white text-[#d97757] md:bg-[#d97757] md:text-white font-bold shadow-sm'
-                        : 'bg-transparent border border-white/50 text-white md:bg-transparent md:border-gray-200 md:text-[#4f566b] hover:bg-white/10 md:hover:bg-gray-50 font-semibold'
+        {/* DESKTOP REAL SEARCH BAR */}
+        <div className="hidden md:block relative max-w-md mt-4">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" strokeWidth={2.5} />
+          <Input
+            placeholder="Search by name or barcode..."
+            className="pl-11 pr-[52px] h-11 bg-white border-gray-200 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl focus:ring-2 focus:ring-[#d97757]/30 transition-all font-medium text-base placeholder:text-gray-400"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 rounded-full"
+              aria-label="Clear search"
+            >
+              <X className="w-4 h-4" strokeWidth={2.5} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowScanner(true)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-gray-100 flex items-center justify-center active:scale-95 transition-transform"
+              aria-label="Scan barcode"
+            >
+              <ScanBarcode className="h-[18px] w-[18px] text-gray-500" strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 3. NON-STICKY PILLS */}
+      <div className="bg-[#d97757] md:bg-white px-4 md:px-6 pt-1 pb-3 overflow-hidden shrink-0">
+        <div className="flex gap-2 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {filterPillList.map((pill, index) => {
+            const isActive = activeFilter === pill.id;
+            const isFirstCategory = pill.isCategory && !filterPillList[index - 1]?.isCategory;
+            
+            return (
+              <React.Fragment key={pill.id}>
+                {isFirstCategory && (
+                  <div className="flex items-center px-1.5" aria-hidden="true">
+                    <div className="w-[1.5px] h-5 bg-white/40 md:bg-gray-300 rounded-full" />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setActiveFilter(pill.id)}
+                  className={`px-3.5 py-[7px] rounded-full text-[13px] tracking-tight whitespace-nowrap shrink-0 transition-all ${
+                    isActive
+                      ? 'bg-white text-[#d97757] md:bg-[#d97757] md:text-white font-bold shadow-sm'
+                      : pill.isCategory 
+                        ? 'bg-transparent border border-dashed border-white/40 text-white/90 md:bg-transparent md:border-dashed md:border-gray-300 md:text-[#4f566b] hover:bg-white/10 md:hover:bg-gray-50 font-semibold'
+                        : 'bg-transparent border border-white/50 text-white md:bg-transparent md:border-solid md:border-gray-200 md:text-[#4f566b] hover:bg-white/10 md:hover:bg-gray-50 font-semibold'
+                  }`}
+                >
+                  {pill.name}
+                  <span
+                    className={`ml-1.5 text-[11px] font-bold ${
+                      isActive ? 'text-[#d97757]/70 md:text-white/80' : 'text-white/60 md:text-gray-400'
                     }`}
                   >
-                    {pill.name}
-                    <span
-                      className={`ml-1.5 text-[11px] font-bold ${
-                        isActive ? 'text-[#d97757]/70 md:text-white/80' : 'text-white/60 md:text-gray-400'
-                      }`}
-                    >
-                      {pill.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    {pill.count}
+                  </span>
+                </button>
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
 
       {/* --- CONTENT AREA --- */}
-      <div className="px-4 md:px-5 pb-[120px] md:pb-8 pt-3 md:pt-4 max-w-full overflow-hidden">
+      <div className="px-4 md:px-5 pb-[120px] md:pb-8 pt-3 md:pt-4 max-w-full">
         <div className="max-w-7xl mx-auto w-full">
             {isLoading && (
-              <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
-                <Loader2 className="h-8 w-8 animate-spin text-[#d97757]" />
-                <p className="text-[10px] font-black uppercase tracking-widest">
-                  Syncing Stock
-                </p>
-              </div>
+              <>
+                <div className="md:hidden mt-2">
+                  <MobileGridSkeleton />
+                </div>
+                <div className="hidden md:block">
+                  <DesktopTableSkeleton />
+                </div>
+              </>
             )}
 
             {!isLoading && batchedInventory.length === 0 && (
@@ -622,7 +629,7 @@ export function InventoryView() {
               <input
                 autoFocus
                 placeholder="Search inventory..."
-                className="w-full pl-9 pr-9 h-10 bg-gray-100 border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#d97757]/30 font-medium text-[15px] placeholder:text-gray-400"
+                className="w-full pl-9 pr-9 h-10 bg-gray-100 border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#d97757]/30 font-medium text-base placeholder:text-gray-400"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />

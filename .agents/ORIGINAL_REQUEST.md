@@ -82,3 +82,36 @@ Rewrite all 10 exports in `components/ui/custom-icons.jsx`:
 - [ ] Code review confirms all 10 icons have been completely rewritten to match the compositions described above.
 - [ ] Code review confirms the icons hardcode the gray and orange colors (abandoning the inherited `currentColor` approach).
 - [ ] Code review confirms overlapping elements use white fills so they layer correctly.
+
+## Follow-up — 2026-08-27T20:01:17Z
+
+# Teamwork Project Prompt — Draft
+
+> Status: Ready for launch — awaiting user approval
+> Goal: Craft prompt → get user approval → delegate to teamwork_preview
+> Requested team: Small focused team
+
+This is a single self-contained fix; keep it small and focused.
+Refactor the FoodArca dashboard from a single-page hash-routing SPA (`app/dashboard/client-page.jsx`) into proper Next.js App Router nested routes (`/dashboard/inventory`, `/dashboard/add`, etc.), while preserving all existing functionality, layouts, and components.
+
+Working directory: `C:\Users\COMP1\.gemini\antigravity\worktrees\FoodArca\migrate-supabase-realtime-inventory`
+Integrity mode: development
+
+## Requirements
+
+### R1. Migrate to App Router Nested Routes
+Convert the monolithic `client-page.jsx` state-based router into true Next.js App Router nested routes under `/app/dashboard/` (e.g., `/dashboard/inventory`, `/dashboard/add`, `/dashboard/remove`, `/dashboard/recent`, `/dashboard/settings`).
+
+### R2. Preserve Shared Layout Shell
+Maintain the existing persistent UI (Sidebar, TopBar, BottomNav) across all new routes by utilizing the `app/dashboard/layout.jsx` file. The transitions between routes should feel seamless.
+
+### R3. Component Integration
+Ensure the existing page components (e.g., `InventoryView`, `AddItemView`, `DistributionModule`) function correctly in their new respective route locations without altering their core logic or styling.
+
+## Acceptance Criteria
+
+### Build & Structure
+- [ ] The app builds successfully using `npx next build` with 0 errors.
+- [ ] The `app/dashboard/` directory contains sub-route folders (`inventory`, `add`, `remove`, `recent`, `settings`), each containing a `page` file.
+- [ ] The legacy state-based router in `app/dashboard/client-page.jsx` is retired.
+- [ ] The layout components (`Sidebar`, `TopBar`, `BottomNav`) are rendered via `app/dashboard/layout.jsx` and correctly wrap the nested pages.

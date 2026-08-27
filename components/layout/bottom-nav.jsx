@@ -1,34 +1,44 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { LayoutDashboard, Boxes, Plus, MinusSquare, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDashboardRoute } from './use-dashboard-route';
 
 export function BottomNav({ activeView, setActiveView }) {
-  const { isActive } = useDashboardRoute(activeView);
+  const { isActive, navigateToView } = useDashboardRoute(activeView);
+
+  const handleNavClick = (view, href) => {
+    if (setActiveView && setActiveView !== navigateToView) {
+      setActiveView(view);
+    } else if (!href && navigateToView) {
+      navigateToView(view);
+    }
+  };
 
   const leftTabs = [
-    { name: 'Home', label: 'Home', icon: LayoutDashboard, view: 'Dashboard' },
-    { name: 'Inventory', label: 'Inventory', icon: Boxes, view: 'View Inventory' }
+    { name: 'Home', label: 'Home', icon: LayoutDashboard, view: 'Dashboard', href: '/dashboard' },
+    { name: 'Inventory', label: 'Inventory', icon: Boxes, view: 'View Inventory', href: '/dashboard/inventory' }
   ];
 
   const rightTabs = [
-    { name: 'Remove', label: 'Remove', icon: MinusSquare, view: 'Remove Items' },
-    { name: 'Recent', label: 'Recent', icon: History, view: 'Recent Changes' }
+    { name: 'Remove', label: 'Remove', icon: MinusSquare, view: 'Remove Items', href: '/dashboard/remove' },
+    { name: 'Recent', label: 'Recent', icon: History, view: 'Recent Changes', href: '/dashboard/recent' }
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 w-full z-[100] bg-[#fafaf8]/90 backdrop-blur-2xl border-t border-gray-200/50 pt-2 pb-[calc(10px+env(safe-area-inset-bottom))] flex items-center justify-evenly px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.08)]">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 w-full z-[100] bg-white backdrop-blur-2xl border-t border-gray-100 pt-2 pb-[calc(10px+env(safe-area-inset-bottom))] flex items-center justify-evenly px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.06)]">
       
       {leftTabs.map((tab) => {
-        const active = isActive(tab.view);
+        const active = isActive(tab.href || tab.view);
         const TabIcon = tab.icon; 
         
         return (
-          <button
+          <Link
             key={tab.name}
-            onClick={() => setActiveView(tab.view)}
+            href={tab.href}
+            onClick={() => handleNavClick(tab.view, tab.href)}
             className="relative flex flex-col items-center justify-center w-16 pt-1"
           >
             <div className={cn(
@@ -44,13 +54,14 @@ export function BottomNav({ activeView, setActiveView }) {
             )}>
               {tab.label}
             </span>
-          </button>
+          </Link>
         );
       })}
 
       {/* Center Add Button - Inline and balanced */}
-      <button
-        onClick={() => setActiveView('Add Items')}
+      <Link
+        href="/dashboard/add"
+        onClick={() => handleNavClick('Add Items', '/dashboard/add')}
         className="relative flex flex-col items-center justify-center w-16 pt-1"
       >
         <div className={cn(
@@ -67,16 +78,17 @@ export function BottomNav({ activeView, setActiveView }) {
         )}>
           Add
         </span>
-      </button>
+      </Link>
 
       {rightTabs.map((tab) => {
-        const active = isActive(tab.view);
+        const active = isActive(tab.href || tab.view);
         const TabIcon = tab.icon; 
         
         return (
-          <button
+          <Link
             key={tab.name}
-            onClick={() => setActiveView(tab.view)}
+            href={tab.href}
+            onClick={() => handleNavClick(tab.view, tab.href)}
             className="relative flex flex-col items-center justify-center w-16 pt-1"
           >
             <div className={cn(
@@ -92,7 +104,7 @@ export function BottomNav({ activeView, setActiveView }) {
             )}>
               {tab.label}
             </span>
-          </button>
+          </Link>
         );
       })}
 

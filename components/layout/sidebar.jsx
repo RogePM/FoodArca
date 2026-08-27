@@ -1,23 +1,21 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Leaf, X, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { navItems } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { createBrowserClient } from '@supabase/ssr';
-import { usePantry } from '@/components/providers/PantryProvider';
 import { useDashboardRoute } from './use-dashboard-route';
 
 // --- NAV ITEM COMPONENT ---
 const NavItem = ({ item, isActive, onClick, elementId }) => {
-  return (
-    <button
+  const content = (
+    <div
       id={elementId}
-      onClick={onClick}
       className={cn(
-        'group relative flex items-center w-full px-3.5 py-2.5 rounded-2xl text-sm transition-all duration-200 ease-in-out mb-1 border',
+        'group relative flex items-center w-full px-3.5 py-2.5 rounded-2xl text-sm transition-all duration-200 ease-in-out mb-1 border select-none cursor-pointer',
         isActive 
           ? 'bg-[#fff5f2] border-[#fce3da] shadow-[0_2px_8px_-2px_rgba(217,119,87,0.12)] font-semibold' 
           : 'text-gray-500 hover:bg-gray-100/70 hover:text-gray-900 border-transparent font-medium'
@@ -51,6 +49,20 @@ const NavItem = ({ item, isActive, onClick, elementId }) => {
           className="h-2 w-2 rounded-full bg-[#d97757] shadow-[0_0_8px_rgba(217,119,87,0.6)] mr-1" 
         />
       )}
+    </div>
+  );
+
+  if (item.href) {
+    return (
+      <Link href={item.href} onClick={onClick} className="block w-full outline-none">
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <button onClick={onClick} className="w-full text-left outline-none">
+      {content}
     </button>
   );
 };
@@ -61,16 +73,23 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
 
-  const { filteredNavItems, isActive } = useDashboardRoute(activeView);
+  const { filteredNavItems, isActive, navigateToView } = useDashboardRoute(activeView);
+  const handleNav = setActiveView || navigateToView;
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     window.location.href = '/';
   };
 
-  const handleNavClick = (view) => {
-    setActiveView(view);
-    setIsSidebarOpen(false);
+  const handleNavClick = (view, href) => {
+    if (setIsSidebarOpen) {
+      setIsSidebarOpen(false);
+    }
+    if (setActiveView && setActiveView !== navigateToView) {
+      setActiveView(view);
+    } else if (!href && navigateToView) {
+      navigateToView(view);
+    }
   };
 
   return (
@@ -83,7 +102,7 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-40 bg-black/25 backdrop-blur-sm md:hidden"
-            onClick={() => setIsSidebarOpen(false)}
+            onClick={() => setIsSidebarOpen && setIsSidebarOpen(false)}
           />
         )}
       </AnimatePresence>
@@ -97,20 +116,20 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
       >
         {/* --- HEADER --- */}
         <div className="flex h-[72px] items-center px-6 border-b border-gray-100">
-          <div className="flex items-center gap-3">
+          <Link href="/dashboard" className="flex items-center gap-3 outline-none">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#d97757] to-[#c06245] text-white flex items-center justify-center shadow-md shadow-orange-500/20">
                 <Leaf className="h-5 w-5" strokeWidth={2} />
             </div>
             <span className="text-xl font-serif font-bold tracking-tight text-gray-900">
                 Food Arca
             </span>
-          </div>
+          </Link>
           
           <Button
             variant="ghost"
             size="icon"
             className="absolute right-3 top-4 md:hidden text-gray-400 hover:text-gray-900"
-            onClick={() => setIsSidebarOpen(false)}
+            onClick={() => setIsSidebarOpen && setIsSidebarOpen(false)}
           >
             <X className="h-5 w-5" />
           </Button>
@@ -122,8 +141,8 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
             <NavItem 
               key={item.name} 
               item={item} 
-              isActive={isActive(item.view)}
-              onClick={() => handleNavClick(item.view)}
+              isActive={isActive(item.href || item.view)}
+              onClick={() => handleNavClick(item.view, item.href)}
             />
           ))}
         </nav>
@@ -132,15 +151,15 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
         <div className="p-4 border-t border-gray-100/50">
           <div className="space-y-1">
             <NavItem 
-                item={{ name: 'Settings', icon: Settings, view: 'Settings' }} 
+                item={{ name: 'Settings', icon: Settings, view: 'Settings', href: '/dashboard/settings' }} 
                 isActive={isActive('Settings')}
-                onClick={() => handleNavClick('Settings')}
+                onClick={() => handleNavClick('Settings', '/dashboard/settings')}
                 elementId="sidebar-settings-btn"
             />
             
             <button
               onClick={handleSignOut}
-              className="group flex items-center w-full px-3 py-2.5 rounded-2xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
+              className="group flex items-center w-full px-3 py-2.5 rounded-2xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 cursor-pointer"
             >
               <div className="mr-3 h-8 w-8 rounded-lg flex items-center justify-center transition-colors group-hover:bg-red-100/50">
                 <LogOut className="h-4.5 w-4.5" strokeWidth={1.5} />
