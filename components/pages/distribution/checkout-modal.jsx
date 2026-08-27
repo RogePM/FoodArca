@@ -26,7 +26,7 @@ export function CheckoutModal({ isOpen, onClose, cart, onSuccess }) {
       category: line.item.category,
       quantityDistributed: line.quantity,
       unit: line.item.unit || 'units',
-      reason: 'distribution-regular'
+      reason: 'Distribution'
     }));
 
     const payload = {

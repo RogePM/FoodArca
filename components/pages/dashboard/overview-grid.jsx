@@ -119,7 +119,7 @@ export function OverviewGrid({
     return () => clearInterval(timer);
   }, []);
 
-  if (loading) return <OverviewGridSkeleton />;
+  const skelText = loading ? "bg-gray-200 text-transparent animate-pulse rounded select-none" : "";
 
   // Time-series arrays
   const intakeSeries = stats?.intakeTimeSeries || [];
@@ -269,7 +269,7 @@ export function OverviewGrid({
                 <CardInfoTooltip text="Total physical weight (lbs) of food received and scanned into your pantry inventory." />
               </div>
             </div>
-            <h4 className="text-[26px] font-bold text-[#1a1f36] tracking-tight mb-2">
+            <h4 className={`text-[26px] font-bold text-[#1a1f36] tracking-tight mb-2 ${skelText}`}>
               {(stats?.totalWeight || stats?.todayIntakeLbs || 0).toLocaleString()} <span className="text-base font-semibold text-[#697386]">lbs</span>
             </h4>
 

@@ -22,8 +22,8 @@ export function DashboardLayout({ activeView, setActiveView, children }) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:pl-[280px] transition-all duration-300 ease-in-out h-[100dvh]">
-        {/* Hide top bar on mobile for Add Items (full-screen flow) */}
-        <div className={activeView === 'Add Items' ? 'hidden md:block' : ''}>
+        {/* Hide top bar on mobile for full-screen flows or pages with their own heavy headers (Inventory) */}
+        <div className={(activeView === 'Add Items' || activeView === 'Remove Items' || activeView === 'View Inventory') ? 'hidden md:block' : ''}>
           <TopBar
             activeView={activeView}
             setActiveView={setActiveView} 

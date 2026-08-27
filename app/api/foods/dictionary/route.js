@@ -77,6 +77,7 @@ export async function GET(request) {
 
         dictionary.push({
           id: item.barcode || item.id,
+          barcode: item.barcode || null,
           name: item.name,
           category: categorySlug,
           photoUrl: item.photo_url || null,

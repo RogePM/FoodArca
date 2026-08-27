@@ -94,7 +94,8 @@ export function TodayHero({ stats, loading, setActiveView }) {
     return () => clearInterval(timer);
   }, []);
 
-  if (loading) return <TodayHeroSkeleton />;
+  const skelText = loading ? "bg-gray-200 text-transparent animate-pulse rounded select-none" : "";
+  const skelGraph = loading ? "bg-gray-100 animate-pulse rounded-xl" : "";
 
   // Select metric calculations based on dropdown state
   let primaryValue = 0;
@@ -180,12 +181,14 @@ export function TodayHero({ stats, loading, setActiveView }) {
               </DropdownMenu>
 
               <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className="text-[26px] md:text-[28px] font-bold text-[#1a1f36] tracking-tight">
-                  {primaryValue.toLocaleString()}
+                <span className={`text-[26px] md:text-[28px] font-bold text-[#1a1f36] tracking-tight ${skelText}`}>
+                  {loading ? '000,000' : primaryValue.toLocaleString()}
                 </span>
                 <span className="text-sm md:text-base font-semibold text-[#697386]">lbs</span>
               </div>
-              <p className="text-[11px] text-[#8792a2] font-medium mt-0.5">{getRelativeTimeString(stats?.lastUpdated)}</p>
+              <p className={`text-[11px] text-[#8792a2] font-medium mt-0.5 ${skelText}`}>
+                {loading ? 'Updated recently' : getRelativeTimeString(stats?.lastUpdated)}
+              </p>
             </div>
 
             {/* Yesterday Comparison Metric */}
@@ -194,8 +197,8 @@ export function TodayHero({ stats, loading, setActiveView }) {
                 Yesterday
               </span>
               <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className="text-xl md:text-2xl font-semibold text-[#4f566b] tracking-tight">
-                  {compareValue.toLocaleString()}
+                <span className={`text-xl md:text-2xl font-semibold text-[#4f566b] tracking-tight ${skelText}`}>
+                  {loading ? '000,000' : compareValue.toLocaleString()}
                 </span>
                 <span className="text-xs md:text-sm font-normal text-[#8792a2]">lbs</span>
               </div>
@@ -204,38 +207,40 @@ export function TodayHero({ stats, loading, setActiveView }) {
           </div>
 
           {/* Sparkline Interactive Chart */}
-          <div className="w-full h-36 pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="brandHeroGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#d97757" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#d97757" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <XAxis 
-                  dataKey="time" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#8792a2', fontSize: 11 }}
-                  dy={5}
-                />
-                <YAxis hide domain={[0, 'auto']} />
-                <Tooltip 
-                  cursor={{ stroke: '#d97757', strokeWidth: 1.5, strokeDasharray: '3 3' }} 
-                  content={<StripeHeroTooltip labelName={tooltipLabel} />} 
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="amount" 
-                  stroke="#d97757" 
-                  strokeWidth={2.5} 
-                  fillOpacity={1} 
-                  fill="url(#brandHeroGradient)" 
-                  activeDot={{ r: 5, fill: '#d97757', stroke: '#ffffff', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className={`h-36 w-full pt-2 ${skelGraph}`}>
+            {!loading && (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="brandHeroGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#d97757" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#d97757" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis 
+                    dataKey="time" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#8792a2', fontSize: 11 }}
+                    dy={5}
+                  />
+                  <YAxis hide domain={[0, 'auto']} />
+                  <Tooltip 
+                    cursor={{ stroke: '#d97757', strokeWidth: 1.5, strokeDasharray: '3 3' }} 
+                    content={<StripeHeroTooltip labelName={tooltipLabel} />} 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="amount" 
+                    stroke="#d97757" 
+                    strokeWidth={2.5} 
+                    fillOpacity={1} 
+                    fill="url(#brandHeroGradient)" 
+                    activeDot={{ r: 5, fill: '#d97757', stroke: '#ffffff', strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
         </div>

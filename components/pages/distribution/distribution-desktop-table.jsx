@@ -230,7 +230,7 @@ export function DistributionDesktopTable({ isLoading, inventory, cart, searchQue
                     // Get style and icon directly from constants
                     const cat = categories.find(c => c.value === group.mainItem.category?.toLowerCase()) || categories.find(c => c.value === 'other');
                     const Style = cat.style;
-                    const Icon = cat.icon;
+                    const imagePath = cat.imagePath;
                     
                     // Calculate how many of this group are already in the cart
                     const groupIds = new Set(group.batches.map(b => b._id));
@@ -242,8 +242,8 @@ export function DistributionDesktopTable({ isLoading, inventory, cart, searchQue
                         {/* 1. Item Name & Icon */}
                         <td className="px-5 py-4 align-middle">
                           <div className="flex items-center gap-4">
-                            <div className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${Style.bg} ${Style.text}`}>
-                              <Icon className="h-5 w-5" strokeWidth={2.5} />
+                            <div className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${Style.bg} ${Style.text} p-1.5`}>
+                              <img src={imagePath} alt={cat.label} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
                             </div>
                             <div className="flex flex-col min-w-0">
                               <span className="font-bold text-[15px] text-gray-900 truncate tracking-tight">

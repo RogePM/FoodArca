@@ -8,8 +8,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { categories } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
+import { normalizeDateString } from '@/components/pages/inventory/inventory-utils';
 
-export function EditItemModal({ isOpen, onClose, item, onSuccess }) {
+export function EditItemModal({ isOpen, onClose, item, onSuccess, onItemUpdated }) {
   const { pantryId } = usePantry();
 
   // State
@@ -39,36 +40,47 @@ export function EditItemModal({ isOpen, onClose, item, onSuccess }) {
 
   const [isDesktop, setIsDesktop] = useState(true);
   useEffect(() => {
-    const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+    const handleResize = () => setIsDesktop(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
     handleResize(); // Initialize on mount
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
   }, []);
 
-  // Initialize state when item changes
+  // Initialize state when item or open state changes
   useEffect(() => {
-    if (item && isOpen) {
-      setItemName(item.name || '');
-      setCategory(item.category || 'canned');
-      
-      const catObj = categories.find(c => c.value === (item.category || 'canned'));
-      setCategoryQuery(catObj ? catObj.name : '');
+    if (isOpen) {
+      if (item) {
+        setItemName(item.name || '');
+        const itemCat = item.category || 'canned_goods';
+        setCategory(itemCat);
+        
+        const catObj = categories.find(c => c.value === itemCat || c.name.toLowerCase() === String(itemCat).toLowerCase());
+        setCategoryQuery(catObj ? catObj.name : itemCat);
 
-      setQuantity(item.quantity || '');
-      setUnit(item.unit || 'units');
-      setUnitQuery(item.unit || 'units');
-      
-      let formattedDate = '';
-      if (item.expirationDate) {
-        const d = new Date(item.expirationDate);
-        if (!isNaN(d)) {
-          formattedDate = d.toISOString().split('T')[0];
-        }
+        setQuantity(item.quantity !== undefined ? item.quantity : (item.totalQuantity !== undefined ? item.totalQuantity : ''));
+        setUnit(item.unit || 'units');
+        setUnitQuery(item.unit || 'units');
+        
+        setExpirationDate(normalizeDateString(item.expirationDate) || '');
+        
+        setStorageLocation(item.storageLocation || '');
+        setNotes(item.notes || '');
+      } else {
+        // Adding new item
+        setItemName('');
+        const defaultCat = categories[0]?.value || 'canned_goods';
+        setCategory(defaultCat);
+        const defaultCatObj = categories.find(c => c.value === defaultCat);
+        setCategoryQuery(defaultCatObj ? defaultCatObj.name : 'Canned Goods');
+        setQuantity('');
+        setUnit('units');
+        setUnitQuery('units');
+        setExpirationDate('');
+        setStorageLocation('');
+        setNotes('');
       }
-      setExpirationDate(formattedDate);
-      
-      setStorageLocation(item.storageLocation || '');
-      setNotes(item.notes || '');
       
       setErrorMessage('');
       setIsCategoryOpen(false);
@@ -84,41 +96,79 @@ export function EditItemModal({ isOpen, onClose, item, onSuccess }) {
         setIsUnitOpen(false);
       }
     };
-    if (isOpen) {
+    if (isOpen && typeof document !== 'undefined') {
       document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  // PUT Update
+  const handleSuccessCallback = () => {
+    if (onSuccess) onSuccess();
+    if (onItemUpdated) onItemUpdated();
+  };
+
+  // PUT Update or POST Create
   const handleSave = async () => {
-    if (!itemName || !quantity) return;
+    if (!itemName || quantity === '') return;
     setIsSubmitting(true);
     setErrorMessage('');
     try {
-      const res = await fetch(`/api/foods/${item.id || item._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-pantry-id': pantryId },
-        body: JSON.stringify({
-          name: itemName,
-          category,
-          quantity: parseFloat(quantity),
-          unit,
-          expirationDate,
-          storageLocation,
-          notes
-        })
-      });
+      const targetId = item ? (item.id || item._id || (item.rawBatchIds && item.rawBatchIds[0])) : null;
+      const url = targetId ? `/api/foods/${targetId}` : '/api/foods';
+      const method = targetId ? 'PUT' : 'POST';
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Update failed');
+      const body = {
+        name: itemName,
+        category,
+        quantity: parseFloat(quantity) || 0,
+        unit,
+        expirationDate: expirationDate || null,
+        storageLocation,
+        notes
+      };
+      if (item?.barcode) {
+        body.barcode = item.barcode;
       }
-      onSuccess();
-      onClose();
+
+      if (item && item.rawBatchIds && item.rawBatchIds.length > 1) {
+        // Update the primary record with the consolidated data
+        const primaryId = item.rawBatchIds[0];
+        const res = await fetch(`/api/foods/${primaryId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(pantryId ? { 'x-pantry-id': pantryId } : {}) },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'Update failed');
+        }
+        // Remove redundant merged records so quantity is not duplicated
+        const excessIds = item.rawBatchIds.slice(1);
+        await Promise.all(
+          excessIds.map((batchId) =>
+            fetch(`/api/foods/${batchId}`, {
+              method: 'DELETE',
+              headers: { ...(pantryId ? { 'x-pantry-id': pantryId } : {}) },
+            })
+          )
+        );
+      } else {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json', ...(pantryId ? { 'x-pantry-id': pantryId } : {}) },
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || `${targetId ? 'Update' : 'Creation'} failed`);
+        }
+      }
+      handleSuccessCallback();
+      if (onClose) onClose();
     } catch (error) {
       console.error(error);
-      setErrorMessage(error.message || 'Error updating item.');
+      setErrorMessage(error.message || `Error ${item ? 'updating' : 'creating'} item.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -126,21 +176,37 @@ export function EditItemModal({ isOpen, onClose, item, onSuccess }) {
 
   // DELETE Item
   const handleDelete = async () => {
+    if (!item) return;
+    const targetId = item.id || item._id || (item.rawBatchIds && item.rawBatchIds[0]);
+    if (!targetId) return;
     if (!confirm('Are you sure you want to delete this item? This cannot be undone.')) return;
     setIsDeleting(true);
     setErrorMessage('');
     try {
-      const res = await fetch(`/api/foods/${item.id || item._id}`, {
-        method: 'DELETE',
-        headers: { 'x-pantry-id': pantryId }
-      });
-      
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Delete failed');
+      if (item.rawBatchIds && item.rawBatchIds.length > 1) {
+        const deletePromises = item.rawBatchIds.map((batchId) =>
+          fetch(`/api/foods/${batchId}`, {
+            method: 'DELETE',
+            headers: { ...(pantryId ? { 'x-pantry-id': pantryId } : {}) },
+          })
+        );
+        const results = await Promise.all(deletePromises);
+        if (results.some((res) => !res.ok)) {
+          throw new Error('Failed to delete some batch records');
+        }
+      } else {
+        const res = await fetch(`/api/foods/${targetId}`, {
+          method: 'DELETE',
+          headers: { ...(pantryId ? { 'x-pantry-id': pantryId } : {}) },
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'Delete failed');
+        }
       }
-      onSuccess();
-      onClose();
+      handleSuccessCallback();
+      if (onClose) onClose();
     } catch (error) {
       console.error(error);
       setErrorMessage(error.message || 'Error deleting item.');
@@ -189,12 +255,18 @@ export function EditItemModal({ isOpen, onClose, item, onSuccess }) {
               </button>
               
               {/* Mobile Title */}
-              <h2 className="md:hidden text-[17px] font-semibold text-gray-900 tracking-tight absolute inset-x-0 text-center pointer-events-none">Edit Item</h2>
+              <h2 className="md:hidden text-[17px] font-semibold text-gray-900 tracking-tight absolute inset-x-0 text-center pointer-events-none">
+                {item ? 'Edit Item' : 'Add Item'}
+              </h2>
 
               {/* Desktop Header Content */}
               <div className="hidden md:flex flex-col">
-                <h2 className="text-[19px] font-bold text-gray-900 tracking-tight">Edit Item</h2>
-                <p className="text-[13px] text-gray-500 font-medium truncate max-w-[280px]">Update details for {item?.name}</p>
+                <h2 className="text-[19px] font-bold text-gray-900 tracking-tight">
+                  {item ? 'Edit Item' : 'Add Item'}
+                </h2>
+                <p className="text-[13px] text-gray-500 font-medium truncate max-w-[280px]">
+                  {item ? `Update details for ${item?.name || 'item'}` : 'Add a new item to your inventory'}
+                </p>
               </div>
               <button 
                 onClick={onClose}
@@ -291,7 +363,7 @@ export function EditItemModal({ isOpen, onClose, item, onSuccess }) {
                             }}
                             onMouseEnter={() => setHighlightedCategoryIndex(idx)}
                           >
-                            <c.icon className="h-4 w-4 mr-2 opacity-70" strokeWidth={2} />
+                            {c.icon && <c.icon className="h-4 w-4 mr-2 opacity-70" strokeWidth={2} />}
                             {c.name}
                           </button>
                         ))
@@ -395,7 +467,7 @@ export function EditItemModal({ isOpen, onClose, item, onSuccess }) {
                   <div className="relative min-w-0">
                     <Calendar className="md:hidden absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                     <input 
-                      type="date"
+                      type="date" 
                       className={`${inputClass} pl-10 md:pl-3 lg:md:pl-4 appearance-none min-w-0 w-full`}
                       value={expirationDate} onChange={(e) => setExpirationDate(e.target.value)}
                     />
@@ -423,23 +495,25 @@ export function EditItemModal({ isOpen, onClose, item, onSuccess }) {
                   />
                 </div>
 
-                {/* Inline Actions (Moved below notes) */}
-                <div className="pt-6 pb-2 md:pb-4 flex items-center justify-between gap-3 md:gap-4 border-t border-gray-100/80 mt-8">
-                  <button
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-4 h-10 md:h-11 text-[13px] md:text-[14px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-[12px] md:rounded-[14px] transition-colors active:scale-[0.98]"
-                  >
-                    {isDeleting ? <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" strokeWidth={2.5} />}
-                    Delete
-                  </button>
+                {/* Inline Actions */}
+                <div className={`pt-6 pb-2 md:pb-4 flex items-center ${item ? 'justify-between' : 'justify-end'} gap-3 md:gap-4 border-t border-gray-100/80 mt-8`}>
+                  {item && (
+                    <button
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-4 h-10 md:h-11 text-[13px] md:text-[14px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-[12px] md:rounded-[14px] transition-colors active:scale-[0.98]"
+                    >
+                      {isDeleting ? <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" strokeWidth={2.5} />}
+                      Delete
+                    </button>
+                  )}
 
                   <Button
-                    className="flex-1 max-w-[180px] md:max-w-[200px] h-10 md:h-12 text-[14px] md:text-[15px] font-semibold bg-[#d97757] hover:bg-[#c06245] rounded-[12px] md:rounded-[16px] transition-transform active:scale-[0.98] shadow-[0_4px_15px_-3px_rgba(217,119,87,0.3)] text-white"
+                    className={`${item ? 'flex-1 max-w-[180px] md:max-w-[200px]' : 'w-full md:w-auto md:min-w-[180px]'} h-10 md:h-12 text-[14px] md:text-[15px] font-semibold bg-[#d97757] hover:bg-[#c06245] rounded-[12px] md:rounded-[16px] transition-transform active:scale-[0.98] shadow-[0_4px_15px_-3px_rgba(217,119,87,0.3)] text-white`}
                     onClick={handleSave}
-                    disabled={isSubmitting || !itemName || !quantity || !category}
+                    disabled={isSubmitting || !itemName || quantity === '' || !category}
                   >
-                    {isSubmitting ? <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" /> : "Save Changes"}
+                    {isSubmitting ? <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" /> : item ? "Save Changes" : "Add Item"}
                   </Button>
                 </div>
 

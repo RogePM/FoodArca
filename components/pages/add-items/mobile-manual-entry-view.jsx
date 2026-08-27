@@ -14,6 +14,7 @@ import {
   Loader2,
   Search,
   ArrowRight,
+  Trash2,
 } from "lucide-react";
 import { categories } from "@/lib/constants";
 
@@ -91,7 +92,7 @@ const SOURCE_OPTIONS = [
 
 const PACK_SIZE_PRESETS = ["3", "6", "8", "12", "24", "36", "48"];
 
-export function MobileManualEntryView({ onBack, initialItem, onSave, pantryId }) {
+export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, pantryId }) {
   const isEditing = !!initialItem?.id;
   const displayBarcode = initialItem?.barcode || "";
 
@@ -269,6 +270,18 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, pantryId })
               <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
             )}
           </button>
+          {isEditing && onDelete && (
+            <button
+              onClick={() => {
+                if (window.confirm("Are you sure you want to delete this item?")) {
+                  onDelete(initialItem);
+                }
+              }}
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-red-50 text-red-600 active:bg-red-100 transition-colors"
+            >
+              <Trash2 className="w-5 h-5" strokeWidth={2.5} />
+            </button>
+          )}
         </div>
         
         <div className="h-1 w-full bg-gray-100 mt-2">
