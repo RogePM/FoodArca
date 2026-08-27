@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, Boxes, Plus, MinusSquare, History } from 'lucide-react';
+import { Home, Package, Plus, MinusSquare, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDashboardRoute } from './use-dashboard-route';
 
@@ -18,13 +18,13 @@ export function BottomNav({ activeView, setActiveView }) {
   };
 
   const leftTabs = [
-    { name: 'Home', label: 'Home', icon: LayoutDashboard, view: 'Dashboard', href: '/dashboard' },
-    { name: 'Inventory', label: 'Inventory', icon: Boxes, view: 'View Inventory', href: '/dashboard/inventory' }
+    { name: 'Home', label: 'Home', icon: Home, view: 'Dashboard', href: '/dashboard' },
+    { name: 'Inventory', label: 'Inventory', icon: Package, view: 'View Inventory', href: '/dashboard/inventory' }
   ];
 
   const rightTabs = [
     { name: 'Remove', label: 'Remove', icon: MinusSquare, view: 'Remove Items', href: '/dashboard/remove' },
-    { name: 'Recent', label: 'Recent', icon: History, view: 'Recent Changes', href: '/dashboard/recent' }
+    { name: 'Workspace', label: 'Workspace', icon: UserCircle, view: 'Settings', href: '/dashboard/settings' }
   ];
 
   return (
@@ -58,19 +58,19 @@ export function BottomNav({ activeView, setActiveView }) {
         );
       })}
 
-      {/* Center Add Button - Inline and balanced */}
+      {/* Center Add Button - Soft Circle */}
       <Link
         href="/dashboard/add"
         onClick={() => handleNavClick('Add Items', '/dashboard/add')}
-        className="relative flex flex-col items-center justify-center w-16 pt-1"
+        className="relative flex flex-col items-center justify-center w-16 pt-1 group"
       >
         <div className={cn(
-          "h-10 w-10 rounded-[14px] flex items-center justify-center transition-all duration-200 -mt-1",
+          "h-10 w-10 rounded-full flex items-center justify-center transition-all duration-200 -mt-1",
           isActive('Add Items')
-            ? "bg-[#c06245] text-white scale-105 shadow-[0_4px_12px_-4px_rgba(217,119,87,0.5)]"
-            : "bg-[#d97757] text-white hover:bg-[#c66547] shadow-sm"
+            ? "bg-[#d97757]/20 text-[#c06245] scale-105"
+            : "bg-[#d97757]/10 text-[#d97757] group-hover:bg-[#d97757]/20"
         )}>
-          <Plus className="h-6 w-6" strokeWidth={2.5} />
+          <Plus className="h-6 w-6" strokeWidth={isActive('Add Items') ? 2.5 : 2} />
         </div>
         <span className={cn(
           "text-[10px] mt-1 transition-all duration-200",

@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Leaf, X, Settings, LogOut } from 'lucide-react';
+import { Leaf, X, UserCircle, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { createBrowserClient } from '@supabase/ssr';
@@ -151,7 +151,7 @@ export function Sidebar({ activeView, setActiveView, isSidebarOpen, setIsSidebar
         <div className="p-4 border-t border-gray-100/50">
           <div className="space-y-1">
             <NavItem 
-                item={{ name: 'Settings', icon: Settings, view: 'Settings', href: '/dashboard/settings' }} 
+                item={{ name: 'Workspace', icon: UserCircle, view: 'Settings', href: '/dashboard/settings' }} 
                 isActive={isActive('Settings')}
                 onClick={() => handleNavClick('Settings', '/dashboard/settings')}
                 elementId="sidebar-settings-btn"
