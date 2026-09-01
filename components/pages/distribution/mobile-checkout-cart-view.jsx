@@ -11,6 +11,7 @@ import {
   Loader2,
   CheckCircle2,
   Scan,
+  Barcode,
   Search,
   Minus,
   Plus,
@@ -136,19 +137,17 @@ export function MobileCheckoutCartView({
       transition={{ duration: 0.2 }}
       className={
         cartItems.length > 0
-          ? 'fixed inset-0 z-[9999] w-full h-[100dvh] bg-white flex flex-col'
+          ? 'absolute inset-0 z-50 bg-white flex flex-col'
           : 'absolute inset-0 z-50 bg-[#fff7f2] flex flex-col'
       }
     >
       {/* ── SCROLLABLE CONTENT (HEADER + CARDS ALL SCROLL TOGETHER) ── */}
       <div
-        className={`flex-1 overflow-y-auto w-full ${
-          cartItems.length > 0 ? 'pb-[240px]' : 'pb-[calc(100px+env(safe-area-inset-bottom))]'
-        }`}
+        className="flex-1 overflow-y-auto w-full pb-[calc(120px+env(safe-area-inset-bottom))]"
       >
         {cartItems.length === 0 ? (
           <>
-            {/* ── HEADER BLOCK ── */}
+            {/* â”€â”€ HEADER BLOCK â”€â”€ */}
             <div className="px-5 pt-safe mt-4">
               {/* Row: back arrow + tiny label */}
               <div className="flex items-center gap-1.5 mb-1.5">
@@ -175,7 +174,7 @@ export function MobileCheckoutCartView({
               </p>
             </div>
 
-            {/* ── SEARCH BAR ── */}
+            {/* â”€â”€ SEARCH BAR â”€â”€ */}
             <div className="px-5 mt-6 mb-2">
               <div
                 className="flex items-center w-full h-[48px] bg-white border border-gray-200 shadow-sm rounded-full px-4 gap-3 cursor-text active:border-gray-300 transition-all"
@@ -188,7 +187,7 @@ export function MobileCheckoutCartView({
               </div>
             </div>
 
-            {/* ── SCAN & GO CARD ── */}
+            {/* â”€â”€ SCAN & GO CARD â”€â”€ */}
             <div className="px-5 mt-4">
               <div className="border border-gray-200 rounded-2xl bg-white p-4">
                 {/* Top section */}
@@ -229,7 +228,7 @@ export function MobileCheckoutCartView({
               </div>
             </div>
 
-            {/* ── BROWSE ITEMS CARD ── */}
+            {/* â”€â”€ BROWSE ITEMS CARD â”€â”€ */}
             <div className="px-5 mt-4 mb-6">
               <div className="border border-gray-200 rounded-2xl bg-white p-4">
                 {/* Top section */}
@@ -265,7 +264,7 @@ export function MobileCheckoutCartView({
               </div>
             </div>
 
-            {/* ── STATS TILES (CAROUSEL) ── */}
+            {/* â”€â”€ STATS TILES (CAROUSEL) â”€â”€ */}
             <div className="mb-8">
               <div className="px-5 mb-3">
                 <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
@@ -363,137 +362,165 @@ export function MobileCheckoutCartView({
           </>
         ) : (
           <>
-            {/* ── CART HEADER (when items exist) ── */}
-            <div className="px-5 pt-safe mt-3 mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            {/* ── SEARCH BAR (FILLED STATE) ── */}
+            <div className="bg-[#d97757] px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 w-full relative z-10 shadow-sm">
+              <div className="flex items-center gap-3">
                 {onBack && (
                   <button
                     onClick={onBack}
-                    className="p-0.5 -ml-1.5 text-gray-500 active:text-[#1a1f36] transition-colors"
+                    className="p-1 -ml-1 text-white/90 active:text-white transition-colors"
                   >
-                    <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+                    <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
                   </button>
                 )}
-                <h1 className="text-[20px] font-bold text-[#1a1f36] tracking-tight">
-                  Checkout Cart
-                </h1>
+                <div
+                  className="flex-1 flex items-center h-[48px] bg-white border-none shadow-sm rounded-full px-4 gap-3 cursor-text active:bg-gray-50 transition-all"
+                  onClick={() => onOpenVisualGrid('all')}
+                >
+                  <Search className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={1.8} />
+                  <span className="text-[15px] text-gray-500 font-normal select-none">
+                    Find an item in the pantry
+                  </span>
+                </div>
               </div>
-              <span className="text-[14px] font-semibold text-[#d97757]">
-                {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
-              </span>
             </div>
 
-            <div className="px-5 space-y-3">
-            <AnimatePresence initial={false}>
-              {cartItems.map((item) => {
-                const catVisual = getCategoryVisual(item.category);
-                const expLabel = formatItemExpiration(item.expirationDate);
-                const maxStock = Number(item.availableBatchStock ?? 9999);
-                const isMaxReached = item.quantity >= maxStock;
+            {/* ── TOP CHECKOUT ROW ── */}
+            <div className="px-5 py-4 mb-2 flex items-center justify-between bg-white">
+              <span className="text-[18px] text-[#1a1f36] font-semibold tracking-tight">
+                Total: {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+              </span>
+              <button
+                onClick={() => setShowSubmitConfirm(true)}
+                className="h-[44px] px-6 rounded-full bg-[#d97757] text-white text-[15px] font-bold shadow-sm active:scale-95 transition-all"
+              >
+                Check Out
+              </button>
+            </div>
 
-                return (
-                  <motion.div
-                    key={item.id || item.batchId}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="bg-white border-2 border-gray-200/80 rounded-2xl p-4 flex flex-col gap-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] mb-3"
-                  >
-                    {/* Top Row: Image & Info */}
-                    <div className="flex gap-4 items-start">
-                      {item.photoUrl ? (
-                        <img
-                          src={item.photoUrl}
-                          alt=""
-                          className="w-[72px] h-[72px] rounded-xl object-cover border border-gray-100 shrink-0 bg-gray-50"
-                        />
-                      ) : (
-                        <div className={`w-[72px] h-[72px] rounded-xl flex items-center justify-center shrink-0 border border-gray-100 p-0 overflow-hidden ${catVisual.style.bg}`}>
-                          <img src={catVisual.imagePath} alt="" className="w-full h-full object-contain mix-blend-multiply scale-[1.35]" />
-                        </div>
-                      )}
+            <div className="mx-5 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-sm">
+              <div className="mx-4 py-3 border-b border-gray-200 flex items-center bg-white">
+                <span className="text-[17px] text-[#1a1f36] font-medium tracking-tight">Scanned items</span>
+              </div>
+              <div className="flex flex-col bg-white">
+                <AnimatePresence initial={false}>
+                  {cartItems.map((item, index) => {
+                    const catVisual = getCategoryVisual(item.category);
+                    const expLabel = formatItemExpiration(item.expirationDate);
+                    const maxStock = Number(item.availableBatchStock ?? 9999);
+                    const isMaxReached = item.quantity >= maxStock;
+                    const isLast = index === cartItems.length - 1;
 
-                      <div className="flex-1 min-w-0">
-                        {/* Name with Size Descriptor appended if applicable */}
-                        <h4 className="font-medium text-gray-900 text-[15px] leading-snug">
-                          {item.name}
-                          {item.unit && !['units', 'count'].includes(item.unit.toLowerCase()) && (
-                            <span className="text-gray-500 font-normal"> ({item.unit})</span>
-                          )}
-                        </h4>
-                        
-                        {/* Metadata Cluster */}
-                        <div className="flex flex-col gap-1 mt-1.5 text-[12.5px] text-gray-500 font-normal">
-                          {/* Top Row: Always parallel (Category, Stock) */}
-                          <div className="flex flex-wrap items-center gap-x-1.5">
-                            <span>{item.categoryName || catVisual.name}</span>
-
-                            
-                            {item.availableBatchStock !== undefined && (
-                              <><span className="text-gray-300">·</span><span className="text-emerald-600 font-medium bg-emerald-50/50 px-1.5 rounded">Stock: {item.availableBatchStock}</span></>
-                            )}
-                          </div>
-
-                          {/* Bottom Row: Expiration Date */}
-                          {expLabel ? (
-                            <div className="text-gray-400 font-medium">
-                              Exp {expLabel}
-                            </div>
-                          ) : (
-                            <div className="text-gray-400/80">
-                              No expiration date
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Bottom Row: Actions */}
-                    <div className="flex items-center justify-between pt-3 mt-1 border-t border-gray-100/60">
-                      <button
-                        onClick={() => onRemoveItem && onRemoveItem(item.id)}
-                        className="text-[14px] font-medium text-gray-700 underline underline-offset-4 decoration-gray-300 hover:text-red-600 hover:decoration-red-300 transition-colors"
+                    return (
+                      <motion.div
+                        key={item.id || item.batchId}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="bg-white"
                       >
-                        Remove
-                      </button>
+                        <div className="p-4 flex flex-col gap-3">
+                        {/* Top Row: Image & Info */}
+                        <div className="flex gap-4 items-start">
+                          {item.photoUrl ? (
+                            <img
+                              src={item.photoUrl}
+                              alt=""
+                              className="w-[72px] h-[72px] rounded-md object-cover border border-gray-100 shrink-0 bg-gray-50"
+                            />
+                          ) : (
+                            <div className={`w-[72px] h-[72px] rounded-md flex items-center justify-center shrink-0 border border-gray-100 p-0 overflow-hidden ${catVisual.style.bg}`}>
+                              <img src={catVisual.imagePath} alt="" className="w-full h-full object-contain mix-blend-multiply scale-[1.35]" />
+                            </div>
+                          )}
 
-                      <div className="flex items-center rounded-full border border-orange-700 h-9 bg-white shadow-sm">
-                        <button
-                          type="button"
-                          onClick={() => onUpdateQuantity && onUpdateQuantity(item.id, -1)}
-                          className="h-full w-10 flex items-center justify-center text-orange-700 active:bg-orange-50 rounded-l-full transition-colors"
-                          aria-label="Decrease quantity"
-                        >
-                          <Minus className="h-4 w-4" strokeWidth={2.5} />
-                        </button>
-                        <span className="w-8 text-center text-[15px] font-bold text-orange-700">
-                          {item.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={isMaxReached}
-                          onClick={() => onUpdateQuantity && onUpdateQuantity(item.id, 1)}
-                          className="h-full w-10 flex items-center justify-center text-orange-700 active:bg-orange-50 rounded-r-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          aria-label="Increase quantity"
-                        >
-                          <Plus className="h-4 w-4" strokeWidth={2.5} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              {/* Name with Size Descriptor appended if applicable */}
+                              <h4 className="font-medium text-gray-900 text-[15px] leading-snug">
+                                {item.name}
+                                {item.unit && !['units', 'count'].includes(item.unit.toLowerCase()) && (
+                                  <span className="text-gray-500 font-normal"> ({item.unit})</span>
+                                )}
+                              </h4>
+                              
+                              {item.availableBatchStock !== undefined && (
+                                <span className="text-emerald-600 font-medium bg-emerald-50/50 px-1.5 py-0.5 rounded text-[12.5px] whitespace-nowrap shrink-0 mt-[2px]">
+                                  Stock: {item.availableBatchStock}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Metadata Cluster */}
+                            <div className="flex flex-col gap-1 mt-1 text-[12.5px] text-gray-500 font-normal">
+                              {/* Category */}
+                              <div>
+                                <span>{item.categoryName || catVisual.name}</span>
+                              </div>
 
-            <div className="flex justify-center pt-4">
+                              {/* Expiration Date */}
+                              {expLabel ? (
+                                <div className="text-gray-400 font-medium">
+                                  Exp {expLabel}
+                                </div>
+                              ) : (
+                                <div className="text-gray-400/80">
+                                  No expiration date
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Row: Actions */}
+                        <div className="flex items-center justify-between mt-1">
+                          <button
+                            onClick={() => onRemoveItem && onRemoveItem(item.id)}
+                            className="text-[14px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-red-600 hover:decoration-red-300 transition-colors"
+                          >
+                            Remove
+                          </button>
+
+                          <div className="flex items-center rounded-full border border-[#d97757] h-[34px] bg-white overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => onUpdateQuantity && onUpdateQuantity(item.id, -1)}
+                              className="h-full w-10 flex items-center justify-center text-[#d97757] active:bg-[#fff7f2] transition-colors"
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus className="h-4 w-4" strokeWidth={2} />
+                            </button>
+                            <span className="w-8 text-center text-[14px] font-medium text-[#d97757]">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onUpdateQuantity && onUpdateQuantity(item.id, 1)}
+                              disabled={isMaxReached}
+                              className="h-full w-10 flex items-center justify-center text-[#d97757] active:bg-[#fff7f2] disabled:opacity-30 disabled:active:bg-transparent transition-colors"
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="h-4 w-4" strokeWidth={2} />
+                            </button>
+                          </div>
+                        </div>
+                        </div>
+                        {!isLast && <div className="mx-4 border-b border-gray-200" />}
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            <div className="flex justify-center pt-4 pb-2">
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="px-6 py-2.5 rounded-full border-2 border-gray-100 text-gray-500 text-[14px] font-semibold bg-white active:bg-gray-50 transition-colors"
+                className="text-[14px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-red-600 hover:decoration-red-300 transition-colors"
               >
                 Clear checkout cart
               </button>
-            </div>
             </div>
           </>
         )}
@@ -508,15 +535,7 @@ export function MobileCheckoutCartView({
             exit={{ opacity: 0, y: 20 }}
             className="absolute right-4 bottom-[calc(120px+env(safe-area-inset-bottom))] flex flex-col gap-4 z-40"
           >
-            <button
-              type="button"
-              onClick={() => onOpenVisualGrid('all')}
-              className="w-14 h-14 rounded-full bg-white text-[#1a1f36] shadow-[0_4px_14px_rgba(0,0,0,0.08)] flex items-center justify-center active:scale-95 transition-all border border-gray-200"
-              aria-label="Browse Inventory"
-              title="Browse Inventory (No Barcode)"
-            >
-              <Search className="w-6 h-6" strokeWidth={2} />
-            </button>
+
             <button
               type="button"
               onClick={onOpenScanner}
@@ -530,54 +549,9 @@ export function MobileCheckoutCartView({
         )}
       </AnimatePresence>
 
-      {/* STICKY FOOTER BUTTON (ONLY VISIBLE IF ITEMS IN CART) */}
-      <AnimatePresence>
-        {cartItems.length > 0 && (
-          <motion.div
-            initial={{ y: 100 }}
-            animate={{ y: 0 }}
-            exit={{ y: 100 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-0 left-0 right-0 z-[10000] bg-white px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]"
-          >
-            {checkoutError && (
-              <p className="text-rose-600 text-[13px] text-center mb-3 font-medium bg-rose-50 py-2 rounded-xl border border-rose-100">
-                {checkoutError}
-              </p>
-            )}
 
-            <button
-              type="button"
-              disabled={
-                (cartItems.length === 0 && !checkoutSuccess) || isSubmitting
-              }
-              onClick={
-                checkoutSuccess ? undefined : () => setShowSubmitConfirm(true)
-              }
-              className={`w-full h-[56px] rounded-2xl text-[16px] font-bold transition-all duration-300 active:scale-[0.97] disabled:opacity-40 disabled:cursor-default flex items-center justify-center gap-2 ${
-                checkoutSuccess
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-[#d97757] text-white shadow-[0_8px_20px_-4px_rgba(217,119,87,0.45)]'
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" /> Deducting…
-                </>
-              ) : checkoutSuccess ? (
-                <>
-                  <CheckCircle2 className="h-5 w-5" strokeWidth={2.5} />{' '}
-                  {checkoutSuccess}
-                </>
-              ) : (
-                <>
-                  <MinusSquare className="h-5 w-5" strokeWidth={2.5} /> Deduct from inventory
-                </>
-              )}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+
 
       {/* CLEAR CART CONFIRMATION MODAL */}
       <AnimatePresence>
@@ -774,3 +748,4 @@ export function MobileCheckoutCartView({
     </motion.div>
   );
 }
+
