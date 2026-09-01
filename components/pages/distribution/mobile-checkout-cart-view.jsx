@@ -215,13 +215,13 @@ export function MobileCheckoutCartView({
                 </div>
 
                 {/* Footer pill */}
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between -mx-1.5">
-                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight">
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between gap-3 -mx-1.5">
+                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
                     Uses your device camera
                   </span>
                   <button
                     onClick={onOpenScanner}
-                    className="bg-[#d97757] text-white px-5 py-2.5 rounded-full text-[14px] font-semibold active:bg-[#c66547] active:scale-[0.97] transition-all"
+                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
                   >
                     Open Scanner
                   </button>
@@ -250,14 +250,14 @@ export function MobileCheckoutCartView({
                 </div>
 
                 {/* Footer pill */}
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between -mx-1.5">
-                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight">
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between gap-3 -mx-1.5">
+                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
                     No barcode needed
                   </span>
                   <button
                     type="button"
                     onClick={() => onOpenVisualGrid('all')}
-                    className="h-[36px] px-5 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
+                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
                   >
                     Open Grid
                   </button>
