@@ -13,6 +13,7 @@ import {
   MinusSquare,
   Loader2,
   Scan,
+  Barcode,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MobileCheckoutCartView } from './mobile-checkout-cart-view';
@@ -161,6 +162,7 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
   // activeView: 'CART' (default hub) | 'CAMERA'
   const [activeView, setActiveView] = useState('CART');
   const [isVisualGridOpen, setIsVisualGridOpen] = useState(false);
+  const [visualGridFilter, setVisualGridFilter] = useState('all');
   const [quickActionProduct, setQuickActionProduct] = useState(null);
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
 
@@ -468,7 +470,11 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
             onRemoveItem={handleRemoveItem}
             onClearCart={handleClearCart}
             onOpenScanner={() => setActiveView('CAMERA')}
-            onOpenVisualGrid={() => setIsVisualGridOpen(true)}
+            onOpenVisualGrid={(filter = 'all') => {
+              setVisualGridFilter(filter);
+              setIsVisualGridOpen(true);
+            }}
+            onSelectProduct={handleSelectProductFromGrid}
             onCheckout={handleCheckout}
             isSubmitting={isCheckingOut}
             checkoutSuccess={checkoutSuccess}
@@ -496,15 +502,6 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
               aria-label="Back to Cart"
             >
               <ChevronLeft className="h-7 w-7" strokeWidth={2.5} />
-            </Button>
-
-            <Button
-              variant="secondary"
-              onClick={() => setIsVisualGridOpen(true)}
-              className="h-12 px-4 rounded-full bg-white/20 backdrop-blur-md text-white font-semibold text-[13px] tracking-wide border border-white/30 shadow-lg pointer-events-auto flex items-center gap-2"
-            >
-              <Search className="h-5 w-5" strokeWidth={2.5} />
-              No Barcode
             </Button>
           </div>
 
@@ -564,33 +561,47 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
             )}
           </AnimatePresence>
 
-          {/* MINI-CART BAR */}
-          <div className="absolute bottom-0 inset-x-0 bg-white shadow-[0_-20px_40px_rgba(0,0,0,0.12)] pb-[env(safe-area-inset-bottom)] z-40 pointer-events-auto">
-            <div className="h-[76px] px-6 flex items-center justify-between">
-              <div className="flex items-center gap-3.5">
+          {/* BOTTOM NAVIGATION BAR */}
+          <div className="absolute bottom-0 inset-x-0 bg-white z-40 pointer-events-auto shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+            {/* Helper Text Subheader */}
+            <div className="border-b border-gray-100 py-3.5 px-6 text-center">
+              <p className="text-[14px] font-medium text-[#1a1f36]">
+                Scan a barcode to remove an item from inventory
+              </p>
+            </div>
+            
+            {/* Bottom Tabs */}
+            <div className="flex items-center justify-between px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)]">
+              {/* Scanner Tab (Active) */}
+              <button className="flex flex-col items-center justify-center py-2 px-4 flex-1">
+                <Scan className="w-6 h-6 text-[#d97757] mb-1.5" strokeWidth={2.2} />
+                <span className="text-[11px] font-semibold text-[#d97757]">Scanner</span>
+              </button>
+
+              {/* No Barcode Tab */}
+              <button 
+                onClick={() => setIsVisualGridOpen(true)}
+                className="flex flex-col items-center justify-center py-2 px-4 flex-1 active:opacity-70 transition-opacity"
+              >
+                <Barcode className="w-6 h-6 text-[#1a1f36] mb-1.5" strokeWidth={2.2} />
+                <span className="text-[11px] font-medium text-[#1a1f36]">No barcode</span>
+              </button>
+
+              {/* Cart Tab */}
+              <button 
+                onClick={() => setActiveView('CART')}
+                className="flex flex-col items-center justify-center py-2 px-4 flex-1 active:opacity-70 transition-opacity"
+              >
                 <div className="relative">
-                  <ShoppingCart className="w-[26px] h-[26px] text-[#1a1f36]" strokeWidth={2.5} />
+                  <ShoppingCart className="w-6 h-6 text-[#1a1f36] mb-1.5" strokeWidth={2.2} />
                   {cart.length > 0 && (
                     <div className="absolute -top-1.5 -right-2 bg-[#FF3B30] text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
                       {cart.length}
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[15px] font-bold text-[#1a1f36] tracking-tight">
-                    {cart.length === 0 ? 'Checkout cart is empty' : `${cart.length} items staged`}
-                  </span>
-                  {cart.length > 0 && (
-                    <span className="text-[13px] font-medium text-[#8792a2]">Ready to deduct</span>
-                  )}
-                </div>
-              </div>
-              <Button
-                onClick={() => setActiveView('CART')}
-                className="h-11 px-5 rounded-full bg-[#f4f4f6] text-[#1a1f36] font-bold text-[14px] hover:bg-gray-200"
-              >
-                View Cart
-              </Button>
+                <span className="text-[11px] font-medium text-[#1a1f36]">Cart</span>
+              </button>
             </div>
           </div>
         </div>
@@ -602,6 +613,7 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
         onClose={() => setIsVisualGridOpen(false)}
         products={groupedProducts}
         onSelectProduct={handleSelectProductFromGrid}
+        initialCategory={visualGridFilter}
       />
 
       {/* 3. QUICK ACTION SHEET (BATCH SELECTION & QUANTITY STEPPER) */}

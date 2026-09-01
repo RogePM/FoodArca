@@ -7,28 +7,13 @@ import {
   Building2, 
   Gauge, 
   HelpCircle, 
-  ChevronRight 
+  ChevronRight,
+  LogOut
 } from 'lucide-react';
 import { usePantry } from '@/components/providers/PantryProvider';
+import { MobileInventorySearch } from '@/components/ui/mobile-inventory-search';
+import { createBrowserClient } from '@supabase/ssr';
 
-// Custom SVG matching the exact style for Team Members (close-up cropped handshake in soft circle)
-function TeamHandshakeIcon() {
-  return (
-    <svg viewBox="0 0 100 100" className="w-full h-full object-contain" fill="none">
-      {/* Soft pastel peach circle - slightly more defined */}
-      <circle cx="50" cy="50" r="38" fill="#fed7aa" />
-      {/* Left arm - Orange sleeve */}
-      <path d="M 12 72 L 32 46 C 35 42 41 42 45 45 L 53 52 L 40 68 L 18 80 Z" fill="#f97316" />
-      <rect x="30" y="44" width="6" height="14" rx="2" transform="rotate(-40 30 44)" fill="#ffffff" />
-      {/* Right arm - Chocolate brown sleeve */}
-      <path d="M 88 72 L 68 46 C 65 42 59 42 55 45 L 47 52 L 60 68 L 82 80 Z" fill="#453225" />
-      <rect x="66" y="40" width="6" height="14" rx="2" transform="rotate(40 66 40)" fill="#ffffff" />
-      {/* Handshake clasp */}
-      <path d="M 42 47 C 44 43 50 43 54 46 C 58 49 57 55 52 58 L 47 53 C 44 50 40 50 42 47 Z" fill="#fed7aa" stroke="#ffffff" strokeWidth="1.5" />
-      <path d="M 48 54 C 52 58 56 57 58 53 L 53 49 C 50 51 46 51 48 54 Z" fill="#fbb68a" />
-    </svg>
-  );
-}
 
 // Custom SVG matching the exact style for Activity Log (history receipt + orange rewind loop)
 function ActivityLogIcon() {
@@ -51,16 +36,26 @@ function ActivityLogIcon() {
   );
 }
 
-export function SettingsView() {
+export function SettingsView({ activeView, setActiveView }) {
     const { details } = usePantry();
     const [activeModal, setActiveModal] = useState(null);
+
+    const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        window.location.href = '/';
+    };
 
     const sections = [
       {
         title: "Workspace & Team",
         items: [
           { id: 'organization', title: 'Pantry Details', imageSrc: '/images/workspace/pantry-details.jpg' },
-          { id: 'team', title: 'Team Members', customIcon: TeamHandshakeIcon },
+          { id: 'team', title: 'Team Members', imageSrc: '/images/workspace/team-members.jpg' },
           { id: 'billing', title: 'Billing & Plans', imageSrc: '/images/workspace/billing-plans.jpg' },
         ]
       },
@@ -102,8 +97,14 @@ export function SettingsView() {
     ];
 
     return (
-        <div className="min-h-screen bg-white pb-28">
-            <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 space-y-8">
+        <div className="flex-1 w-full flex flex-col bg-white shrink-0">
+            
+            {/* MOBILE NATIVE HEADER / GLOBAL SEARCH */}
+            <div className="z-20 sticky top-0 bg-[#d97757] md:bg-white px-4 md:px-6 pt-3 pb-2 shadow-[0_1px_0_0_#d97757] md:shadow-none transition-colors shrink-0 md:hidden">
+                <MobileInventorySearch />
+            </div>
+
+            <div className="max-w-2xl mx-auto w-full px-4 md:px-6 pt-6 pb-12 space-y-8">
                 
                 {/* SECTIONS GRID */}
                 <div className="space-y-8">
@@ -182,6 +183,15 @@ export function SettingsView() {
                         })}
                     </div>
                 </div>
+
+                {/* SIGN OUT BUTTON */}
+                <button 
+                    onClick={handleSignOut}
+                    className="w-full bg-white border border-red-200 text-red-600 rounded-2xl p-4 flex items-center justify-center gap-2 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:bg-red-50 active:scale-95 transition-all duration-200 font-medium"
+                >
+                    <LogOut className="h-5 w-5" />
+                    Sign Out
+                </button>
 
             </div>
         </div>

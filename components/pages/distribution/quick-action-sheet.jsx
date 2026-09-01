@@ -193,13 +193,21 @@ export function QuickActionSheet({
                         : 'bg-white border-gray-200/80 hover:border-orange-200 shadow-xs'
                     }`}
                   >
-                    {/* Batch Details: Expiration Date and Available Stock Count */}
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-[14px] font-medium text-[#1a1f36] leading-tight">
+                    {/* Batch Details: Expiration Date, Stock, and Source/ID */}
+                    <div className="flex flex-col min-w-0 py-0.5">
+                      <span className="text-[14px] font-semibold text-[#1a1f36] leading-tight">
                         {formattedExp ? `Exp: ${formattedExp}` : 'No expiration date'}
                       </span>
-                      <span className="text-[12px] font-normal text-gray-500 mt-1">
+                      <span className="text-[12.5px] font-medium text-[#d97757] mt-1">
                         {remainingStock} {product.unit || 'units'} available
+                      </span>
+                      {(batch.donorName || batch.sourceType) && (
+                        <span className="text-[12px] font-normal text-gray-500 mt-0.5 capitalize">
+                          {batch.donorName ? `From: ${batch.donorName}` : `Source: ${batch.sourceType}`}
+                        </span>
+                      )}
+                      <span className="text-[11px] font-medium text-gray-400 font-mono mt-1 uppercase tracking-wider">
+                        #{batch.id?.split('-')[0] || batch.id?.substring(0, 8) || 'BATCH'}
                       </span>
                     </div>
 

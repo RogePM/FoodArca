@@ -82,10 +82,11 @@ export function NoBarcodeVisualGridSheet({
   onClose,
   products = [],
   onSelectProduct,
+  initialCategory = 'all',
 }) {
   const { pantryId } = usePantry();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [dictionaryItems, setDictionaryItems] = useState([]);
   const [isLoadingDictionary, setIsLoadingDictionary] = useState(false);
 
@@ -120,11 +121,13 @@ export function NoBarcodeVisualGridSheet({
 
   // Reset search and filters when modal closes/opens
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      setSelectedCategory(initialCategory);
+    } else {
       setSearchQuery('');
       setSelectedCategory('all');
     }
-  }, [isOpen]);
+  }, [isOpen, initialCategory]);
 
   // Lock background scroll when open
   useEffect(() => {
@@ -168,23 +171,28 @@ export function NoBarcodeVisualGridSheet({
     return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [products, dictionaryItems]);
 
-  // 3. Filter pills list: "All", "Expired", "Expiring Soon", "No Date", and available categories
+  // 3. Filter pills list: "All", "Expired", "Expiring Soon", "Low Stock", "No Date", and available categories
   const filterPillList = useMemo(() => {
     let expiredCount = 0;
     let expiringSoonCount = 0;
     let noDateCount = 0;
+    let lowStockCount = 0;
 
     combinedProducts.forEach((p) => {
       const meta = getProductExpirationMeta(p);
+      const totalQty = p.totalQuantity !== undefined ? p.totalQuantity : 0;
+      
       if (meta.isExpired) expiredCount++;
       if (meta.isExpiringSoon) expiringSoonCount++;
       if (!meta.hasDate) noDateCount++;
+      if (totalQty > 0 && totalQty < 5) lowStockCount++;
     });
 
     const list = [
       { id: 'all', name: 'All', count: combinedProducts.length },
       { id: 'expired', name: 'Expired', count: expiredCount },
       { id: 'expiring_soon', name: 'Expiring Soon', count: expiringSoonCount },
+      { id: 'low_stock', name: 'Low Stock', count: lowStockCount },
       { id: 'no_date', name: 'No Date', count: noDateCount },
     ];
 
@@ -217,6 +225,9 @@ export function NoBarcodeVisualGridSheet({
       } else if (selectedCategory === 'expiring_soon') {
         const meta = getProductExpirationMeta(product);
         if (!meta.isExpiringSoon) return false;
+      } else if (selectedCategory === 'low_stock') {
+        const totalQty = product.totalQuantity !== undefined ? product.totalQuantity : 0;
+        if (totalQty <= 0 || totalQty >= 5) return false;
       } else if (selectedCategory === 'no_date') {
         const meta = getProductExpirationMeta(product);
         if (meta.hasDate) return false;
@@ -276,7 +287,7 @@ export function NoBarcodeVisualGridSheet({
             <div className="px-6 pt-2 pb-3 flex items-center justify-between border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2.5">
                 <h2 className="text-[17px] font-medium text-[#1a1f36] tracking-tight">
-                  No Barcode
+                  Inventory
                 </h2>
                 <span className="bg-orange-50 text-[#d97757] text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-orange-100">
                   {filteredProducts.length}{' '}
@@ -296,13 +307,13 @@ export function NoBarcodeVisualGridSheet({
             {/* Search Input */}
             <div className="px-6 pt-3 pb-2 shrink-0">
               <div className="relative flex items-center">
-                <Search className="absolute left-3.5 w-4 h-4 text-gray-400 pointer-events-none" strokeWidth={1.75} />
+                <Search className="absolute left-4 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.8} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, category, or barcode..."
-                  className="w-full h-11 pl-10 pr-9 bg-gray-50 border border-gray-200 rounded-2xl text-[14px] font-normal text-[#1a1f36] placeholder-gray-400 focus:outline-none focus:border-[#d97757] focus:bg-white transition-all shadow-inner"
+                  placeholder="Find an item in the pantry"
+                  className="w-full h-[48px] pl-11 pr-10 bg-white border border-gray-300 rounded-full text-[16px] font-normal text-[#1a1f36] placeholder-gray-500 focus:outline-none focus:border-gray-400 transition-colors"
                 />
                 {searchQuery && (
                   <button
@@ -356,8 +367,8 @@ export function NoBarcodeVisualGridSheet({
                 </div>
               ) : filteredProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center text-[#d97757] mb-3.5">
-                    <Package className="w-7 h-7" strokeWidth={1.75} />
+                  <div className="w-[100px] h-[100px] shrink-0 relative mb-4">
+                    <img src="/assets/images/empty-search.jpg" alt="No matches" className="w-full h-full object-contain mix-blend-multiply" />
                   </div>
                   <h3 className="text-[16px] font-medium text-[#1a1f36] mb-1">
                     No matching items found
@@ -398,7 +409,7 @@ export function NoBarcodeVisualGridSheet({
                             onSelectProduct && onSelectProduct(product);
                           }
                         }}
-                        className="bg-white border-2 border-gray-100 hover:border-orange-200 active:border-[#d97757] rounded-2xl p-3 flex flex-col text-left transition-all active:scale-[0.98] shadow-sm group relative cursor-pointer"
+                        className="bg-white border-2 border-gray-100 hover:border-orange-200 active:border-[#d97757] rounded-2xl p-3 flex flex-col text-center transition-all active:scale-[0.98] shadow-sm group relative cursor-pointer"
                       >
                         {/* Image / Icon Box */}
                         <div className={`aspect-square w-full rounded-xl flex items-center justify-center relative overflow-hidden mb-2 border border-gray-100/60 ${product.photoUrl ? 'bg-gray-50' : catVisual.style.bg}`}>
@@ -432,7 +443,7 @@ export function NoBarcodeVisualGridSheet({
                         </div>
 
                         {/* Product Name */}
-                        <h4 className="text-[14px] font-medium text-[#1a1f36] leading-snug line-clamp-2 mt-0.5 mb-2.5 flex-1">
+                        <h4 className="text-[14px] font-medium text-[#1a1f36] text-center leading-snug line-clamp-2 mt-0.5 mb-2.5 flex-1">
                           {product.name}
                         </h4>
 
@@ -443,9 +454,9 @@ export function NoBarcodeVisualGridSheet({
                                 e.stopPropagation();
                                 onSelectProduct && onSelectProduct(product);
                               }}
-                              className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 hover:${catVisual.style.border} text-gray-700 text-[13px] font-medium transition-all active:scale-95 shadow-sm`}
+                              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#d97757] text-white text-[13px] font-semibold hover:bg-[#c66547] transition-all active:scale-95 shadow-sm mt-auto"
                             >
-                              <Plus className={`w-3.5 h-3.5 ${catVisual.style.text}`} strokeWidth={2.5} />
+                              <Plus className="w-4 h-4 text-white" strokeWidth={2.5} />
                               Add to Cart
                             </button>
                       </div>

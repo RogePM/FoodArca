@@ -19,8 +19,15 @@ import {
   Package,
   Layers,
   Sparkles,
+  PlusCircle,
+  Smartphone,
+  AlertTriangle,
+  Clock,
+  TrendingDown,
 } from 'lucide-react';
 import { categories, getCategoryVisual } from '@/lib/constants';
+import { usePantry } from '@/components/providers/PantryProvider';
+import { groupInventoryBatches, getUrgentStatusStyles } from '@/components/pages/inventory/inventory-utils';
 
 function formatItemExpiration(dateStr) {
   if (!dateStr) return '';
@@ -37,6 +44,7 @@ export function MobileCheckoutCartView({
   onClearCart,
   onOpenScanner,
   onOpenVisualGrid,
+  onSelectProduct,
   onCheckout,
   isSubmitting = false,
   checkoutSuccess = '',
@@ -46,11 +54,64 @@ export function MobileCheckoutCartView({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [isVisualGridOpen, setIsVisualGridOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
   const [mounted, setMounted] = useState(false);
+  const [localInventory, setLocalInventory] = useState([]);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const { pantryId, pantryDetails } = usePantry();
+
+  const handleOpenVisualGrid = (filter = 'all') => {
+    setActiveFilter(filter);
+    setIsVisualGridOpen(true);
+  };
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (cartItems.length > 0 || !pantryId) return;
+    
+    let isMounted = true;
+    const fetchInventory = async () => {
+      setIsLoadingStats(true);
+      try {
+        const res = await fetch('/api/foods', { headers: { 'x-pantry-id': pantryId } });
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data && Array.isArray(data.data)) {
+            setLocalInventory(data.data);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching inventory stats:', err);
+      } finally {
+        if (isMounted) setIsLoadingStats(false);
+      }
+    };
+    fetchInventory();
+    return () => { isMounted = false; };
+  }, [pantryId, cartItems.length]);
+
+  const inventoryStats = React.useMemo(() => {
+    let expired = 0;
+    let expiringSoon = 0;
+    let lowStock = 0;
+    let noDate = 0;
+
+    const allBatchedInventory = groupInventoryBatches(localInventory);
+
+    allBatchedInventory.forEach((item) => {
+      const statusStyles = getUrgentStatusStyles(item);
+      if (statusStyles.isExpired) expired++;
+      if (statusStyles.isExpiring) expiringSoon++;
+      if (statusStyles.isLowStock) lowStock++;
+      if (!item.expirationDate) noDate++;
+    });
+
+    return { expired, expiringSoon, lowStock, noDate };
+  }, [localInventory]);
 
   const totalItemCount = cartItems.reduce(
     (sum, item) => sum + Number(item.quantity || 1),
@@ -76,69 +137,253 @@ export function MobileCheckoutCartView({
       className={
         cartItems.length > 0
           ? 'fixed inset-0 z-[9999] w-full h-[100dvh] bg-white flex flex-col'
-          : 'flex-1 w-full relative bg-white flex flex-col min-h-full pb-[calc(90px+env(safe-area-inset-bottom))]'
+          : 'absolute inset-0 z-50 bg-[#fff7f2] flex flex-col'
       }
     >
-      {/* HEADER */}
-      <div className="px-6 pt-safe pb-3 bg-white border-b border-gray-100 shrink-0 flex items-center justify-between z-10">
-        <div className="flex items-center gap-2 mt-2">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="p-1 -ml-1 text-gray-500 hover:text-gray-800 active:scale-95 transition-transform"
-              aria-label="Back"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          )}
-          <h1 className="text-[17px] font-semibold text-[#1a1f36] tracking-tight">
-            {cartItems.length > 0 ? 'Ready to checkout' : 'Checkout Cart'}
-          </h1>
-        </div>
-        {cartItems.length > 0 && (
-          <span className="text-[13px] font-semibold text-[#d97757] mt-2">
-            {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
-          </span>
-        )}
-      </div>
-
-      {/* ITEM LIST / EMPTY STATE */}
+      {/* ── SCROLLABLE CONTENT (HEADER + CARDS ALL SCROLL TOGETHER) ── */}
       <div
-        className={`flex-1 overflow-y-auto px-6 space-y-4 relative pt-6 ${
-          cartItems.length > 0 ? 'pb-[240px]' : 'pb-16'
+        className={`flex-1 overflow-y-auto w-full ${
+          cartItems.length > 0 ? 'pb-[240px]' : 'pb-[calc(100px+env(safe-area-inset-bottom))]'
         }`}
       >
         {cartItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full pb-16 pt-8">
-            {/* Clean Empty Illustration */}
-            <div className="w-36 h-36 mb-8 flex items-center justify-center relative">
-              {/* Outer soft ring */}
-              <div className="absolute w-36 h-36 rounded-full border-2 border-dashed border-gray-200" />
-              {/* Inner soft ring */}
-              <div className="absolute w-24 h-24 rounded-full bg-orange-50/70" />
-              {/* Icon */}
-              <ShoppingCart
-                className="w-10 h-10 text-[#d97757] relative z-10"
-                strokeWidth={1.5}
-              />
+          <>
+            {/* ── HEADER BLOCK ── */}
+            <div className="px-5 pt-safe mt-4">
+              {/* Row: back arrow + tiny label */}
+              <div className="flex items-center gap-1.5 mb-1.5">
+                {onBack && (
+                  <button
+                    onClick={onBack}
+                    className="p-0.5 -ml-1.5 text-gray-500 active:text-[#1a1f36] transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+                  </button>
+                )}
+                <span className="text-[13px] text-gray-500 font-normal">Your Pantry</span>
+              </div>
+
+              {/* Pantry name */}
+              <h1 className="text-[28px] font-semibold text-[#1a1f36] tracking-tight leading-tight mt-0.5">
+                {pantryDetails?.name || 'Food Arca'}
+              </h1>
+
+              {/* Status line */}
+              <p className="text-[14px] text-gray-500 mt-1.5">
+                Active<span className="mx-1.5 text-gray-300">|</span>
+                <button className="text-[#d97757] font-medium active:underline">Manage</button>
+              </p>
             </div>
 
-            <h2 className="text-[20px] font-semibold text-[#1a1f36] mb-2 tracking-tight text-center">
-              Your checkout cart is empty
-            </h2>
-            <p className="text-gray-400 text-[15px] text-center px-8 leading-relaxed mb-6">
-              Scan a barcode or browse inventory to deduct items.
-            </p>
+            {/* ── SEARCH BAR ── */}
+            <div className="px-5 mt-6 mb-2">
+              <div
+                className="flex items-center w-full h-[48px] bg-white border border-gray-200 shadow-sm rounded-full px-4 gap-3 cursor-text active:border-gray-300 transition-all"
+                onClick={() => onOpenVisualGrid('all')}
+              >
+                <Search className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={1.8} />
+                <span className="text-[15px] text-gray-500 font-normal select-none">
+                  Find an item in the pantry
+                </span>
+              </div>
+            </div>
 
-            <button
-              onClick={() => setShowHowItWorks(true)}
-              className="text-[#d97757] text-[14px] font-semibold active:opacity-70 transition-opacity"
-            >
-              How checkout works →
-            </button>
-          </div>
+            {/* ── SCAN & GO CARD ── */}
+            <div className="px-5 mt-4">
+              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+                {/* Top section */}
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col pr-4">
+                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                      Scan to Remove
+                    </h2>
+                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
+                      Skip manual entry.{' '}
+                      <button
+                        onClick={() => setShowHowItWorks(true)}
+                        className="underline underline-offset-2 decoration-gray-400 text-[#1a1f36] font-normal"
+                      >
+                        How it works
+                      </button>
+                    </p>
+                  </div>
+
+                  {/* Phone illustration */}
+                  <div className="w-[76px] h-[76px] shrink-0 relative">
+                    <img src="/assets/images/scan-barcode-only.jpg" alt="Scan to Remove" className="w-full h-full object-contain mix-blend-multiply" />
+                  </div>
+                </div>
+
+                {/* Footer pill */}
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between -mx-1.5">
+                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight">
+                    Uses your device camera
+                  </span>
+                  <button
+                    onClick={onOpenScanner}
+                    className="bg-[#d97757] text-white px-5 py-2.5 rounded-full text-[14px] font-semibold active:bg-[#c66547] active:scale-[0.97] transition-all"
+                  >
+                    Open Scanner
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ── BROWSE ITEMS CARD ── */}
+            <div className="px-5 mt-4 mb-6">
+              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+                {/* Top section */}
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col pr-4">
+                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                      Browse Items
+                    </h2>
+                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
+                      Select items visually.
+                    </p>
+                  </div>
+
+                  {/* Grid illustration */}
+                  <div className="w-[76px] h-[76px] shrink-0 relative">
+                    <img src="/assets/images/browse-shelf.jpg" alt="Browse and Select" className="w-full h-full object-contain mix-blend-multiply" />
+                  </div>
+                </div>
+
+                {/* Footer pill */}
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between -mx-1.5">
+                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight">
+                    No barcode needed
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onOpenVisualGrid('all')}
+                    className="h-[36px] px-5 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
+                  >
+                    Open Grid
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ── STATS TILES (CAROUSEL) ── */}
+            <div className="mb-8">
+              <div className="px-5 mb-3">
+                <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                  Inventory Alerts
+                </h2>
+              </div>
+              {/* Carousel Container */}
+              <div className="flex gap-3 px-5 overflow-x-auto snap-x scroll-pl-5 scroll-smooth pb-4 -mb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden after:content-[''] after:w-1 after:shrink-0">
+
+                {/* Expired Tile */}
+                <button
+                  type="button"
+                  onClick={() => onOpenVisualGrid('expired')}
+                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                    <span className="text-[13.5px] font-medium text-[#1a1f36] tracking-tight">
+                      Expired
+                    </span>
+                  </div>
+                  {isLoadingStats ? (
+                    <div className="h-[28px] w-12 bg-gray-100 rounded-md animate-pulse"></div>
+                  ) : (
+                    <span className="text-[30px] font-bold text-[#1a1f36] leading-none tracking-tight">
+                      {inventoryStats.expired}
+                    </span>
+                  )}
+                </button>
+
+                {/* Expiring Soon Tile */}
+                <button
+                  type="button"
+                  onClick={() => onOpenVisualGrid('expiring_soon')}
+                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                    <span className="text-[13.5px] font-medium text-[#1a1f36] tracking-tight">
+                      Expiring Soon
+                    </span>
+                  </div>
+                  {isLoadingStats ? (
+                    <div className="h-[28px] w-12 bg-gray-100 rounded-md animate-pulse"></div>
+                  ) : (
+                    <span className="text-[30px] font-bold text-[#1a1f36] leading-none tracking-tight">
+                      {inventoryStats.expiringSoon}
+                    </span>
+                  )}
+                </button>
+
+                {/* Low Stock Tile */}
+                <button
+                  type="button"
+                  onClick={() => onOpenVisualGrid('low_stock')}
+                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
+                    <span className="text-[13.5px] font-medium text-[#1a1f36] tracking-tight">
+                      Low Stock
+                    </span>
+                  </div>
+                  {isLoadingStats ? (
+                    <div className="h-[28px] w-12 bg-gray-100 rounded-md animate-pulse"></div>
+                  ) : (
+                    <span className="text-[30px] font-bold text-[#1a1f36] leading-none tracking-tight">
+                      {inventoryStats.lowStock}
+                    </span>
+                  )}
+                </button>
+
+                {/* No Date Tile */}
+                <button
+                  type="button"
+                  onClick={() => onOpenVisualGrid('no_date')}
+                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0"></span>
+                    <span className="text-[13.5px] font-medium text-[#1a1f36] tracking-tight">
+                      No Date
+                    </span>
+                  </div>
+                  {isLoadingStats ? (
+                    <div className="h-[28px] w-12 bg-gray-100 rounded-md animate-pulse"></div>
+                  ) : (
+                    <span className="text-[30px] font-bold text-[#1a1f36] leading-none tracking-tight">
+                      {inventoryStats.noDate}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </>
         ) : (
           <>
+            {/* ── CART HEADER (when items exist) ── */}
+            <div className="px-5 pt-safe mt-3 mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {onBack && (
+                  <button
+                    onClick={onBack}
+                    className="p-0.5 -ml-1.5 text-gray-500 active:text-[#1a1f36] transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+                  </button>
+                )}
+                <h1 className="text-[20px] font-bold text-[#1a1f36] tracking-tight">
+                  Checkout Cart
+                </h1>
+              </div>
+              <span className="text-[14px] font-semibold text-[#d97757]">
+                {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+
+            <div className="px-5 space-y-3">
             <AnimatePresence initial={false}>
               {cartItems.map((item) => {
                 const catVisual = getCategoryVisual(item.category);
@@ -249,37 +494,41 @@ export function MobileCheckoutCartView({
                 Clear checkout cart
               </button>
             </div>
+            </div>
           </>
         )}
       </div>
 
       {/* FLOATING ACTION BUTTONS (FABs) */}
-      <div
-        className={`absolute right-4 flex flex-col gap-4 z-40 transition-all duration-300 ${
-          cartItems.length > 0
-            ? 'bottom-[calc(120px+env(safe-area-inset-bottom))]'
-            : 'bottom-[calc(42px+env(safe-area-inset-bottom))]'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={onOpenVisualGrid}
-          className="w-14 h-14 rounded-full bg-white text-[#1a1f36] shadow-[0_4px_14px_rgba(0,0,0,0.08)] flex items-center justify-center active:scale-95 transition-all border border-gray-200"
-          aria-label="Browse Inventory"
-          title="Browse Inventory (No Barcode)"
-        >
-          <Search className="w-6 h-6" strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          onClick={onOpenScanner}
-          className="w-14 h-14 rounded-full bg-[#d97757] text-white shadow-[0_4px_14px_rgba(217,119,87,0.25)] flex items-center justify-center active:scale-95 transition-all"
-          aria-label="Scan Barcode"
-          title="Scan Barcode"
-        >
-          <Scan className="w-6 h-6" strokeWidth={2.5} />
-        </button>
-      </div>
+      <AnimatePresence>
+        {cartItems.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute right-4 bottom-[calc(120px+env(safe-area-inset-bottom))] flex flex-col gap-4 z-40"
+          >
+            <button
+              type="button"
+              onClick={() => onOpenVisualGrid('all')}
+              className="w-14 h-14 rounded-full bg-white text-[#1a1f36] shadow-[0_4px_14px_rgba(0,0,0,0.08)] flex items-center justify-center active:scale-95 transition-all border border-gray-200"
+              aria-label="Browse Inventory"
+              title="Browse Inventory (No Barcode)"
+            >
+              <Search className="w-6 h-6" strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenScanner}
+              className="w-14 h-14 rounded-full bg-[#d97757] text-white shadow-[0_4px_14px_rgba(217,119,87,0.25)] flex items-center justify-center active:scale-95 transition-all"
+              aria-label="Scan Barcode"
+              title="Scan Barcode"
+            >
+              <Scan className="w-6 h-6" strokeWidth={2.5} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* STICKY FOOTER BUTTON (ONLY VISIBLE IF ITEMS IN CART) */}
       <AnimatePresence>
