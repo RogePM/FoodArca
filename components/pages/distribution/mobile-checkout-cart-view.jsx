@@ -398,8 +398,8 @@ export function MobileCheckoutCartView({
               </button>
             </div>
 
-            <div className="mx-5 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-sm">
-              <div className="mx-4 py-3 border-b border-gray-200 flex items-center bg-white">
+            <div className="mx-5 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
+              <div className="mx-4 py-3 border-b border-gray-300 flex items-center bg-white">
                 <span className="text-[17px] text-[#1a1f36] font-medium tracking-tight">Scanned items</span>
               </div>
               <div className="flex flex-col bg-white">
@@ -435,37 +435,35 @@ export function MobileCheckoutCartView({
                             </div>
                           )}
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-3">
-                              {/* Name with Size Descriptor appended if applicable */}
-                              <h4 className="font-medium text-gray-900 text-[15px] leading-snug">
-                                {item.name}
-                                {item.unit && !['units', 'count'].includes(item.unit.toLowerCase()) && (
-                                  <span className="text-gray-500 font-normal"> ({item.unit})</span>
-                                )}
-                              </h4>
-                              
-                              {item.availableBatchStock !== undefined && (
-                                <span className="text-emerald-600 font-medium bg-emerald-50/50 px-1.5 py-0.5 rounded text-[12.5px] whitespace-nowrap shrink-0 mt-[2px]">
-                                  Stock: {item.availableBatchStock}
-                                </span>
+                          <div className="flex-1 min-w-0 py-1">
+                            {/* Name with Size Descriptor appended if applicable */}
+                            <h4 className="font-normal text-gray-900 text-[15.5px] leading-snug mb-2">
+                              {item.name}
+                              {item.unit && !['units', 'count'].includes(item.unit.toLowerCase()) && (
+                                <span className="text-gray-500"> ({item.unit})</span>
                               )}
-                            </div>
+                            </h4>
                             
                             {/* Metadata Cluster */}
-                            <div className="flex flex-col gap-1 mt-1 text-[12.5px] text-gray-500 font-normal">
-                              {/* Category */}
-                              <div>
-                                <span>{item.categoryName || catVisual.name}</span>
+                            <div className="flex flex-col gap-1.5 text-[13px] text-gray-500 font-normal">
+                              {/* Category & Stock */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600">{item.categoryName || catVisual.name}</span>
+                                {item.availableBatchStock !== undefined && (
+                                  <>
+                                    <span className="text-gray-300">|</span>
+                                    <span className="text-gray-600">Stock: {item.availableBatchStock}</span>
+                                  </>
+                                )}
                               </div>
 
                               {/* Expiration Date */}
                               {expLabel ? (
-                                <div className="text-gray-400 font-medium">
+                                <div className="text-gray-500 font-medium">
                                   Exp {expLabel}
                                 </div>
                               ) : (
-                                <div className="text-gray-400/80">
+                                <div className="text-gray-400">
                                   No expiration date
                                 </div>
                               )}
@@ -474,7 +472,7 @@ export function MobileCheckoutCartView({
                         </div>
 
                         {/* Bottom Row: Actions */}
-                        <div className="flex items-center justify-between mt-1">
+                        <div className="flex items-center justify-between mt-2">
                           <button
                             onClick={() => onRemoveItem && onRemoveItem(item.id)}
                             className="text-[14px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-red-600 hover:decoration-red-300 transition-colors"
@@ -506,7 +504,7 @@ export function MobileCheckoutCartView({
                           </div>
                         </div>
                         </div>
-                        {!isLast && <div className="mx-4 border-b border-gray-200" />}
+                        {!isLast && <div className="mx-4 border-b border-gray-300" />}
                       </motion.div>
                     );
                   })}
