@@ -306,7 +306,7 @@ export async function POST(req) {
       catalogItem = newItem;
     }
 
-    // 3. Insert Inventory Batch
+    // 3. Resolve Batch (Auto-Merge or Insert)
     let expDate = null;
     if (data.expirationDate) {
       const d = new Date(data.expirationDate);
@@ -315,20 +315,68 @@ export async function POST(req) {
       }
     }
 
-    const { data: batch, error: batchErr } = await auth.supabase
+    // Query all matching batches for this catalog item and expiration date (or both null)
+    let query = auth.supabase
       .from('inventory_batches')
-      .insert({
-        catalog_item_id: catalogItem.id,
-        location_id: locationId,
-        quantity: quantityToAdd,
-        expiration_date: expDate,
-        expiration_precision: normalizeExpPrecision(data.expirationPrecision || (expDate ? 'day' : 'none')),
-        source_type: normalizeSourceType(data.sourceType),
-        donor_name: data.donorName || null,
-        received_date: new Date().toISOString().split('T')[0]
-      })
-      .select('*')
-      .single();
+      .select('id, quantity')
+      .eq('location_id', locationId)
+      .eq('catalog_item_id', catalogItem.id);
+
+    if (expDate) {
+      query = query.eq('expiration_date', expDate);
+    } else {
+      query = query.is('expiration_date', null);
+    }
+
+    const { data: matchingBatches } = await query.order('created_at', { ascending: true });
+
+    let batch = null;
+    let batchErr = null;
+
+    if (matchingBatches && matchingBatches.length > 0) {
+      // MATCH FOUND: Auto-merge!
+      const primaryBatch = matchingBatches[0];
+      const existingSum = matchingBatches.reduce((sum, b) => sum + (Number(b.quantity) || 0), 0);
+      const totalNewQty = formatQty(existingSum + quantityToAdd);
+
+      const { data: updatedBatch, error: updateErr } = await auth.supabase
+        .from('inventory_batches')
+        .update({ quantity: totalNewQty })
+        .eq('id', primaryBatch.id)
+        .select('*')
+        .single();
+
+      batch = updatedBatch;
+      batchErr = updateErr;
+
+      // Clean up any extra duplicate rows that existed in the database from before
+      if (matchingBatches.length > 1) {
+        const duplicateIdsToDelete = matchingBatches.slice(1).map(b => b.id);
+        await auth.supabase
+          .from('inventory_batches')
+          .delete()
+          .in('id', duplicateIdsToDelete);
+      }
+    } else {
+      // NO MATCH: Insert new batch
+      const { data: insertedBatch, error: insertErr } = await auth.supabase
+        .from('inventory_batches')
+        .insert({
+          catalog_item_id: catalogItem.id,
+          location_id: locationId,
+          quantity: quantityToAdd,
+          expiration_date: expDate,
+          expiration_precision: normalizeExpPrecision(data.expirationPrecision || (expDate ? 'day' : 'none')),
+          source_type: normalizeSourceType(data.sourceType),
+          donor_name: data.donorName || null,
+          received_date: new Date().toISOString().split('T')[0]
+        })
+        .select('*')
+        .single();
+
+      batch = insertedBatch;
+      batchErr = insertErr;
+    }
 
     if (batchErr) throw batchErr;
 

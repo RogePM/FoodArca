@@ -121,7 +121,7 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
           }
 
           if (isMounted && Array.isArray(dictData.dictionary)) {
-            // Group active batches by barcode (or catalogItemId)
+            // Group active batches by barcode (or catalogItemId) and merge identical/null expiration dates
             const activeBatches = Array.isArray(invData.data) ? invData.data : [];
             const batchesById = {};
 
@@ -129,12 +129,36 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
               const matchId = batch.barcode || batch.catalogItemId;
               if (matchId) {
                 if (!batchesById[matchId]) batchesById[matchId] = [];
-                batchesById[matchId].push({
-                  id: batch.id,
-                  quantity: batch.quantity || 1,
-                  expirationDate: batch.expirationDate,
+                
+                const normDate = batch.expirationDate ? batch.expirationDate.split('T')[0] : null;
+                const existing = batchesById[matchId].find(b => {
+                  const bNorm = b.expirationDate ? b.expirationDate.split('T')[0] : null;
+                  return bNorm === normDate;
                 });
+
+                if (existing) {
+                  existing.quantity = (Number(existing.quantity) || 0) + (Number(batch.quantity) || 0);
+                  if (!existing.rawBatchIds) existing.rawBatchIds = [existing.id];
+                  existing.rawBatchIds.push(batch.id);
+                } else {
+                  batchesById[matchId].push({
+                    id: batch.id,
+                    rawBatchIds: [batch.id],
+                    quantity: Number(batch.quantity) || 0,
+                    expirationDate: normDate,
+                  });
+                }
               }
+            });
+
+            // Sort batches FEFO (earliest date first, null dates last)
+            Object.values(batchesById).forEach(bList => {
+              bList.sort((a, b) => {
+                if (!a.expirationDate && !b.expirationDate) return 0;
+                if (!a.expirationDate) return 1;
+                if (!b.expirationDate) return -1;
+                return a.expirationDate.localeCompare(b.expirationDate);
+              });
             });
 
             // Merge batches into dictionary items

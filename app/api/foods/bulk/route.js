@@ -234,6 +234,7 @@ export async function POST(req) {
         catalogItem = newItem;
       }
 
+
       // 3. Resolve Batch (Auto-Merge or Insert)
       let expDate = null;
       if (item.expirationDate || item.expiration) {
@@ -243,60 +244,75 @@ export async function POST(req) {
         }
       }
 
-      let targetBatchId = item.existingBatchId || null;
+      // Query all matching batches for this catalog item and expiration date (or both null)
+      let query = auth.supabase
+        .from('inventory_batches')
+        .select('id, quantity')
+        .eq('location_id', locationId)
+        .eq('catalog_item_id', catalogItem.id);
 
-      // Auto-merge if not explicitly forced to create a new batch
-      if (!targetBatchId && !item.isNewBatch) {
-        let query = auth.supabase
+      if (expDate) {
+        query = query.eq('expiration_date', expDate);
+      } else {
+        query = query.is('expiration_date', null);
+      }
+
+      let matchingBatches = [];
+      if (item.existingBatchId) {
+        const { data: specificBatch } = await auth.supabase
           .from('inventory_batches')
-          .select('id')
-          .eq('location_id', locationId)
-          .eq('catalog_item_id', catalogItem.id);
-          
-        if (expDate) {
-          query = query.eq('expiration_date', expDate);
-        } else {
-          query = query.is('expiration_date', null);
+          .select('id, quantity')
+          .eq('id', item.existingBatchId)
+          .maybeSingle();
+        if (specificBatch) {
+          matchingBatches = [specificBatch];
         }
-        
-        const { data: existingBatch } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
-        
-        if (existingBatch) {
-          targetBatchId = existingBatch.id;
+      }
+
+      if (matchingBatches.length === 0) {
+        const { data: batches } = await query.order('created_at', { ascending: true });
+        if (batches && batches.length > 0) {
+          matchingBatches = batches;
         }
       }
 
       let newBatch = null;
       let batchErr = null;
 
-      if (targetBatchId) {
-        // Fetch current quantity
-        const { data: currBatch } = await auth.supabase
-          .from('inventory_batches')
-          .select('quantity')
-          .eq('id', targetBatchId)
-          .single();
-          
-        if (currBatch) {
-          const { data: updatedBatch, error: updateErr } = await auth.supabase
-            .from('inventory_batches')
-            .update({ quantity: Number(currBatch.quantity) + quantityToAdd })
-            .eq('id', targetBatchId)
-            .select(`
-              id, quantity, expiration_date, expiration_precision, source_type, received_date,
-              catalog_item:catalog_items (
-                id, name, barcode, photo_url, unit_of_measure, input_unit_value, weight_per_unit_lbs,
-                category:categories ( id, name, is_food )
-              )
-            `)
-            .single();
-          newBatch = updatedBatch;
-          batchErr = updateErr;
-        }
-      }
+      if (matchingBatches && matchingBatches.length > 0) {
+        // MATCH FOUND: Auto-merge!
+        // The first batch becomes the primary batch.
+        const primaryBatch = matchingBatches[0];
+        // Sum any existing duplicate rows + the incoming quantity
+        const existingSum = matchingBatches.reduce((sum, b) => sum + (Number(b.quantity) || 0), 0);
+        const totalNewQty = formatQty(existingSum + quantityToAdd);
 
-      // If no valid target batch, or update failed, insert new
-      if (!newBatch) {
+        const { data: updatedBatch, error: updateErr } = await auth.supabase
+          .from('inventory_batches')
+          .update({ quantity: totalNewQty })
+          .eq('id', primaryBatch.id)
+          .select(`
+            id, quantity, expiration_date, expiration_precision, source_type, received_date,
+            catalog_item:catalog_items (
+              id, name, barcode, photo_url, unit_of_measure, input_unit_value, weight_per_unit_lbs,
+              category:categories ( id, name, is_food )
+            )
+          `)
+          .single();
+
+        newBatch = updatedBatch;
+        batchErr = updateErr;
+
+        // Clean up any extra duplicate rows that existed in the database from before
+        if (matchingBatches.length > 1) {
+          const duplicateIdsToDelete = matchingBatches.slice(1).map(b => b.id);
+          await auth.supabase
+            .from('inventory_batches')
+            .delete()
+            .in('id', duplicateIdsToDelete);
+        }
+      } else {
+        // NO MATCH: Insert new batch
         const { data: insertedBatch, error: insertErr } = await auth.supabase
           .from('inventory_batches')
           .insert({
@@ -317,7 +333,7 @@ export async function POST(req) {
             )
           `)
           .single();
-          
+
         newBatch = insertedBatch;
         batchErr = insertErr;
       }

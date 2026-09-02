@@ -83,11 +83,11 @@ export function MobileAddFlow({ onClose }) {
         const isSameName = item.name?.toLowerCase() === newItem.name?.toLowerCase();
         const matchIdentifier = isSameBarcode || isSameName;
         
-        const matchExp = (item.expirationDate || '') === (newItem.expirationDate || '');
-        const matchNewBatch = !!item.isNewBatch === !!newItem.isNewBatch;
-        const matchBatchId = (item.existingBatchId || null) === (newItem.existingBatchId || null);
+        const itemExp = item.expirationDate ? String(item.expirationDate).split('T')[0] : '';
+        const newExp = newItem.expirationDate ? String(newItem.expirationDate).split('T')[0] : '';
+        const matchExp = itemExp === newExp;
         
-        return matchIdentifier && matchExp && matchNewBatch && matchBatchId;
+        return matchIdentifier && matchExp;
       });
 
       if (existingIdx >= 0) {
@@ -98,6 +98,7 @@ export function MobileAddFlow({ onClose }) {
         
         updated[existingIdx] = {
           ...existing,
+          existingBatchId: existing.existingBatchId || newItem.existingBatchId || null,
           quantity: String(newQty),
           totalWeightLbs: newWeight > 0 ? Number(newWeight.toFixed(2)) : 0
         };
