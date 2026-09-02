@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { categories } from '@/lib/constants';
+import { RestockSheet } from '@/components/pages/add-items/restock-sheet';
 import { 
   X, ShoppingBag, Plus, Minus, Calendar,
   CheckCircle2, Package, Loader2, Keyboard, ChevronLeft, ChevronDown, Check
@@ -81,6 +82,7 @@ export function MobileAddFlow({ onClose }) {
   // --- SCANNER & SHEET STATE ---
   // sheetState: 'CLOSED', 'KNOWN'
   const [sheetState, setSheetState] = useState('CLOSED');
+  const [isGridSheetOpen, setIsGridSheetOpen] = useState(false);
   const [scannedItem, setScannedItem] = useState(null);
   const [manualEntryReturnView, setManualEntryReturnView] = useState('CART');
   // Pure bookkeeping, not rendered — kept as a ref so a scan-in-flight doesn't
@@ -264,6 +266,7 @@ export function MobileAddFlow({ onClose }) {
 
   if (activeView === 'CART') {
     return (
+      <>
       <AnimatePresence>
         <MobileCartView 
           cartItems={cartItems} 
@@ -273,6 +276,10 @@ export function MobileAddFlow({ onClose }) {
             // If called with no arguments (Back button), return to Dashboard
             if (!viewName || typeof viewName !== 'string') {
               if (onClose) onClose();
+              return;
+            }
+            if (viewName === 'SEARCH') {
+              setIsGridSheetOpen(true);
               return;
             }
             if (viewName === 'MANUAL_ENTRY') {
@@ -287,6 +294,31 @@ export function MobileAddFlow({ onClose }) {
           }}
         />
       </AnimatePresence>
+      <RestockSheet 
+        isOpen={isGridSheetOpen}
+        onClose={() => setIsGridSheetOpen(false)}
+        onRestockItem={(item) => {
+          const newItem = {
+            id: item.id,
+            barcode: item.barcode,
+            name: item.name,
+            category: item.category,
+            categoryName: getCategoryMeta(item.category).name,
+            quantity: String(item.quantity),
+            unit: item.unit || 'units',
+            weightPerUnit: item.weightPerUnit ? String(item.weightPerUnit) : '0',
+            totalWeightLbs: item.totalWeightLbs || 0,
+            intakeMode: 'count',
+            expirationDate: item.expirationDate || null,
+            expirationPrecision: item.expirationPrecision || 'none',
+            sourceType: 'donation',
+            photoUrl: item.photoUrl || null,
+          };
+          setCartItems(prev => [newItem, ...prev]);
+          showToast(newItem.name, cartItems.length + 1);
+        }}
+      />
+      </>
     );
   }
 
