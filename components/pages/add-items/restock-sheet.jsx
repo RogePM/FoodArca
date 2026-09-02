@@ -366,40 +366,54 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                     </button>
                   </div>
 
-                  {/* Search */}
-                  <div className="px-5 pt-0.5 pb-2 shrink-0">
+                  {/* Search Input - Matching Remove sheet */}
+                  <div className="px-5 pt-1 pb-2 shrink-0">
                     <div className="relative flex items-center">
-                      <Search className="absolute left-3.5 w-[18px] h-[18px] text-[#a3acb9] pointer-events-none" strokeWidth={1.8} />
+                      <Search className="absolute left-4 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.8} />
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search items to restock..."
-                        className="w-full h-[42px] pl-10 pr-10 bg-gray-50 border border-gray-200/80 rounded-xl text-[15px] font-normal text-[#1a1f36] placeholder-[#a3acb9] focus:outline-none focus:border-[#d97757] focus:bg-white transition-colors"
+                        placeholder="Find an item to restock"
+                        className="w-full h-[42px] pl-11 pr-10 bg-white border border-gray-300 rounded-full text-[16px] font-normal text-[#1a1f36] placeholder-gray-500 focus:outline-none focus:border-gray-400 transition-colors"
                       />
                       {searchQuery && (
-                        <button type="button" onClick={() => setSearchQuery('')} className="absolute right-3 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 active:bg-gray-300 transition-colors" aria-label="Clear search">
-                          <X className="w-3 h-3" strokeWidth={2.5} />
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-3 p-1 text-gray-400 hover:text-gray-600 rounded-full"
+                          aria-label="Clear search"
+                        >
+                          <X className="w-3.5 h-3.5" strokeWidth={1.75} />
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* Filter pills */}
-                  <div className="shrink-0 border-b border-gray-100 pb-2.5">
-                    <div className="flex gap-2 overflow-x-auto px-5 pt-1 scroll-smooth touch-pan-x overscroll-x-contain [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {/* Quick Filter Pills - Matching Remove sheet */}
+                  <div className="shrink-0 border-b border-gray-100 pb-3">
+                    <div className="flex gap-2.5 overflow-x-auto px-6 pt-1 scroll-smooth touch-pan-x overscroll-x-contain [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                       {filterPillList.map((pill) => {
                         const isActive = selectedCategory === pill.id;
                         return (
-                          <button key={pill.id} type="button" onClick={() => setSelectedCategory(pill.id)}
-                            className={`px-3.5 py-1.5 border rounded-full text-[13px] font-medium tracking-tight whitespace-nowrap shrink-0 transition-all ${
+                          <button
+                            key={pill.id}
+                            type="button"
+                            onClick={() => setSelectedCategory(pill.id)}
+                            className={`px-4 py-1.5 border rounded-full text-[13px] font-medium tracking-tight whitespace-nowrap shrink-0 transition-all ${
                               isActive
-                                ? 'bg-[#fff0eb] border-[#d97757]/30 text-[#d97757]'
-                                : 'bg-white border-gray-200 text-[#8792a2] hover:border-gray-300 hover:text-gray-600'
+                                ? 'bg-orange-50 border-orange-300 text-[#c66547] shadow-sm'
+                                : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50'
                             }`}
                           >
                             {pill.name}
-                            <span className={`ml-1 text-[11px] ${isActive ? 'text-[#d97757]/60' : 'text-gray-300'}`}>{pill.count}</span>
+                            <span
+                              className={`ml-1.5 text-[11px] font-medium ${
+                                isActive ? 'text-[#c66547]/80' : 'text-gray-400'
+                              }`}
+                            >
+                              {pill.count}
+                            </span>
                           </button>
                         );
                       })}
@@ -407,11 +421,11 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                   </div>
 
                   {/* Product grid */}
-                  <div className="flex-1 overflow-y-auto px-5 py-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+                  <div className="flex-1 overflow-y-auto px-6 py-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
                     {isLoadingDictionary && filteredProducts.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-20 text-center">
                         <Loader2 className="w-7 h-7 text-[#d97757] animate-spin mb-3" />
-                        <p className="text-[13px] font-normal text-[#a3acb9]">Loading inventory...</p>
+                        <p className="text-[13px] font-normal text-gray-400">Loading inventory...</p>
                       </div>
                     ) : filteredProducts.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -430,12 +444,13 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                         )}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3.5">
                         {filteredProducts.map((product) => {
                           const catVisual = getCategoryVisual(product.category);
+                          const batchCount = product.batches?.length || 0;
                           return (
                             <button key={product.catalogItemId || product.id} type="button" onClick={() => handleSelectItem(product)}
-                              className="bg-white border border-gray-200 hover:border-[#d97757]/30 active:border-[#d97757] rounded-2xl p-3 flex flex-col items-center text-center transition-all active:scale-[0.98] shadow-sm group cursor-pointer text-left"
+                              className="bg-white border border-gray-200 hover:border-orange-300 active:border-[#e27f2c] rounded-2xl p-3 flex flex-col items-center text-center transition-all active:scale-[0.98] shadow-sm group cursor-pointer text-left"
                             >
                               {/* Image */}
                               <div className={`aspect-[4/3] w-full rounded-xl flex items-center justify-center relative overflow-hidden mb-2.5 border border-gray-100/60 ${product.photoUrl ? 'bg-gray-50' : catVisual.style.bg}`}>
@@ -446,18 +461,28 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                                     <img src={catVisual.imagePath} alt={catVisual.name} loading="lazy" decoding="async" className="w-full h-full object-contain drop-shadow-sm mix-blend-multiply" />
                                   </div>
                                 )}
-                                {/* Stock badge */}
+
+                                {/* Batches Badge on the LEFT side if multiple batches */}
+                                {batchCount > 1 && (
+                                  <div className="absolute top-2 left-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-100 shadow-xs flex items-center gap-1">
+                                    <Layers className="w-2.5 h-2.5 text-[#e27f2c]" />
+                                    <span>{batchCount} Batches</span>
+                                  </div>
+                                )}
+
+                                {/* Quantity Badge on the RIGHT side */}
                                 {product.totalQuantity > 0 && (
-                                  <div className="absolute top-1.5 left-1.5 bg-white/90 backdrop-blur-sm text-[10px] font-medium text-[#1a1f36] px-2 py-0.5 rounded-full border border-gray-100/80">
+                                  <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-100 shadow-xs">
                                     {product.totalQuantity} in stock
                                   </div>
                                 )}
                               </div>
                               {/* Name */}
                               <h4 className="text-[13px] font-medium text-[#1a1f36] text-center leading-snug line-clamp-2 mb-2 flex-1 w-full">{product.name}</h4>
-                              {/* Add to Cart CTA */}
-                              <div className="w-full flex items-center justify-center py-2.5 rounded-md bg-[#d97757] text-white text-[13px] font-semibold hover:bg-[#c66547] transition-all active:scale-95 shadow-sm mt-auto">
-                                Add to Cart
+                              {/* Orange-Yellowish Restock CTA */}
+                              <div className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-[#fff7ed] text-[#e27f2c] border border-[#e27f2c]/20 hover:bg-[#ffedd5] text-[13px] font-semibold transition-all active:scale-95 shadow-xs mt-auto">
+                                <RotateCcw className="w-3.5 h-3.5" strokeWidth={2.5} />
+                                Restock
                               </div>
                             </button>
                           );
