@@ -234,7 +234,7 @@ export async function POST(req) {
         catalogItem = newItem;
       }
 
-      // 3. Insert Inventory Batch
+      // 3. Resolve Batch (Auto-Merge or Insert)
       let expDate = null;
       if (item.expirationDate || item.expiration) {
         const d = new Date(item.expirationDate || item.expiration);
@@ -243,26 +243,84 @@ export async function POST(req) {
         }
       }
 
-      const { data: newBatch, error: batchErr } = await auth.supabase
-        .from('inventory_batches')
-        .insert({
-          location_id: locationId,
-          catalog_item_id: catalogItem.id,
-          quantity: quantityToAdd,
-          expiration_date: expDate,
-          expiration_precision: normalizeExpPrecision(item.expirationPrecision || (expDate ? 'day' : 'none')),
-          source_type: normalizeSourceType(item.sourceType),
-          donor_name: item.donorName || null,
-          received_date: new Date().toISOString().split('T')[0]
-        })
-        .select(`
-          id, quantity, expiration_date, expiration_precision, source_type, received_date,
-          catalog_item:catalog_items (
-            id, name, barcode, photo_url, unit_of_measure, input_unit_value, weight_per_unit_lbs,
-            category:categories ( id, name, is_food )
-          )
-        `)
-        .single();
+      let targetBatchId = item.existingBatchId || null;
+
+      // Auto-merge if not explicitly forced to create a new batch
+      if (!targetBatchId && !item.isNewBatch) {
+        let query = auth.supabase
+          .from('inventory_batches')
+          .select('id')
+          .eq('location_id', locationId)
+          .eq('catalog_item_id', catalogItem.id);
+          
+        if (expDate) {
+          query = query.eq('expiration_date', expDate);
+        } else {
+          query = query.is('expiration_date', null);
+        }
+        
+        const { data: existingBatch } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
+        
+        if (existingBatch) {
+          targetBatchId = existingBatch.id;
+        }
+      }
+
+      let newBatch = null;
+      let batchErr = null;
+
+      if (targetBatchId) {
+        // Fetch current quantity
+        const { data: currBatch } = await auth.supabase
+          .from('inventory_batches')
+          .select('quantity')
+          .eq('id', targetBatchId)
+          .single();
+          
+        if (currBatch) {
+          const { data: updatedBatch, error: updateErr } = await auth.supabase
+            .from('inventory_batches')
+            .update({ quantity: Number(currBatch.quantity) + quantityToAdd })
+            .eq('id', targetBatchId)
+            .select(`
+              id, quantity, expiration_date, expiration_precision, source_type, received_date,
+              catalog_item:catalog_items (
+                id, name, barcode, photo_url, unit_of_measure, input_unit_value, weight_per_unit_lbs,
+                category:categories ( id, name, is_food )
+              )
+            `)
+            .single();
+          newBatch = updatedBatch;
+          batchErr = updateErr;
+        }
+      }
+
+      // If no valid target batch, or update failed, insert new
+      if (!newBatch) {
+        const { data: insertedBatch, error: insertErr } = await auth.supabase
+          .from('inventory_batches')
+          .insert({
+            location_id: locationId,
+            catalog_item_id: catalogItem.id,
+            quantity: quantityToAdd,
+            expiration_date: expDate,
+            expiration_precision: normalizeExpPrecision(item.expirationPrecision || (expDate ? 'day' : 'none')),
+            source_type: normalizeSourceType(item.sourceType),
+            donor_name: item.donorName || null,
+            received_date: new Date().toISOString().split('T')[0]
+          })
+          .select(`
+            id, quantity, expiration_date, expiration_precision, source_type, received_date,
+            catalog_item:catalog_items (
+              id, name, barcode, photo_url, unit_of_measure, input_unit_value, weight_per_unit_lbs,
+              category:categories ( id, name, is_food )
+            )
+          `)
+          .single();
+          
+        newBatch = insertedBatch;
+        batchErr = insertErr;
+      }
 
       if (batchErr) {
         console.error('Error creating inventory batch during bulk add:', batchErr);

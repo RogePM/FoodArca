@@ -75,6 +75,40 @@ export function MobileAddFlow({ onClose }) {
     } catch (e) {}
   }, [cartItems]);
 
+  // --- HELPER: Merge identical items in cart ---
+  const addItemToCartMerged = (newItem) => {
+    setCartItems(prev => {
+      const existingIdx = prev.findIndex(item => {
+        const isSameBarcode = item.barcode && newItem.barcode && item.barcode === newItem.barcode;
+        const isSameName = item.name?.toLowerCase() === newItem.name?.toLowerCase();
+        const matchIdentifier = isSameBarcode || isSameName;
+        
+        const matchExp = (item.expirationDate || '') === (newItem.expirationDate || '');
+        const matchNewBatch = !!item.isNewBatch === !!newItem.isNewBatch;
+        const matchBatchId = (item.existingBatchId || null) === (newItem.existingBatchId || null);
+        
+        return matchIdentifier && matchExp && matchNewBatch && matchBatchId;
+      });
+
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        const existing = updated[existingIdx];
+        const newQty = (parseFloat(existing.quantity) || 0) + (parseFloat(newItem.quantity) || 1);
+        const newWeight = (parseFloat(existing.totalWeightLbs) || 0) + (parseFloat(newItem.totalWeightLbs) || 0);
+        
+        updated[existingIdx] = {
+          ...existing,
+          quantity: String(newQty),
+          totalWeightLbs: newWeight > 0 ? Number(newWeight.toFixed(2)) : 0
+        };
+        // Move the merged item to the top of the cart so the user sees it just got updated
+        const [mergedItem] = updated.splice(existingIdx, 1);
+        return [mergedItem, ...updated];
+      }
+      return [newItem, ...prev];
+    });
+  };
+
   // --- VIEW ROUTING ---
   // activeView: 'CAMERA', 'CART', 'MANUAL_ENTRY'
   const [activeView, setActiveView] = useState('CART');
@@ -239,7 +273,7 @@ export function MobileAddFlow({ onClose }) {
       photoUrl: scannedItem?.photoUrl || null
     };
 
-    setCartItems(prev => [newItem, ...prev]);
+    addItemToCartMerged(newItem);
     setIsAdding(true);
     
     setTimeout(() => {
@@ -316,7 +350,7 @@ export function MobileAddFlow({ onClose }) {
             isNewBatch: item.isNewBatch,
             existingBatchId: item.existingBatchId || null,
           };
-          setCartItems(prev => [newItem, ...prev]);
+          addItemToCartMerged(newItem);
           showToast(newItem.name, cartItems.length + 1);
         }}
       />
@@ -603,7 +637,7 @@ export function MobileAddFlow({ onClose }) {
                     sourceType: 'donation',
                     photoUrl: scannedItem?.photoUrl || null
                   };
-                  setCartItems(prev => [confirmedItem, ...prev]);
+                  addItemToCartMerged(confirmedItem);
                   closeSheet();
                   showToast(confirmedItem.name, cartItems.length + 1);
                 }}
