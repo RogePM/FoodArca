@@ -313,6 +313,8 @@ export function MobileAddFlow({ onClose }) {
             expirationPrecision: item.expirationPrecision || 'none',
             sourceType: 'donation',
             photoUrl: item.photoUrl || null,
+            isNewBatch: item.isNewBatch,
+            existingBatchId: item.existingBatchId || null,
           };
           setCartItems(prev => [newItem, ...prev]);
           showToast(newItem.name, cartItems.length + 1);
