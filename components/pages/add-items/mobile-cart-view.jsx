@@ -1,79 +1,45 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronLeft,
-  Trash2,
-  Edit3,
-  ShoppingBag,
-  Loader2,
-  CheckCircle2,
-  AlertTriangle,
-  Scan,
-  Keyboard,
-  Smartphone,
   Minus,
   Plus,
-  ShoppingCart,
+  X,
+  Loader2,
+  CheckCircle2,
+  Scan,
+  ScanBarcode,
   Search,
-  PlusCircle,
-} from "lucide-react";
-import { categories, getCategoryVisual } from "@/lib/constants";
-import { usePantry } from "@/components/providers/PantryProvider";
-function formatItemExpiration(dateStr) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  return isNaN(d.getTime())
-    ? ""
-    : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+  Keyboard,
+  HelpCircle,
+} from 'lucide-react';
+import { getCategoryVisual, formatDate } from '@/components/pages/inventory/inventory-utils';
 
 export function MobileCartView({
-  onBack,
-  cartItems,
+  cartItems = [],
   setCartItems,
-  pantryId,
+  onBack,
   onEdit,
 }) {
-  const { pantryDetails } = usePantry();
-  const [isSubmittingCart, setIsSubmittingCart] = useState(false);
-  const [cartSuccess, setCartSuccess] = useState("");
-  const [cartError, setCartError] = useState("");
+  const [mounted, setMounted] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [localInventory, setLocalInventory] = useState([]);
+  const [isSubmittingCart, setIsSubmittingCart] = useState(false);
+  const [cartSuccess, setCartSuccess] = useState('');
+  const [cartError, setCartError] = useState('');
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (cartItems.length === 0 && pantryId) {
-      fetch('/api/foods', { headers: { 'x-pantry-id': pantryId } })
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.data) {
-            // Sort by quantity or recent to mock "Frequent items"
-            setLocalInventory(data.data.slice(0, 8));
-          }
-        })
-        .catch(console.error);
-    }
-  }, [cartItems.length, pantryId]);
-
   const clearBatch = () => {
     setCartItems([]);
     try {
-      sessionStorage.removeItem("foodarca_staged_batch");
+      sessionStorage.removeItem('foodarca_staged_batch');
     } catch (_) {}
-    // Emptying the cart already reverts this view to its inline (non-fullscreen)
-    // layout on its own, which brings the bottom nav back — no navigation needed.
-    // The old onBack() call here was a no-op anyway (add-item-view.jsx never
-    // passes an onClose down), which is why this dialog used to stay stuck open.
     setShowClearConfirm(false);
   };
 
@@ -83,43 +49,46 @@ export function MobileCartView({
 
   const updateItemQty = (id, delta) => {
     setCartItems((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        const next = Math.max(1, (parseInt(i.quantity, 10) || 1) + delta);
-        return { ...i, quantity: String(next) };
-      }),
+      prev
+        .map((item) => {
+          if (item.id === id) {
+            const nextQty = Math.max(1, parseInt(item.quantity || '1') + delta);
+            return { ...item, quantity: String(nextQty) };
+          }
+          return item;
+        })
+        .filter(Boolean)
     );
   };
 
   const submitBatch = async () => {
-    if (cartItems.length === 0 || !pantryId) return;
+    if (cartItems.length === 0) return;
     setIsSubmittingCart(true);
-    setCartError("");
-    setCartSuccess("");
+    setCartError('');
+    setCartSuccess('');
 
     try {
-      const response = await fetch("/api/foods/bulk", {
-        method: "POST",
+      const response = await fetch('/api/foods/bulk', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "x-pantry-id": pantryId,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ items: cartItems }),
       });
       const data = await response.json();
       if (!response.ok)
-        throw new Error(data.message || data.error || "Failed to submit batch");
+        throw new Error(data.message || data.error || 'Failed to submit batch');
 
-      setCartSuccess("Batch successfully added!");
+      setCartSuccess('Batch successfully added!');
       setCartItems([]);
       try {
-        sessionStorage.removeItem("foodarca_staged_batch");
+        sessionStorage.removeItem('foodarca_staged_batch');
       } catch (_) {}
 
       setTimeout(() => {
-        setCartSuccess("");
-        onBack();
-      }, 2000);
+        setCartSuccess('');
+        if (onBack) onBack();
+      }, 1500);
     } catch (err) {
       setCartError(err.message);
     } finally {
@@ -127,524 +96,471 @@ export function MobileCartView({
     }
   };
 
-  const quickAddToCart = (item) => {
-    const newItem = {
-      id: crypto.randomUUID(),
-      barcode: item.barcode || `INT-${Math.floor(100000 + Math.random() * 900000)}`,
-      name: item.name,
-      category: item.category,
-      categoryName: getCategoryVisual(item.category).name,
-      quantity: "1",
-      unit: item.unit || "units",
-      weightPerUnit: "0",
-      totalWeightLbs: 0,
-      intakeMode: 'count',
-      expirationDate: null,
-      expirationPrecision: 'none',
-      sourceType: 'donation',
-      photoUrl: item.photoUrl || null
-    };
-    setCartItems(prev => [newItem, ...prev]);
-  };
+  const totalItemCount = cartItems.reduce(
+    (sum, item) => sum + Number(item.quantity || 1),
+    0
+  );
 
   return (
-    <motion.div
-      initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className={
-        cartItems.length > 0
-          ? "fixed inset-0 z-[9999] w-full h-[100dvh] bg-white flex flex-col"
-          : "flex-1 w-full relative bg-[#f4f4f6] flex flex-col min-h-full"
-      }
-    >
-      {/* SAMS CLUB HEADER */}
-      <div className="px-5 pt-safe pb-5 bg-white shrink-0 flex flex-col gap-4 z-10 shadow-sm relative overflow-hidden rounded-b-[24px]">
-         <div className="relative z-10 flex flex-col mt-2">
-           <span className="text-[12px] font-bold text-gray-500 uppercase tracking-widest mb-1">Your Pantry</span>
-           <div className="flex items-center justify-between">
-              <h1 className="text-[26px] font-extrabold text-[#1a1f36] tracking-tight leading-none">
-                 {pantryDetails?.name || 'Food Arca'}
-              </h1>
-              <button className="text-[13px] font-bold text-[#1a1f36] underline underline-offset-4 decoration-gray-300 active:text-[#d97757] transition-colors">
-                 Change
-              </button>
-           </div>
-           <p className="text-[13px] font-medium text-gray-500 mt-2 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-              Active | Manage Pantry
-           </p>
-         </div>
-         
-         {/* SEARCH BAR (NO EMBEDDED SCANNER) */}
-         <div 
-           className="relative flex items-center w-full h-[52px] bg-white rounded-full shadow-[0_6px_20px_-10px_rgba(0,0,0,0.12)] border border-gray-100 cursor-text active:scale-[0.98] transition-transform z-10"
-           onClick={() => onBack("MANUAL_ENTRY")}
-         >
-           <div className="pl-5 pr-3 flex items-center justify-center text-gray-400">
-              <Search className="w-5 h-5" strokeWidth={2.5} />
-           </div>
-           <div className="flex-1 text-[16px] font-medium text-gray-400 select-none">
-              Find an item in the pantry
-           </div>
-         </div>
-      </div>
-
-      {/* ITEM LIST */}
-      <div
-        className={`flex-1 overflow-y-auto px-4 space-y-4 relative pt-5 ${
-          cartItems.length > 0 ? "pb-[240px] bg-white" : "pb-16"
-        }`}
-      >
-        {cartItems.length === 0 ? (
-          <div className="flex flex-col h-full gap-4">
-             {/* SCAN & GO CARD */}
-             <div className="bg-white rounded-3xl overflow-hidden shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] border border-gray-100">
-                <div className="p-6 flex items-start justify-between">
-                   <div className="flex flex-col gap-1.5 max-w-[60%]">
-                      <h2 className="text-[20px] font-extrabold text-[#1a1f36] tracking-tight">Intake Scanner</h2>
-                      <p className="text-[13px] text-gray-500 font-medium leading-snug">Add new stock instantly using your camera.</p>
-                      <button 
-                        onClick={() => setShowHowItWorks(true)}
-                        className="text-[13px] font-bold text-[#1a1f36] underline underline-offset-4 decoration-gray-300 mt-1 w-fit hover:text-[#d97757]"
-                      >
-                        How it works
-                      </button>
-                   </div>
-                   
-                   {/* SCAN GRAPHIC */}
-                   <div className="w-[84px] h-[84px] rounded-full bg-orange-50 flex items-center justify-center relative border-[6px] border-white shadow-sm shrink-0">
-                      <Smartphone className="w-8 h-8 text-[#d97757]" strokeWidth={1.5} />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                         <div className="w-8 h-[3px] bg-[#d97757] rounded-full shadow-[0_0_8px_rgba(217,119,87,0.8)] opacity-80"></div>
-                      </div>
-                   </div>
-                </div>
-                
-                <div className="bg-gray-50/80 px-5 py-4 border-t border-gray-100 flex items-center justify-between">
-                   <span className="text-[13px] font-semibold text-gray-500">Camera access required</span>
-                   <button 
-                     onClick={() => onBack("CAMERA")}
-                     className="bg-[#1a1f36] text-white px-5 py-2.5 rounded-full text-[13px] font-bold shadow-md active:scale-95 transition-transform"
-                   >
-                     Open Scanner
-                   </button>
-                </div>
-             </div>
-
-             <div className="px-2 mt-4 mb-2">
-                <h2 className="text-[16px] font-bold text-[#1a1f36] tracking-tight">Frequent Items</h2>
-                <p className="text-[12px] text-gray-500 font-medium mt-0.5">Quickly add from your inventory</p>
-             </div>
-
-             <div className="flex flex-col gap-2">
-                {localInventory.map((item) => {
-                  const catVisual = getCategoryVisual(item.category);
-                  return (
-                    <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                      {item.photoUrl ? (
-                        <img src={item.photoUrl} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
-                      ) : (
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${catVisual.style.bg} overflow-hidden`}>
-                          <img src={catVisual.imagePath} alt="" className="w-full h-full object-contain mix-blend-multiply scale-[1.35]" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-[14px] font-bold text-[#1a1f36] truncate">{item.name}</h4>
-                        <p className="text-[12px] text-gray-500 truncate">{item.categoryName || catVisual.name}</p>
-                      </div>
-                      <button 
-                        onClick={() => quickAddToCart(item)}
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-[#d97757] active:bg-orange-50 transition-colors shrink-0"
-                      >
-                        <PlusCircle className="w-6 h-6" strokeWidth={2.5} />
-                      </button>
-                    </div>
-                  );
-                })}
-             </div>
-
-             {localInventory.length === 0 && (
-                <div className="text-center py-12 px-6">
-                   <div className="w-16 h-16 mx-auto bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                     <Search className="w-6 h-6 text-gray-300" />
-                   </div>
-                   <p className="text-[14px] font-medium text-gray-400">Search above or scan a barcode to add your first items.</p>
-                </div>
-             )}
+    <div className="flex-1 w-full bg-white flex flex-col min-h-full">
+      {/* ACCENT AMBER SEARCH HEADER */}
+      <div className="bg-[#ea8b3d] px-4 pt-safe pt-3 pb-3 w-full shrink-0 shadow-sm z-20">
+        <div
+          className="relative cursor-text"
+          onClick={() => onBack && onBack('MANUAL_ENTRY')}
+        >
+          <Search
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none"
+            strokeWidth={2.2}
+          />
+          <div className="flex items-center pl-11 pr-[52px] h-12 bg-white shadow-[0_4px_20px_-6px_rgba(0,0,0,0.15)] rounded-2xl text-[15px] font-normal overflow-hidden select-none">
+            <span className="text-gray-400">Search inventory to add...</span>
           </div>
-        ) : (
-          <>
-            <AnimatePresence>
-              {cartItems.map((item) => {
-                const catVisual = getCategoryVisual(item.category);
-                const expLabel = formatItemExpiration(item.expirationDate);
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onBack && onBack('CAMERA');
+            }}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center active:scale-95 transition-transform shadow-xs"
+            aria-label="Scan barcode"
+          >
+            <ScanBarcode className="h-[18px] w-[18px] text-amber-600" strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+      {/* SCROLLABLE CONTENT AREA */}
+      <div className="flex-1 overflow-y-auto w-full flex flex-col pb-[calc(80px+env(safe-area-inset-bottom))]">
+        {cartItems.length === 0 ? (
+          /* EMPTY STATE - Perfectly centered between header and bottom nav */
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 text-center my-auto">
+            <img
+              src="/illustrations/add-items-empty-transparent.png"
+              alt="Empty Cart"
+              className="w-48 h-48 sm:w-56 sm:h-56 object-contain mb-2"
+            />
+            <h2 className="text-[20px] font-semibold text-[#1a1f36] tracking-tight leading-snug mb-1">
+              Life is better with an inventory.
+            </h2>
+            <p className="text-[13.5px] font-normal text-gray-500 max-w-[260px] leading-relaxed mb-2">
+              Add items by scanning their barcode or fill out a form manually.
+            </p>
 
-                return (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-white border-2 border-gray-200 rounded-2xl p-3 flex gap-3 items-center"
-                  >
-                    {item.photoUrl ? (
-                      <img
-                        src={item.photoUrl}
-                        alt=""
-                        className="w-14 h-14 rounded-2xl object-cover border-2 border-gray-50 shrink-0"
-                      />
-                    ) : (
-                      <div
-                        className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border-2 overflow-hidden ${catVisual.style.border} ${catVisual.style.bg}`}
-                      >
-                        <img src={catVisual.imagePath} alt="" className="w-full h-full object-contain mix-blend-multiply scale-[1.35]" />
-                      </div>
-                    )}
+            <button
+              type="button"
+              onClick={() => setShowHowItWorks(true)}
+              className="text-[12.5px] font-normal text-gray-400 underline underline-offset-4 decoration-gray-300 hover:text-[#d97757] transition-colors mb-5 flex items-center gap-1.5"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-gray-400" />
+              How it works
+            </button>
 
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-[#1a1f36] text-[15px] leading-snug truncate">
-                        {item.name}
-                      </h4>
-                      <p className="text-[12px] font-medium text-gray-500 mt-0.5 truncate">
-                        {item.categoryName || catVisual.name}
-                        {expLabel && (
-                          <span className="text-[#a3acb9] font-normal">
-                            {" "}
-                            · Exp {expLabel}
-                          </span>
-                        )}
-                      </p>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <button
-                          onClick={() => onEdit(item)}
-                          className="flex items-center gap-1 text-[12px] font-semibold text-gray-400 hover:text-gray-600 active:text-[#d97757] transition-colors"
-                        >
-                          <Edit3 className="h-3.5 w-3.5" strokeWidth={2.5} /> Edit
-                        </button>
-                        <button
-                          onClick={() => removeFromBatch(item.id)}
-                          className="flex items-center gap-1 text-[12px] font-semibold text-gray-400 hover:text-gray-600 active:text-rose-500 transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" strokeWidth={2.5} />{" "}
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-1.5 shrink-0">
-                      <div className="flex items-center bg-white border-2 border-gray-200 rounded-xl h-12 min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => updateItemQty(item.id, -1)}
-                          className="h-full w-9 shrink-0 flex items-center justify-center text-gray-500 bg-gray-50 active:bg-gray-100 border-r-2 border-gray-200 rounded-l-xl transition-colors"
-                        >
-                          <Minus className="h-4 w-4" strokeWidth={2.5} />
-                        </button>
-                        <span className="w-10 text-center text-[16px] font-semibold text-[#1a1f36]">
-                          {item.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => updateItemQty(item.id, 1)}
-                          className="h-full w-9 shrink-0 flex items-center justify-center text-gray-500 bg-gray-50 active:bg-gray-100 border-l-2 border-gray-200 rounded-r-xl transition-colors"
-                        >
-                          <Plus className="h-4 w-4" strokeWidth={2.5} />
-                        </button>
-                      </div>
-                      {item.unit && item.unit !== "units" && (
-                        <span className="text-[11px] font-semibold text-[#a3acb9] uppercase tracking-wide">
-                          {item.unit}
-                        </span>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-
-            <div className="flex justify-center pt-4">
+            <div className="flex items-center gap-3 w-full max-w-[290px]">
               <button
-                onClick={() => setShowClearConfirm(true)}
-                className="px-6 py-2.5 rounded-full border-2 border-gray-100 text-gray-500 text-[14px] font-semibold bg-white active:bg-gray-50 transition-colors"
+                onClick={() => onBack && onBack('MANUAL_ENTRY')}
+                className="flex-1 h-[42px] rounded-xl bg-white border border-gray-400 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center shadow-xs"
               >
-                Empty cart
+                Manual Entry
+              </button>
+              <button
+                onClick={() => onBack && onBack('CAMERA')}
+                className="flex-1 h-[42px] rounded-xl bg-[#d97757] text-white text-[13.5px] font-semibold shadow-sm active:scale-95 transition-all flex items-center justify-center"
+              >
+                Open Scanner
               </button>
             </div>
-          </>
+          </div>
+        ) : (
+          /* FILLED CART ITEMS LIST */
+          <div className="flex flex-col">
+            {/* TOP BAR: Header & Clear button */}
+            <div className="px-5 pt-safe pt-4 pb-3 flex items-center justify-between border-b border-gray-100 bg-white sticky top-0 z-10">
+              <div>
+                <h1 className="text-[20px] font-semibold text-[#1a1f36] tracking-tight">
+                  Inbound Batch
+                </h1>
+                <p className="text-[13px] font-normal text-gray-500">
+                  {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'} ready to add
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="text-[13.5px] font-normal text-gray-500 hover:text-red-600 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+
+            {/* CART ITEMS ROWS */}
+            <div className="flex flex-col divide-y divide-gray-100">
+              <AnimatePresence initial={false}>
+                {cartItems.map((item) => {
+                  const catVisual = getCategoryVisual(item.category);
+                  const expLabel = formatDate(item.expirationDate);
+
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="p-4 flex flex-col gap-3 bg-white"
+                    >
+                      {/* Item Info Row */}
+                      <div className="flex gap-3.5 items-start">
+                        {item.photoUrl ? (
+                          <img
+                            src={item.photoUrl}
+                            alt=""
+                            className="w-[72px] h-[72px] rounded-md object-cover border border-gray-100 shrink-0 bg-gray-50"
+                          />
+                        ) : (
+                          <div
+                            className={`w-[72px] h-[72px] rounded-md flex items-center justify-center shrink-0 border border-gray-100 p-0 overflow-hidden ${catVisual.style.bg}`}
+                          >
+                            <img
+                              src={catVisual.imagePath}
+                              alt=""
+                              className="w-full h-full object-contain mix-blend-multiply scale-[1.35]"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0 py-0.5">
+                          <h4 className="font-normal text-[#1a1f36] text-[15px] leading-snug mb-1 truncate">
+                            {item.name}
+                          </h4>
+
+                          {/* Metadata */}
+                          <div className="flex flex-col gap-1 text-[13px] text-gray-500 font-normal">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-gray-600">
+                                {item.categoryName || catVisual.name}
+                              </span>
+                              <span className="text-gray-300">|</span>
+                              <span className="text-gray-600">
+                                Qty: {item.quantity} {item.unit || 'units'}
+                              </span>
+                            </div>
+
+                            {expLabel ? (
+                              <div className="text-gray-500 font-normal">
+                                Exp: {expLabel}
+                              </div>
+                            ) : (
+                              <div className="text-gray-400">
+                                No expiration date
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions Row */}
+                      <div className="flex items-center justify-between pt-1">
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => onEdit && onEdit(item)}
+                            className="text-[13.5px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-300"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => removeFromBatch(item.id)}
+                            className="text-[13.5px] font-normal text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        {/* Stepper */}
+                        <div className="flex items-center rounded-full border border-[#d97757] h-[34px] bg-white overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => updateItemQty(item.id, -1)}
+                            className="h-full w-9 flex items-center justify-center text-[#d97757] active:bg-[#fff7f2] transition-colors"
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus className="h-4 w-4" strokeWidth={2} />
+                          </button>
+                          <span className="w-8 text-center text-[14px] font-semibold text-[#1a1f36] select-none">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateItemQty(item.id, 1)}
+                            className="h-full w-9 flex items-center justify-center text-[#d97757] active:bg-[#fff7f2] transition-colors"
+                            aria-label="Increase quantity"
+                          >
+                            <Plus className="h-4 w-4" strokeWidth={2} />
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+
+            {/* Bottom Add-More / Submit Bar */}
+            <div className="p-4 flex flex-col gap-3 mt-4">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onBack && onBack('CAMERA')}
+                  className="flex-1 h-[44px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-normal active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Scan className="w-4 h-4 text-gray-500" strokeWidth={2} />
+                  Scan More
+                </button>
+                <button
+                  onClick={() => onBack && onBack('MANUAL_ENTRY')}
+                  className="flex-1 h-[44px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-normal active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Keyboard className="w-4 h-4 text-gray-500" strokeWidth={2} />
+                  Manual Entry
+                </button>
+              </div>
+
+              <button
+                disabled={isSubmittingCart}
+                onClick={() => setShowSubmitConfirm(true)}
+                className="w-full h-[48px] rounded-xl bg-[#d97757] text-white text-[15px] font-semibold shadow-sm active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isSubmittingCart ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : cartSuccess ? (
+                  <>
+                    <CheckCircle2 className="w-5 h-5" /> Added!
+                  </>
+                ) : (
+                  'Add to inventory'
+                )}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* FLOATING ACTION BUTTONS */}
-      <AnimatePresence>
-        {cartItems.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute right-4 bottom-[calc(120px+env(safe-area-inset-bottom))] flex flex-col gap-4 z-40"
-          >
-            <button
-              type="button"
-              onClick={() => onBack("MANUAL_ENTRY")}
-              className="w-14 h-14 rounded-full bg-white text-[#1a1f36] shadow-[0_4px_14px_rgba(0,0,0,0.08)] flex items-center justify-center active:scale-95 transition-all border border-gray-200"
-            >
-              <Keyboard className="w-6 h-6" strokeWidth={2} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onBack("CAMERA")}
-              className="w-14 h-14 rounded-full bg-[#d97757] text-white shadow-[0_4px_14px_rgba(217,119,87,0.25)] flex items-center justify-center active:scale-95 transition-all"
-            >
-              <Scan className="w-6 h-6" strokeWidth={2.5} />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* FOOTER BUTTON (ONLY VISIBLE IF ITEMS IN CART) */}
-      <AnimatePresence>
-        {cartItems.length > 0 && (
-          <motion.div
-            initial={{ y: 100 }}
-            animate={{ y: 0 }}
-            exit={{ y: 100 }}
-            className="fixed bottom-0 left-0 right-0 z-[10000] bg-white px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-          >
-            {cartError && (
-              <p className="text-rose-600 text-[13px] text-center mb-3 font-medium bg-rose-50 py-2 rounded-xl">
-                {cartError}
-              </p>
-            )}
-
-            <button
-              type="button"
-              disabled={
-                (cartItems.length === 0 && !cartSuccess) || isSubmittingCart
-              }
-              onClick={
-                cartSuccess ? undefined : () => setShowSubmitConfirm(true)
-              }
-              className={`w-full h-[56px] rounded-2xl text-[16px] font-bold transition-all duration-300 active:scale-[0.97] disabled:opacity-40 disabled:cursor-default flex items-center justify-center gap-2 ${
-                cartSuccess
-                  ? "bg-emerald-500 text-white"
-                  : "bg-[#d97757] text-white"
-              }`}
-            >
-              {isSubmittingCart ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" /> Submitting…
-                </>
-              ) : cartSuccess ? (
-                <>
-                  <CheckCircle2 className="h-5 w-5" strokeWidth={2.5} />{" "}
-                  {cartSuccess}
-                </>
-              ) : (
-                <>
-                  <ShoppingBag className="h-5 w-5" strokeWidth={2.5} /> Add to inventory
-                </>
-              )}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* CLEAR CONFIRMATION MODAL */}
-      <AnimatePresence>
-        {showClearConfirm && (
-          <div className="fixed inset-0 z-[10001] flex items-end justify-center" style={{ isolation: "isolate" }}>
+      {/* 1. CENTERED MODAL: CLEAR CART CONFIRMATION */}
+      {mounted &&
+        showClearConfirm &&
+        createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/30"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={() => setShowClearConfirm(false)}
             />
+
             <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="relative bg-white rounded-t-3xl p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] w-full max-w-lg"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 z-10 flex flex-col items-center text-center"
             >
-              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-              <h3 className="text-[18px] font-semibold text-center text-[#1a1f36] tracking-tight mb-2">
-                Empty your cart?
+              {/* Close 'X' Button */}
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="absolute top-4 right-4 p-1.5 text-[#d97757] hover:opacity-80 active:scale-95 transition-transform"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" strokeWidth={2.5} />
+              </button>
+
+              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-3 mt-1">
+                <X className="w-6 h-6" strokeWidth={2.5} />
+              </div>
+
+              <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
+                Empty your batch?
               </h3>
-              <p className="text-center text-gray-400 text-[14px] leading-relaxed mb-6">
-                This removes all {cartItems.length}{" "}
-                {cartItems.length === 1 ? "item" : "items"}. You can't undo
-                this.
+              <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6">
+                This will remove all {totalItemCount}{' '}
+                {totalItemCount === 1 ? 'item' : 'items'} from your staged batch.
               </p>
-              <div className="flex gap-3">
+
+              <div className="flex gap-2.5 w-full">
                 <button
+                  type="button"
                   onClick={() => setShowClearConfirm(false)}
-                  className="flex-1 h-[52px] bg-gray-100 text-[#1a1f36] font-semibold text-[15px] rounded-2xl active:bg-gray-200 transition-colors"
+                  className="flex-1 h-[42px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14px] font-normal active:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={clearBatch}
-                  className="flex-1 h-[52px] bg-rose-500 text-white font-semibold text-[15px] rounded-2xl active:bg-rose-600 transition-colors"
+                  className="flex-1 h-[42px] rounded-xl bg-red-600 text-white text-[14px] font-semibold active:bg-red-700 transition-colors shadow-sm"
                 >
-                  Empty cart
+                  Clear all
                 </button>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
-      </AnimatePresence>
 
-      {/* SUBMIT CONFIRMATION MODAL */}
-      <AnimatePresence>
-        {showSubmitConfirm && (
-          <div className="fixed inset-0 z-[10001] flex items-end justify-center" style={{ isolation: "isolate" }}>
+      {/* 2. CENTERED MODAL: SUBMIT BATCH CONFIRMATION */}
+      {mounted &&
+        showSubmitConfirm &&
+        createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/30"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={() => setShowSubmitConfirm(false)}
             />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="relative bg-white rounded-t-3xl p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] w-full max-w-lg flex flex-col items-center"
-            >
-              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-6" />
 
-              <h3 className="text-[18px] font-semibold text-center text-[#1a1f36] tracking-tight mb-2">
-                Add to inventory?
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 z-10 flex flex-col items-center text-center"
+            >
+              {/* Close 'X' Button */}
+              <button
+                onClick={() => setShowSubmitConfirm(false)}
+                className="absolute top-4 right-4 p-1.5 text-[#d97757] hover:opacity-80 active:scale-95 transition-transform"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" strokeWidth={2.5} />
+              </button>
+
+              <div className="w-12 h-12 rounded-full bg-[#fff0eb] flex items-center justify-center text-[#d97757] mb-3 mt-1">
+                <CheckCircle2 className="w-6 h-6" strokeWidth={2.5} />
+              </div>
+
+              <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
+                Confirm stock intake
               </h3>
-              <p className="text-center text-gray-400 text-[15px] leading-relaxed mb-8">
-                You're about to add{" "}
+              <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6">
+                You are adding{' '}
                 <span className="font-semibold text-[#1a1f36]">
-                  {cartItems.reduce(
-                    (sum, item) => sum + Number(item.quantity || 1),
-                    0,
-                  )}{" "}
-                  {cartItems.reduce(
-                    (sum, item) => sum + Number(item.quantity || 1),
-                    0,
-                  ) === 1
-                    ? "item"
-                    : "items"}
-                </span>{" "}
-                to your inventory.
+                  {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                </span>{' '}
+                to your live inventory.
               </p>
 
-              <div className="w-full flex flex-col gap-3">
+              <div className="flex gap-2.5 w-full">
                 <button
+                  type="button"
+                  onClick={() => setShowSubmitConfirm(false)}
+                  className="flex-1 h-[42px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14px] font-normal active:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     setShowSubmitConfirm(false);
                     submitBatch();
                   }}
-                  className="w-full h-[52px] bg-[#d97757] text-white font-semibold text-[15px] rounded-2xl active:bg-[#c66547] transition-colors"
+                  className="flex-1 h-[42px] rounded-xl bg-[#d97757] text-white text-[14px] font-semibold active:bg-[#c66547] transition-colors shadow-sm"
                 >
-                  Add to inventory
-                </button>
-                <button
-                  onClick={() => setShowSubmitConfirm(false)}
-                  className="w-full h-[52px] bg-transparent text-gray-400 font-medium text-[15px] rounded-2xl active:bg-gray-50 transition-colors"
-                >
-                  Go back
+                  Confirm add
                 </button>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
-      </AnimatePresence>
 
-      {/* HOW IT WORKS MODAL */}
-      {mounted
-        ? createPortal(
-            <AnimatePresence>
-              {showHowItWorks && (
-                <div
-                  className="fixed inset-0 z-[9999] flex flex-col justify-end"
-                  style={{ isolation: "isolate" }}
-                >
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-black/30"
-                    onClick={() => setShowHowItWorks(false)}
-                  />
-                  <motion.div
-                    initial={{ y: "100%" }}
-                    animate={{ y: 0 }}
-                    exit={{ y: "100%" }}
-                    transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                    className="relative bg-white rounded-t-3xl p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] flex flex-col items-center"
-                  >
-                    <div className="w-10 h-1 bg-gray-200 rounded-full mb-5" />
+      {/* 3. CENTERED MODAL: HOW IT WORKS */}
+      {mounted &&
+        showHowItWorks &&
+        createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowHowItWorks(false)}
+            />
 
-                    <h2 className="text-[18px] font-semibold text-[#1a1f36] mb-6 text-center">
-                      How to add items
-                    </h2>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 z-10 flex flex-col items-center"
+            >
+              {/* Close 'X' Button */}
+              <button
+                onClick={() => setShowHowItWorks(false)}
+                className="absolute top-4 right-4 p-1.5 text-[#d97757] hover:opacity-80 active:scale-95 transition-transform"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" strokeWidth={2.5} />
+              </button>
 
-                    <div className="w-full space-y-5 mb-8 px-2">
-                      <div className="flex gap-4 items-start">
-                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
-                          <Scan className="w-5 h-5" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[#1a1f36] text-[15px] mb-0.5">
-                            Tap scan
-                          </p>
-                          <p className="text-gray-400 text-[14px] leading-snug">
-                            Press the orange scanner button on the bottom right.
-                          </p>
-                        </div>
-                      </div>
+              <h2 className="text-[18px] font-semibold text-[#1a1f36] mb-5 text-center mt-1">
+                How to add items
+              </h2>
 
-                      <div className="flex gap-4 items-start">
-                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
-                          <Smartphone className="w-5 h-5" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[#1a1f36] text-[15px] mb-0.5">
-                            Point your camera
-                          </p>
-                          <p className="text-gray-400 text-[14px] leading-snug">
-                            Aim at any food product's barcode.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-4 items-start">
-                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
-                          <CheckCircle2 className="w-5 h-5" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[#1a1f36] text-[15px] mb-0.5">
-                            Done!
-                          </p>
-                          <p className="text-gray-400 text-[14px] leading-snug">
-                            We'll identify the item and add it to your cart.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setShowHowItWorks(false)}
-                      className="w-full h-[52px] bg-[#d97757] text-white text-[15px] font-semibold rounded-2xl active:scale-[0.97] transition-transform"
-                    >
-                      Got it
-                    </button>
-                  </motion.div>
+              <div className="w-full space-y-4 mb-6 px-1 text-left">
+                <div className="flex gap-3.5 items-start">
+                  <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
+                    <Scan className="w-4.5 h-4.5" strokeWidth={2.2} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
+                      1. Scan or search
+                    </p>
+                    <p className="text-gray-500 font-normal text-[13px] leading-snug">
+                      Tap the scanner button or search items from your inventory.
+                    </p>
+                  </div>
                 </div>
-              )}
-            </AnimatePresence>,
-            document.body,
-          )
-        : null}
-    </motion.div>
+
+                <div className="flex gap-3.5 items-start">
+                  <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
+                    <Plus className="w-4.5 h-4.5" strokeWidth={2.2} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
+                      2. Set quantity & exp date
+                    </p>
+                    <p className="text-gray-500 font-normal text-[13px] leading-snug">
+                      Adjust counts and set optional expiration dates.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3.5 items-start">
+                  <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
+                    <CheckCircle2 className="w-4.5 h-4.5" strokeWidth={2.2} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
+                      3. Stock your pantry
+                    </p>
+                    <p className="text-gray-500 font-normal text-[13px] leading-snug">
+                      Confirm your inbound batch to instantly update stock levels.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowHowItWorks(false)}
+                className="w-full h-[44px] bg-[#d97757] text-white text-[14px] font-semibold rounded-xl active:bg-[#c66547] transition-colors shadow-sm"
+              >
+                Got it
+              </button>
+            </motion.div>
+          </div>,
+          document.body
+        )}
+    </div>
   );
 }
