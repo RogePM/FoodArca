@@ -486,14 +486,6 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                                   </div>
                                 )}
 
-                                {/* Batches Badge on the LEFT side if multiple batches */}
-                                {batchCount > 1 && (
-                                  <div className="absolute top-2 left-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-100 shadow-xs flex items-center gap-1">
-                                    <Layers className="w-2.5 h-2.5 text-[#e27f2c]" />
-                                    <span>{batchCount} Batches</span>
-                                  </div>
-                                )}
-
                                 {/* Quantity Badge on the RIGHT side */}
                                 {product.totalQuantity > 0 && (
                                   <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-100 shadow-xs">
@@ -501,8 +493,20 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                                   </div>
                                 )}
                               </div>
+
                               {/* Name */}
-                              <h4 className="text-[13px] font-medium text-[#1a1f36] text-center leading-snug line-clamp-2 mb-2 flex-1 w-full">{product.name}</h4>
+                              <h4 className="text-[13px] font-medium text-[#1a1f36] text-center leading-snug line-clamp-2 mt-0.5 mb-1.5 flex-1 w-full">
+                                {product.name}
+                              </h4>
+
+                              {/* Batches Indicator - Placed cleanly below product name */}
+                              {batchCount > 1 && (
+                                <div className="inline-flex items-center gap-1 text-[11px] font-medium text-[#c66547] bg-orange-50/90 border border-orange-200/60 px-2 py-0.5 rounded-md mb-2 shrink-0">
+                                  <Layers className="w-3 h-3 text-[#e27f2c]" />
+                                  <span>{batchCount} Batches</span>
+                                </div>
+                              )}
+
                               {/* Solid Theme Action Button with White Text */}
                               <div className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-md bg-[#e27f2c] text-white text-[13px] font-semibold hover:bg-[#cf6f20] transition-all active:scale-95 shadow-sm mt-auto">
                                 <RotateCcw className="w-3.5 h-3.5" strokeWidth={2.5} />
