@@ -104,26 +104,27 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
   const { pantryId, lastInventoryUpdate } = usePantry();
 
   // --- CART STATE ---
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem('foodarca_staged_distribution_cart');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to load staged distribution cart', e);
+      }
+    }
+    return [];
+  });
+
   const [inventory, setInventory] = useState(initialItems);
   const [isPending, startTransition] = useTransition();
 
-  // Load from sessionStorage
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem('foodarca_staged_distribution_cart');
-      if (saved) setCart(JSON.parse(saved));
-    } catch (e) {
-      console.warn('Failed to load staged distribution cart from sessionStorage', e);
-    }
-  }, []);
-
-  // Sync to sessionStorage
+  // Sync to sessionStorage whenever cart changes
   useEffect(() => {
     try {
       sessionStorage.setItem('foodarca_staged_distribution_cart', JSON.stringify(cart));
     } catch (e) {
-      console.warn('Failed to persist staged distribution cart to sessionStorage', e);
+      console.warn('Failed to persist staged distribution cart', e);
     }
   }, [cart]);
 

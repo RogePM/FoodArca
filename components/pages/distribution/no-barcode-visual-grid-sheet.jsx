@@ -239,13 +239,9 @@ export function NoBarcodeVisualGridSheet({
 
       // Query match (name, category, barcode)
       if (query) {
-        // Use startsWith for name so typing 'b' instantly filters to 'Beans', 'Beef', etc.
-        // fallback to includes if we want partial matches, but prioritizing startsWith is more aggressive.
-        const nameMatch = product.name?.toLowerCase().startsWith(query) || product.name?.toLowerCase().includes(` ${query}`);
-        const catMatch =
-          product.category?.toLowerCase().startsWith(query) ||
-          getCategoryName(product.category).toLowerCase().startsWith(query);
-        const barcodeMatch = product.barcode?.toLowerCase().startsWith(query);
+        const nameMatch = product.name?.toLowerCase().includes(query);
+        const catMatch = product.category?.toLowerCase().includes(query) || getCategoryName(product.category).toLowerCase().includes(query);
+        const barcodeMatch = product.barcode?.toLowerCase().includes(query);
         return nameMatch || catMatch || barcodeMatch;
       }
 
@@ -280,32 +276,23 @@ export function NoBarcodeVisualGridSheet({
             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
             className="relative bg-white rounded-t-[28px] shadow-[0_-10px_40px_rgba(0,0,0,0.15)] flex flex-col max-h-[92dvh] h-[88dvh] w-full overflow-hidden"
           >
-            {/* Drag Pill Handle */}
-            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mt-3 mb-1 shrink-0" />
-
             {/* Header */}
-            <div className="px-6 pt-2 pb-3 flex items-center justify-between border-b border-gray-100 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-[17px] font-medium text-[#1a1f36] tracking-tight">
-                  Inventory
-                </h2>
-                <span className="bg-orange-50 text-[#d97757] text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-orange-100">
-                  {filteredProducts.length}{' '}
-                  {filteredProducts.length === 1 ? 'item' : 'items'}
-                </span>
-              </div>
+            <div className="relative flex items-center justify-center pt-4 pb-3.5 shrink-0">
+              <h2 className="text-[17px] font-medium text-[#1a1f36] tracking-tight">
+                Inventory
+              </h2>
               <button
                 type="button"
                 onClick={onClose}
-                className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 active:bg-gray-200 transition-colors"
+                className="absolute right-5 text-[#d97757] hover:text-[#c66547] active:scale-95 transition-all p-1"
                 aria-label="Close"
               >
-                <X className="w-4 h-4" strokeWidth={1.75} />
+                <X className="w-6 h-6" strokeWidth={2.5} />
               </button>
             </div>
 
             {/* Search Input */}
-            <div className="px-6 pt-3 pb-2 shrink-0">
+            <div className="px-5 pt-1 pb-2 shrink-0">
               <div className="relative flex items-center">
                 <Search className="absolute left-4 w-5 h-5 text-gray-400 pointer-events-none" strokeWidth={1.8} />
                 <input
@@ -313,7 +300,7 @@ export function NoBarcodeVisualGridSheet({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Find an item in the pantry"
-                  className="w-full h-[48px] pl-11 pr-10 bg-white border border-gray-300 rounded-full text-[16px] font-normal text-[#1a1f36] placeholder-gray-500 focus:outline-none focus:border-gray-400 transition-colors"
+                  className="w-full h-[42px] pl-11 pr-10 bg-white border border-gray-300 rounded-full text-[16px] font-normal text-[#1a1f36] placeholder-gray-500 focus:outline-none focus:border-gray-400 transition-colors"
                 />
                 {searchQuery && (
                   <button
@@ -338,16 +325,16 @@ export function NoBarcodeVisualGridSheet({
                       key={pill.id}
                       type="button"
                       onClick={() => setSelectedCategory(pill.id)}
-                      className={`px-4 py-2 rounded-full text-[13px] font-medium tracking-tight whitespace-nowrap shrink-0 transition-all ${
+                      className={`px-4 py-1.5 border rounded-full text-[13px] font-medium tracking-tight whitespace-nowrap shrink-0 transition-all ${
                         isActive
-                          ? 'bg-[#d97757] text-white shadow-sm font-medium'
-                          : 'bg-gray-100 text-[#4f566b] hover:bg-gray-200'
+                          ? 'bg-orange-50 border-orange-300 text-[#c66547] shadow-sm'
+                          : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700 hover:bg-gray-50'
                       }`}
                     >
                       {pill.name}
                       <span
-                        className={`ml-1.5 text-[11px] font-normal ${
-                          isActive ? 'text-white/85' : 'text-gray-400'
+                        className={`ml-1.5 text-[11px] font-medium ${
+                          isActive ? 'text-[#c66547]/80' : 'text-gray-400'
                         }`}
                       >
                         {pill.count}
@@ -409,10 +396,10 @@ export function NoBarcodeVisualGridSheet({
                             onSelectProduct && onSelectProduct(product);
                           }
                         }}
-                        className="bg-white border-2 border-gray-100 hover:border-orange-200 active:border-[#d97757] rounded-2xl p-3 flex flex-col text-center transition-all active:scale-[0.98] shadow-sm group relative cursor-pointer"
+                        className="bg-white border border-gray-200 hover:border-orange-300 active:border-[#d97757] rounded-lg p-3 flex flex-col text-center transition-all active:scale-[0.98] shadow-sm group relative cursor-pointer"
                       >
                         {/* Image / Icon Box */}
-                        <div className={`aspect-square w-full rounded-xl flex items-center justify-center relative overflow-hidden mb-2 border border-gray-100/60 ${product.photoUrl ? 'bg-gray-50' : catVisual.style.bg}`}>
+                        <div className={`aspect-[4/3] w-full rounded-md flex items-center justify-center relative overflow-hidden mb-2 border border-gray-100/60 ${product.photoUrl ? 'bg-gray-50' : catVisual.style.bg}`}>
                           {product.photoUrl ? (
                             <img
                               src={product.photoUrl}
@@ -454,9 +441,8 @@ export function NoBarcodeVisualGridSheet({
                                 e.stopPropagation();
                                 onSelectProduct && onSelectProduct(product);
                               }}
-                              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#d97757] text-white text-[13px] font-semibold hover:bg-[#c66547] transition-all active:scale-95 shadow-sm mt-auto"
+                              className="w-full flex items-center justify-center py-2.5 rounded-md bg-[#d97757] text-white text-[13px] font-semibold hover:bg-[#c66547] transition-all active:scale-95 shadow-sm mt-auto"
                             >
-                              <Plus className="w-4 h-4 text-white" strokeWidth={2.5} />
                               Add to Cart
                             </button>
                       </div>

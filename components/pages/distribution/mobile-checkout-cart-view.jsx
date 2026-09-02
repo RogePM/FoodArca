@@ -13,6 +13,7 @@ import {
   Scan,
   Barcode,
   Search,
+  X,
   Minus,
   Plus,
   MinusSquare,
@@ -552,109 +553,130 @@ export function MobileCheckoutCartView({
 
 
       {/* CLEAR CART CONFIRMATION MODAL */}
-      <AnimatePresence>
-        {showClearConfirm && (
-          <div
-            className="fixed inset-0 z-[10001] flex items-end justify-center"
-            style={{ isolation: 'isolate' }}
-          >
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
-              onClick={() => setShowClearConfirm(false)}
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="relative bg-white rounded-t-3xl p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] w-full max-w-lg"
+      {mounted ? createPortal(
+        <AnimatePresence>
+          {showClearConfirm && (
+            <div
+              className="fixed inset-0 z-[10001] flex items-center justify-center p-4"
+              style={{ isolation: 'isolate' }}
             >
-              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-              <h3 className="text-[18px] font-semibold text-center text-[#1a1f36] tracking-tight mb-2">
-                Clear checkout cart?
-              </h3>
-              <p className="text-center text-gray-400 text-[14px] leading-relaxed mb-6">
-                This removes all {cartItems.length}{' '}
-                {cartItems.length === 1 ? 'item' : 'items'}. You can't undo this.
-              </p>
-              <div className="flex gap-3">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
+                onClick={() => setShowClearConfirm(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+                className="relative bg-white rounded-3xl p-6 w-full max-w-[340px] shadow-2xl"
+              >
                 <button
                   type="button"
                   onClick={() => setShowClearConfirm(false)}
-                  className="flex-1 h-[52px] bg-gray-100 text-[#1a1f36] font-semibold text-[15px] rounded-2xl active:bg-gray-200 transition-colors"
+                  className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 active:scale-95 transition-all p-1"
+                  aria-label="Close"
                 >
-                  Cancel
+                  <X className="w-5 h-5" strokeWidth={2.5} />
                 </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmClear}
-                  className="flex-1 h-[52px] bg-rose-500 text-white font-semibold text-[15px] rounded-2xl active:bg-rose-600 transition-colors"
-                >
-                  Clear cart
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                
+                <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-2 pr-6">
+                  Clear checkout cart?
+                </h3>
+                <p className="text-gray-500 text-[14px] leading-relaxed mb-8">
+                  This will remove all {cartItems.length}{' '}
+                  {cartItems.length === 1 ? 'item' : 'items'} from your cart. This action cannot be undone.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={handleConfirmClear}
+                    className="w-full h-[50px] bg-rose-500 text-white font-semibold text-[15px] rounded-xl active:scale-[0.98] transition-all shadow-sm"
+                  >
+                    Clear cart
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowClearConfirm(false)}
+                    className="w-full h-[50px] bg-white border border-gray-200 text-[#1a1f36] font-medium text-[15px] rounded-xl active:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      ) : null}
 
       {/* SUBMIT CONFIRMATION MODAL */}
-      <AnimatePresence>
-        {showSubmitConfirm && (
-          <div
-            className="fixed inset-0 z-[10001] flex items-end justify-center"
-            style={{ isolation: 'isolate' }}
-          >
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
-              onClick={() => setShowSubmitConfirm(false)}
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="relative bg-white rounded-t-3xl p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] w-full max-w-lg flex flex-col items-center"
+      {mounted ? createPortal(
+        <AnimatePresence>
+          {showSubmitConfirm && (
+            <div
+              className="fixed inset-0 z-[10001] flex items-center justify-center p-4"
+              style={{ isolation: 'isolate' }}
             >
-              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-6" />
-
-              <h3 className="text-[18px] font-semibold text-center text-[#1a1f36] tracking-tight mb-2">
-                Deduct from inventory?
-              </h3>
-              <p className="text-center text-gray-400 text-[15px] leading-relaxed mb-8">
-                You're about to deduct{' '}
-                <span className="font-semibold text-[#1a1f36]">
-                  {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
-                </span>{' '}
-                from your inventory.
-              </p>
-
-              <div className="w-full flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={handleConfirmSubmit}
-                  className="w-full h-[52px] bg-[#d97757] text-white font-semibold text-[15px] rounded-2xl active:bg-[#c66547] transition-colors shadow-[0_8px_20px_-4px_rgba(217,119,87,0.45)]"
-                >
-                  Deduct from inventory
-                </button>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
+                onClick={() => setShowSubmitConfirm(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+                className="relative bg-white rounded-3xl p-6 w-full max-w-[340px] shadow-2xl"
+              >
                 <button
                   type="button"
                   onClick={() => setShowSubmitConfirm(false)}
-                  className="w-full h-[52px] bg-transparent text-gray-400 font-medium text-[15px] rounded-2xl active:bg-gray-50 transition-colors"
+                  className="absolute top-5 right-5 text-[#d97757] hover:text-[#c66547] active:scale-95 transition-all p-1"
+                  aria-label="Close"
                 >
-                  Go back
+                  <X className="w-5 h-5" strokeWidth={2.5} />
                 </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+
+                <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-2 pr-6">
+                  Checkout items?
+                </h3>
+                <p className="text-gray-500 text-[14px] leading-relaxed mb-8">
+                  You are about to remove{' '}
+                  <span className="font-semibold text-[#1a1f36]">
+                    {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                  </span>{' '}
+                  from your pantry inventory.
+                </p>
+
+                <div className="w-full flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={handleConfirmSubmit}
+                    className="w-full h-[50px] bg-[#d97757] text-white font-semibold text-[15px] rounded-xl active:scale-[0.98] transition-all shadow-sm"
+                  >
+                    Confirm checkout
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSubmitConfirm(false)}
+                    className="w-full h-[50px] bg-white border border-gray-200 text-[#1a1f36] font-medium text-[15px] rounded-xl active:bg-gray-50 transition-colors"
+                  >
+                    Go back
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      ) : null}
 
       {/* HOW CHECKOUT WORKS MODAL */}
       {mounted

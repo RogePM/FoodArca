@@ -143,43 +143,45 @@ export function MobileInventorySearch({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 bg-[#fafafa]">
+          <div className="flex-1 overflow-y-auto p-2 bg-white">
              {isLoading ? (
-                <div className="text-center py-10 text-gray-400 font-medium text-sm">
+                <div className="text-center py-10 text-gray-400 font-medium text-[14px]">
                     Loading inventory...
                 </div>
              ) : searchQuery ? (
                filteredInventory.length > 0 ? (
-                 <div className="space-y-2">
+                 <div className="flex flex-col">
                    {filteredInventory.map(item => (
                      <div 
                        key={item.id} 
                        onClick={() => handleSelect(item)}
-                       className="flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm active:scale-[0.98] transition-transform cursor-pointer"
+                       className="flex items-center gap-3 py-3 border-b border-gray-100 last:border-0 active:scale-[0.98] transition-transform cursor-pointer px-2"
                      >
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${getCategoryVisual(item.category).style.bg}`}>
+                        <div className={`w-[50px] h-[50px] shrink-0 rounded-md flex items-center justify-center border border-gray-100 ${getCategoryVisual(item.category).style.bg}`}>
                           {item.photoUrl ? (
-                            <img src={item.photoUrl} alt="" className="w-full h-full object-cover rounded-xl" />
+                            <img src={item.photoUrl} alt="" className="w-full h-full object-cover rounded-md" />
                           ) : (
-                            <img src={getCategoryVisual(item.category).imagePath} alt="" className="w-7 h-7 opacity-75" />
+                            <img src={getCategoryVisual(item.category).imagePath} alt="" className="w-7 h-7 opacity-75 mix-blend-multiply" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 truncate">{item.name}</h4>
-                          <p className="text-sm text-gray-500">{(item.totalQuantity !== undefined ? item.totalQuantity : item.quantity) || 0} in stock</p>
+                          <h4 className="font-medium text-[15px] text-[#1a1f36] truncate">{item.name}</h4>
+                          <p className="text-[13px] font-normal text-gray-500">
+                            {getCategoryVisual(item.category).name} <span className="text-gray-300 mx-0.5">|</span> Stock: {(item.totalQuantity !== undefined ? item.totalQuantity : item.quantity) || 0}
+                          </p>
                         </div>
                      </div>
                    ))}
                  </div>
                ) : (
                  <div className="text-center py-12">
-                   <p className="text-gray-500 font-medium">No results found for "{searchQuery}"</p>
+                   <p className="text-gray-500 font-normal text-[14px]">No results found for "{searchQuery}"</p>
                  </div>
                )
              ) : (
                <div className="text-center py-10">
-                 <Search className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                 <p className="text-gray-500 font-medium">Type to search your inventory</p>
+                 <Search className="w-8 h-8 text-gray-200 mx-auto mb-3" strokeWidth={1.5} />
+                 <p className="text-gray-400 font-normal text-[14px]">Type to search your inventory</p>
                </div>
              )}
           </div>

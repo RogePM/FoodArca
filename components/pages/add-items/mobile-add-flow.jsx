@@ -58,14 +58,15 @@ export function MobileAddFlow({ onClose }) {
   const { pantryId } = usePantry();
 
   // --- CART STATE ---
-  const [cartItems, setCartItems] = useState([]);
-
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem('foodarca_staged_batch');
-      if (saved) setCartItems(JSON.parse(saved));
-    } catch (e) {}
-  }, []);
+  const [cartItems, setCartItems] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem('foodarca_staged_batch');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
 
   useEffect(() => {
     try {

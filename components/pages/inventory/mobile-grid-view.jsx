@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Layers, Package, Clock, AlertTriangle, Pencil } from 'lucide-react';
+import { Layers, Package } from 'lucide-react';
 import {
   getCategoryName,
   getCategoryVisual,
@@ -114,9 +114,9 @@ export function MobileGridView({
             }}
             className="flex flex-col text-left transition-all active:scale-[0.98] group relative cursor-pointer border-b border-gray-200 pb-5 pt-4"
           >
-            {/* 1. Tall Image Area (4:5 aspect ratio) */}
+            {/* 1. Image Area */}
             <div
-              className={`w-full aspect-[4/5] flex items-center justify-center relative overflow-hidden rounded-xl mb-3 ${
+              className={`w-full aspect-square flex items-center justify-center relative overflow-hidden rounded-md mb-2 border border-gray-100 ${
                 item.photoUrl ? 'bg-gray-50' : catVisual.style.bg
               }`}
             >
@@ -138,50 +138,39 @@ export function MobileGridView({
                 </div>
               )}
 
-              {/* Multi-Batch Count Overlay Badge (Top-Left) */}
+              {/* Multi-Batch Count Overlay Badge (Top-Right) */}
               {(item.batches?.length > 1 || batchCount > 1) && (
-                <div className="absolute top-2 left-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-semibold px-2 py-1 rounded-lg shadow-sm border border-gray-100 flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-[#d97757]" />
+                <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-medium px-1.5 py-0.5 rounded shadow-sm border border-gray-100 flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-[#1a1f36]" />
                   <span>{batchCount}</span>
                 </div>
               )}
 
-              {/* Edit Affordance (Top-Right) */}
-              <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-md p-1.5 rounded-full shadow-sm border border-gray-100 text-gray-400 group-active:text-[#d97757] group-active:bg-orange-50 transition-colors flex items-center justify-center">
-                <Pencil className="w-3.5 h-3.5" strokeWidth={2.5} />
-              </div>
             </div>
 
             {/* 2. Product Name */}
-            <h4 className="text-[14px] font-semibold text-[#1a1f36] leading-snug line-clamp-2 mb-1.5 px-0.5 tracking-tight">
+            <h4 className="text-[14px] font-medium text-[#1a1f36] leading-snug truncate mb-1 px-0.5 tracking-tight">
               {item.name}
             </h4>
 
-            {/* 3. Count */}
-            <div className="flex items-baseline gap-1 mb-0.5 px-0.5">
-              <span className="text-[22px] font-bold text-[#1a1f36] leading-none tracking-tight">
-                {totalQty}
-              </span>
-              <span className="text-[13px] font-medium text-[#8792a2] lowercase">
-                {item.unit || 'units'}
-              </span>
-            </div>
+            {/* 3. Metadata Cluster */}
+            <div className="flex flex-col gap-1 text-[13px] font-normal text-gray-500 px-0.5 mb-1 mt-auto">
+              {/* Category & Stock */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-600">{getCategoryName(item.category)}</span>
+                <span className="text-gray-300">|</span>
+                <span className="text-gray-600">Stock: {totalQty}</span>
+              </div>
 
-            {/* 4. Category */}
-            <p className="text-[12px] font-medium text-[#a3acb9] mb-2.5 px-0.5">
-              {getCategoryName(item.category)}
-            </p>
-
-            {/* 5. Expiration Badge */}
-            <div className="mt-auto px-0.5">
+              {/* Expiration Date */}
               {displayDate ? (
-                <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold tracking-wide uppercase w-fit ${
-                  isExpired ? 'bg-red-50 text-red-700' : isExpiring ? 'bg-amber-50 text-amber-700' : 'bg-[#f4f5f7] text-[#5469d4]'
+                <div className={`font-medium ${
+                  isExpired ? 'text-red-600' : isExpiring ? 'text-amber-600' : 'text-gray-500'
                 }`}>
-                  {formatDate(displayDate)}
+                  Exp: {formatDate(displayDate)}
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold tracking-wide uppercase w-fit bg-gray-50 text-gray-400">
+                <div className="text-gray-400">
                   No exp date
                 </div>
               )}
