@@ -495,22 +495,22 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                               </div>
 
                               {/* Name */}
-                              <h4 className="text-[13px] font-medium text-[#1a1f36] text-center leading-snug line-clamp-2 mt-0.5 mb-1.5 flex-1 w-full">
+                              <h4 className="text-[13px] font-medium text-[#1a1f36] text-center leading-snug line-clamp-2 mt-0.5 mb-2.5 flex-1 w-full">
                                 {product.name}
                               </h4>
 
-                              {/* Batches Indicator - Placed cleanly below product name */}
-                              {batchCount > 1 && (
-                                <div className="inline-flex items-center gap-1 text-[11px] font-medium text-[#c66547] bg-orange-50/90 border border-orange-200/60 px-2 py-0.5 rounded-md mb-2 shrink-0">
-                                  <Layers className="w-3 h-3 text-[#e27f2c]" />
-                                  <span>{batchCount} Batches</span>
+                              {/* Solid Theme Action Button with Integrated Batch Chip */}
+                              <div className={`w-full flex items-center py-2.5 rounded-md bg-[#e27f2c] text-white text-[13px] font-semibold hover:bg-[#cf6f20] transition-all active:scale-95 shadow-sm mt-auto ${batchCount > 1 ? 'justify-between px-2.5' : 'justify-center gap-1.5 px-3'}`}>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <RotateCcw className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
+                                  <span className="truncate">Restock</span>
                                 </div>
-                              )}
-
-                              {/* Solid Theme Action Button with White Text */}
-                              <div className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-md bg-[#e27f2c] text-white text-[13px] font-semibold hover:bg-[#cf6f20] transition-all active:scale-95 shadow-sm mt-auto">
-                                <RotateCcw className="w-3.5 h-3.5" strokeWidth={2.5} />
-                                Restock
+                                {batchCount > 1 && (
+                                  <span className="text-[10px] font-bold bg-black/20 text-white/95 px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0 tracking-tight">
+                                    <Layers className="w-2.5 h-2.5 shrink-0" />
+                                    {batchCount} Batches
+                                  </span>
+                                )}
                               </div>
                             </button>
                           );
