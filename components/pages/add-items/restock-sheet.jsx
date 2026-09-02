@@ -479,8 +479,8 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                               </div>
                               {/* Name */}
                               <h4 className="text-[13px] font-medium text-[#1a1f36] text-center leading-snug line-clamp-2 mb-2 flex-1 w-full">{product.name}</h4>
-                              {/* Orange-Yellowish Restock CTA */}
-                              <div className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-[#fff7ed] text-[#e27f2c] border border-[#e27f2c]/20 hover:bg-[#ffedd5] text-[13px] font-semibold transition-all active:scale-95 shadow-xs mt-auto">
+                              {/* Solid Theme Action Button with White Text */}
+                              <div className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-md bg-[#e27f2c] text-white text-[13px] font-semibold hover:bg-[#cf6f20] transition-all active:scale-95 shadow-sm mt-auto">
                                 <RotateCcw className="w-3.5 h-3.5" strokeWidth={2.5} />
                                 Restock
                               </div>
