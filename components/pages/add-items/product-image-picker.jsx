@@ -247,7 +247,7 @@ export function ProductImagePicker({
                 </div>
               </div>
 
-              <span className="text-[13px] font-semibold text-[#e27f2c] px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-100 group-hover:bg-[#e27f2c] group-hover:text-white transition-all shrink-0">
+              <span className="h-[38px] px-4 rounded-full bg-[#e27f2c] group-hover:bg-[#cf6f20] text-white text-[13px] font-bold shadow-sm flex items-center justify-center transition-all shrink-0">
                 Search
               </span>
             </button>
