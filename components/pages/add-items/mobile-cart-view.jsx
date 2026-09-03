@@ -253,26 +253,49 @@ export function MobileCartView({
         ) : (
           /* FILLED CART ITEMS LIST */
           <div className="flex flex-col">
-            {/* ── TOP ADD ROW ── */}
-            <div className="px-5 py-4 mb-2 flex items-center justify-between bg-white pt-[calc(env(safe-area-inset-top)+16px)]">
-              <span className="text-[18px] text-[#1a1f36] font-semibold tracking-tight">
-                Total: {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
-              </span>
-              <button
-                disabled={isSubmittingCart}
-                onClick={() => setShowSubmitConfirm(true)}
-                className="h-[44px] px-6 rounded-full bg-[#e27f2c] text-white text-[15px] font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isSubmittingCart ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : cartSuccess ? (
-                  <>
-                    <CheckCircle2 className="w-5 h-5" /> Added!
-                  </>
-                ) : (
-                  'Add to inventory'
-                )}
-              </button>
+            {/* ── RECEIPT-STYLE HEADER ── */}
+            <div className="bg-[#f8f9fa] border-b-2 border-dashed border-gray-200 shrink-0 mb-6">
+              <div className="px-5 pt-[calc(env(safe-area-inset-top)+20px)] pb-5">
+                {/* Header Info */}
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[12px] text-gray-500 font-bold uppercase tracking-widest">
+                    Inbound Batch
+                  </span>
+                  <span className="text-[13px] text-gray-400 font-medium">
+                    {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                
+                <h1 className="text-[28px] font-bold text-[#1a1f36] tracking-tight leading-none mb-6">
+                  Stock Intake
+                </h1>
+
+                {/* Total & Action */}
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[13px] text-gray-500 font-medium mb-1">Total Quantity</span>
+                    <span className="text-[20px] text-[#1a1f36] font-bold tracking-tight leading-none">
+                      {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+                  
+                  <button
+                    disabled={isSubmittingCart}
+                    onClick={() => setShowSubmitConfirm(true)}
+                    className="h-[46px] px-6 rounded-full bg-[#e27f2c] text-white text-[15px] font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSubmittingCart ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : cartSuccess ? (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" /> Added!
+                      </>
+                    ) : (
+                      'Add to inventory'
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="mx-5 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
