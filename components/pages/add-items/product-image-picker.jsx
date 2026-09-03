@@ -40,18 +40,22 @@ export function ProductImagePicker({
     };
   }, []);
 
-  // Clear query prompt error once user starts typing a product name
+  // Clear query prompt error once user has typed a name and selected a category
   useEffect(() => {
-    if (formName.trim() && error && error.includes("enter an item name")) {
+    if (formName.trim() && formCategory && error && (error.includes("item name") || error.includes("category"))) {
       setError(null);
     }
-  }, [formName, error]);
+  }, [formName, formCategory, error]);
 
   const handleFetchImages = useCallback(
     async (force = false) => {
       const trimmedName = formName.trim();
       if (!trimmedName || trimmedName.length < 2) {
-        setError("Please enter an item name above first to search for photos.");
+        setError("Please enter an item name above first.");
+        return;
+      }
+      if (!formCategory) {
+        setError("Please select a category above first so we can find the right photo.");
         return;
       }
 
@@ -99,7 +103,11 @@ export function ProductImagePicker({
   const handleOpenSearch = () => {
     const trimmed = formName.trim();
     if (!trimmed || trimmed.length < 2) {
-      setError("Please enter an item name above first to search for photos.");
+      setError("Please enter an item name above first.");
+      return;
+    }
+    if (!formCategory) {
+      setError("Please select a category above first so we can find the right photo.");
       return;
     }
     setError(null);
@@ -242,7 +250,11 @@ export function ProductImagePicker({
                     Find product photo
                   </p>
                   <p className="text-[12.5px] text-[#697386] mt-0.5">
-                    Search packaging photos online
+                    {!formName.trim()
+                      ? "Enter an item name above first"
+                      : !formCategory
+                      ? "Select a category above to search"
+                      : "Search online photos"}
                   </p>
                 </div>
               </div>

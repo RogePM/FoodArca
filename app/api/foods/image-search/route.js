@@ -7,16 +7,18 @@ const cache = new Map();
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // Human-friendly mapping for category biasing
+// Human-friendly mapping for category biasing
 const CATEGORY_BIAS_MAP = {
-  canned_goods: 'canned goods food',
-  'canned goods': 'canned goods food',
-  canned: 'canned goods food',
-  produce: 'fresh produce food',
+  canned_goods: 'canned food',
+  'canned goods': 'canned food',
+  canned: 'canned food',
+  produce: 'fresh produce',
   dairy: 'dairy food',
   proteins: 'meat protein food',
   protein: 'meat protein food',
   meat: 'meat protein food',
-  bakery: 'bakery food',
+  bakery: 'fresh bakery',
+  bakery_snacks: 'bakery snack food',
   beverages: 'beverage drink',
   beverage: 'beverage drink',
   drinks: 'beverage drink',
@@ -27,21 +29,32 @@ const CATEGORY_BIAS_MAP = {
   dry_goods: 'dry grocery food',
   'dry goods': 'dry grocery food',
   pantry: 'dry grocery food',
-  snacks: 'snack grocery food',
-  snack: 'snack grocery food',
-  hygiene: 'personal care hygiene packaging',
+  snacks: 'snack food',
+  snack: 'snack food',
+  hygiene: 'personal care product',
   other: 'grocery food product',
 };
 
-// Explicit unsafe terms to guard against
+// Strict list of prohibited terms to guard against NSFW, violence, adult slang, and non-food inappropriate queries
 const BLOCKED_TERMS = [
+  // Adult / explicit / NSFW / anatomy / sexual slang
   'nsfw', 'nude', 'nudity', 'naked', 'porn', 'pornography', 'sex', 'sexy', 'erotic', 'adult', 'xxx',
-  'weapon', 'gun', 'knife', 'blood', 'gore', 'kill', 'killer', 'murder',
-  'drug', 'weed', 'cannabis', 'cocaine', 'heroin', 'meth'
+  'ass', 'asses', 'arse', 'butt', 'booty', 'boob', 'boobs', 'breast', 'breasts', 'tits', 'titties',
+  'dick', 'cock', 'penis', 'vagina', 'pussy', 'fetish', 'bdsm', 'lingerie', 'underwear', 'panties',
+  'bra', 'thong', 'bikini', 'milf', 'hentai', 'intercourse', 'masturbat', 'masturbation', 'horny', 'orgasm',
+  'stripper', 'escort', 'onlyfans', 'hooker', 'prostitute', 'blowjob', 'handjob', 'anal', 'dildo', 'vibrator',
+  // Non-food sexualized people search terms
+  'women', 'woman', 'girl', 'girls', 'lady', 'ladies', 'babe', 'babes', 'model', 'models',
+  'chick', 'chicks', 'boy', 'boys', 'guy', 'guys', 'teen', 'teens',
+  // Violence, weapons & gore
+  'weapon', 'weapons', 'gun', 'guns', 'knife', 'knives', 'pistol', 'rifle', 'bullet', 'ammo', 'ammunition',
+  'blood', 'bloody', 'gore', 'kill', 'killer', 'murder', 'suicide', 'death', 'dead', 'corpse', 'torture', 'execution',
+  // Illicit drugs & paraphernalia
+  'drug', 'drugs', 'weed', 'cannabis', 'marijuana', 'cocaine', 'heroin', 'meth', 'methamphetamine', 'ecstasy', 'shrooms', 'bong', 'joint'
 ];
 
 /**
- * Sanitize and enforce food packaging context on query
+ * Sanitize and enforce food context on query
  */
 function buildSafeSearchQuery(rawQuery, rawCategory) {
   // Truncate and strip unwanted symbols while preserving Unicode letters & numbers
@@ -51,41 +64,57 @@ function buildSafeSearchQuery(rawQuery, rawCategory) {
     .replace(/\s+/g, ' ')
     .slice(0, 80);
 
-  // Safety filter: strip blocked terms
+  // Safety filter: IF ANY PROHIBITED TERM IS FOUND, IMMEDIATELY REJECT THE QUERY!
   for (const term of BLOCKED_TERMS) {
-    const termRegex = new RegExp(`\\b${term}\\b`, 'gi');
+    const termRegex = new RegExp(`(^|\\b|_)${term}(\\b|_|$)`, 'i');
     if (termRegex.test(cleanQuery)) {
-      cleanQuery = cleanQuery.replace(termRegex, ' ');
+      console.warn(`[Security Alert] Blocked prohibited query containing: "${term}"`);
+      return { safeQuery: '', isValid: false, blocked: true };
     }
   }
-  cleanQuery = cleanQuery.replace(/\s+/g, ' ').trim();
 
   // Ensure query still has substance after sanitization (Unicode-aware)
   const alphanumericOnly = cleanQuery.replace(/[^\p{L}\p{N}]/gu, '');
   if (alphanumericOnly.length < 2) {
-    return { safeQuery: '', isValid: false };
+    return { safeQuery: '', isValid: false, blocked: false };
   }
 
   // Category context - support underscores, hyphens, and spaces
   const rawCat = String(rawCategory || '').toLowerCase().trim();
   const catKey = rawCat.replace(/[\s-]+/g, '_');
-  const categoryContext = CATEGORY_BIAS_MAP[catKey] || CATEGORY_BIAS_MAP[rawCat] || 'grocery food';
 
-  // Bias keywords towards packaging and retail grocery
-  const keywords = ['packaging', 'grocery', 'food product'];
-  const appended = [];
-
-  if (!cleanQuery.toLowerCase().includes(categoryContext)) {
-    appended.push(categoryContext);
+  // Per-category keyword enrichment (tailored so fresh produce gets clean isolated fruit/veggie photos, NOT packaging)
+  let contextKeywords = [];
+  if (catKey === 'produce') {
+    // For produce: clean, fresh, isolated close-up photos. NEVER append 'packaging'!
+    contextKeywords = ['fresh', 'produce', 'isolated'];
+  } else if (catKey === 'bakery' || catKey === 'bakery_snacks') {
+    contextKeywords = ['fresh bakery'];
+  } else if (catKey === 'canned_goods' || catKey === 'canned') {
+    contextKeywords = ['can', 'canned food'];
+  } else if (catKey === 'beverages' || catKey === 'beverage' || catKey === 'drinks' || catKey === 'drink') {
+    contextKeywords = ['bottle', 'drink'];
+  } else if (catKey === 'dairy') {
+    contextKeywords = ['dairy', 'food product'];
+  } else if (catKey === 'proteins' || catKey === 'meat') {
+    contextKeywords = ['food product'];
+  } else if (catKey === 'frozen_food' || catKey === 'frozen') {
+    contextKeywords = ['frozen food'];
+  } else if (catKey === 'hygiene') {
+    contextKeywords = ['personal care product'];
+  } else {
+    // General dry goods / snacks / other
+    contextKeywords = ['grocery food product'];
   }
 
-  for (const kw of keywords) {
+  const appended = [];
+  for (const kw of contextKeywords) {
     if (!cleanQuery.toLowerCase().includes(kw)) {
       appended.push(kw);
     }
   }
 
-  return { safeQuery: `${cleanQuery} ${appended.join(' ')}`.trim(), isValid: true };
+  return { safeQuery: `${cleanQuery} ${appended.join(' ')}`.trim(), isValid: true, blocked: false };
 }
 
 /**
@@ -313,7 +342,16 @@ export async function GET(request) {
     }
 
     // Build contextually biased and safe query
-    const { safeQuery, isValid } = buildSafeSearchQuery(cleanName, category);
+    const { safeQuery, isValid, blocked } = buildSafeSearchQuery(cleanName, category);
+
+    if (blocked) {
+      return NextResponse.json({
+        images: [],
+        query: cleanName,
+        category,
+        message: 'Prohibited or inappropriate search terms detected.',
+      }, { status: 200 });
+    }
 
     if (!isValid) {
       return NextResponse.json({
