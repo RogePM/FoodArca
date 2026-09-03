@@ -12,13 +12,16 @@ export function MobileInventorySearch({
   onQueryChange, 
   inventoryData = null, 
   autoFocus = false,
-  onItemSelect
+  onItemSelect,
+  forceOpen = false,
+  onClose,
+  onOpenScanner
 }) {
   const router = useRouter();
   const { pantryId } = usePantry();
   
   const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(false);
+  const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(forceOpen);
   const [showScanner, setShowScanner] = useState(false);
   const [localInventory, setLocalInventory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -104,11 +107,15 @@ export function MobileInventorySearch({
         ) : (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setShowScanner(true); }}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-[#d97757]/10 flex items-center justify-center active:scale-95 transition-transform"
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              if (onOpenScanner) onOpenScanner();
+              else setShowScanner(true); 
+            }}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-[#e27f2c]/10 flex items-center justify-center active:scale-95 transition-transform"
             aria-label="Scan barcode"
           >
-            <ScanBarcode className="h-[18px] w-[18px] text-[#d97757]" strokeWidth={2.5} />
+            <ScanBarcode className="h-[18px] w-[18px] text-[#e27f2c]" strokeWidth={2.5} />
           </button>
         )}
       </div>
@@ -118,7 +125,10 @@ export function MobileInventorySearch({
         <div className="fixed inset-0 z-50 bg-white flex flex-col md:hidden animate-in fade-in duration-200">
           <div className="flex items-center gap-2 p-4 border-b border-gray-100">
             <button 
-              onClick={() => setIsSearchOverlayOpen(false)}
+              onClick={() => {
+                if (forceOpen && onClose) onClose();
+                else setIsSearchOverlayOpen(false);
+              }}
               className="p-2 -ml-2 text-gray-500 hover:text-gray-700 rounded-full"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -128,16 +138,27 @@ export function MobileInventorySearch({
               <input
                 autoFocus
                 placeholder="Search inventory..."
-                className="w-full pl-9 pr-9 h-10 bg-gray-100 border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#d97757]/30 font-medium text-base placeholder:text-gray-400"
+                className="w-full pl-9 pr-12 h-10 bg-gray-100 border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#e27f2c]/30 font-medium text-base placeholder:text-gray-400"
                 value={searchQuery}
                 onChange={(e) => handleQueryChange(e.target.value)}
               />
-              {searchQuery && (
+              {searchQuery ? (
                 <button
                   onClick={() => handleQueryChange('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full"
                 >
                   <X className="w-[14px] h-[14px]" strokeWidth={3} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenScanner) onOpenScanner();
+                    else setShowScanner(true);
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg bg-[#e27f2c]/10 flex items-center justify-center active:scale-95 transition-transform"
+                >
+                  <ScanBarcode className="h-4 w-4 text-[#e27f2c]" strokeWidth={2.5} />
                 </button>
               )}
             </div>

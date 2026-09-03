@@ -203,7 +203,7 @@ export function MobileCartView({
                   </span>
                   <button
                     type="button"
-                    onClick={() => onBack && onBack('MANUAL_ENTRY')}
+                    onClick={() => onBack && onBack('SEARCH')}
                     className="h-[36px] px-5 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
                   >
                     Find Items
