@@ -100,16 +100,10 @@ export function ProductImagePicker({
     [formName, formCategory, lastSearchedQuery, images.length]
   );
 
+  const isSearchDisabled = !formName.trim() || formName.trim().length < 2 || !formCategory;
+
   const handleOpenSearch = () => {
-    const trimmed = formName.trim();
-    if (!trimmed || trimmed.length < 2) {
-      setError("Please enter an item name above first.");
-      return;
-    }
-    if (!formCategory) {
-      setError("Please select a category above first so we can find the right photo.");
-      return;
-    }
+    if (isSearchDisabled) return;
     setError(null);
     setIsExpanded(true);
     handleFetchImages();
@@ -232,34 +226,47 @@ export function ProductImagePicker({
             <button
               type="button"
               onClick={handleOpenSearch}
+              disabled={isSearchDisabled}
               aria-expanded={isExpanded}
               aria-haspopup="true"
               aria-label="Find product packaging photo online"
-              className="w-full group text-left p-3.5 rounded-2xl border border-gray-200 hover:border-[#e27f2c] bg-white hover:bg-[#fffcf7] transition-all flex items-center justify-between cursor-pointer shadow-sm active:scale-[0.99]"
+              className={`w-full group text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between shadow-sm ${
+                isSearchDisabled
+                  ? "border-gray-200 bg-gray-50/50 cursor-not-allowed"
+                  : "border-gray-200 hover:border-[#e27f2c] bg-white hover:bg-[#fffcf7] cursor-pointer active:scale-[0.99]"
+              }`}
             >
               <div className="flex items-center gap-3.5 min-w-0 pr-2">
                 <div className="w-[58px] h-[58px] shrink-0 relative">
                   <img
                     src="/assets/images/product-photo-search.jpg"
                     alt="Find photo"
-                    className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform"
+                    className={`w-full h-full object-contain mix-blend-multiply transition-transform ${
+                      isSearchDisabled ? "opacity-40" : "group-hover:scale-105"
+                    }`}
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[15px] font-semibold text-[#1a1f36] group-hover:text-[#e27f2c] transition-colors">
+                  <p className={`text-[15px] font-semibold transition-colors ${
+                    isSearchDisabled ? "text-gray-400" : "text-[#1a1f36] group-hover:text-[#e27f2c]"
+                  }`}>
                     Find product photo
                   </p>
                   <p className="text-[12.5px] text-[#697386] mt-0.5">
                     {!formName.trim()
                       ? "Enter an item name above first"
                       : !formCategory
-                      ? "Select a category above to search"
+                      ? "Select a category above to enable"
                       : "Search online photos"}
                   </p>
                 </div>
               </div>
 
-              <span className="h-[38px] px-4 rounded-full bg-[#e27f2c] group-hover:bg-[#cf6f20] text-white text-[13px] font-bold shadow-sm flex items-center justify-center transition-all shrink-0">
+              <span className={`h-[38px] px-4 rounded-full text-white text-[13px] font-bold shadow-sm flex items-center justify-center transition-all shrink-0 ${
+                isSearchDisabled
+                  ? "bg-[#e27f2c] opacity-40 cursor-not-allowed"
+                  : "bg-[#e27f2c] group-hover:bg-[#cf6f20] active:scale-95"
+              }`}>
                 Search
               </span>
             </button>
