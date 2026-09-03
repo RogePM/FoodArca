@@ -266,7 +266,7 @@ export function MobileCartView({
                 <button
                   disabled={isSubmittingCart}
                   onClick={() => setShowSubmitConfirm(true)}
-                  className="h-[44px] px-6 rounded-full bg-[#e27f2c] text-white text-[15px] font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="h-[40px] px-5 rounded-full bg-[#e27f2c] text-white text-[14.5px] font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isSubmittingCart ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -275,7 +275,7 @@ export function MobileCartView({
                       <CheckCircle2 className="w-5 h-5" /> Added!
                     </>
                   ) : (
-                    'Add to inventory'
+                    'Add Items'
                   )}
                 </button>
               </div>
