@@ -199,8 +199,8 @@ async function scrapeDuckDuckGoImages(contextualQuery) {
     const seen = new Set();
 
     for (const item of data.results) {
-      // Prioritize high-res image, fallback to thumbnail CDN URL
-      let candidate = item.image || item.thumbnail;
+      // Prioritize fast, high-speed edge CDN thumbnail (~20-30KB, 50ms latency), fallback to raw origin image
+      let candidate = item.thumbnail || item.image;
       if (candidate && typeof candidate === 'string') {
         if (candidate.startsWith('//')) candidate = 'https:' + candidate;
         if (candidate.startsWith('http://') && (candidate.includes('bing.net') || candidate.includes('duckduckgo.com') || candidate.includes('wikimedia.org') || candidate.includes('openfoodfacts.org'))) {
