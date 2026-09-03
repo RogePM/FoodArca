@@ -256,9 +256,12 @@ export function MobileCartView({
             {/* ── RECEIPT-STYLE HEADER ── */}
             <div className="bg-[#f8f9fa] border-b-2 border-dashed border-gray-200 shrink-0 mb-6">
               <div className="px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 flex items-center justify-between">
-                <span className="text-[18px] text-[#1a1f36] font-semibold tracking-tight">
-                  Total: {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-[13px] text-gray-500 font-medium mb-1">Total Quantity</span>
+                  <span className="text-[20px] text-[#1a1f36] font-bold tracking-tight leading-none">
+                    {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                  </span>
+                </div>
                 
                 <button
                   disabled={isSubmittingCart}
