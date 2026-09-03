@@ -283,7 +283,7 @@ export function MobileCartView({
 
             <div className="mx-5 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
               <div className="mx-4 py-3 border-b border-gray-300 flex items-center bg-white">
-                <span className="text-[17px] text-[#1a1f36] font-medium tracking-tight">Scanned items</span>
+                <span className="text-[17px] text-[#1a1f36] font-medium tracking-tight">Added items</span>
               </div>
               <div className="flex flex-col bg-white">
                 <AnimatePresence initial={false}>
