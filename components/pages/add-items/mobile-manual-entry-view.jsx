@@ -103,6 +103,30 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   const [formCategory, setFormCategory] = useState(initialItem?.category || "");
   const [formPhotoUrl, setFormPhotoUrl] = useState(initialItem?.photoUrl || null);
 
+  // Keyboard avoidance
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const handleResize = () => {
+      // Safely calculate the keyboard height using visualViewport
+      const viewportHeight = window.visualViewport.height;
+      const windowHeight = window.innerHeight;
+      const diff = windowHeight - viewportHeight;
+      // Only lift if diff is significant (e.g. > 100px)
+      setKeyboardHeight(diff > 100 ? diff : 0);
+    };
+
+    window.visualViewport.addEventListener("resize", handleResize);
+    window.visualViewport.addEventListener("scroll", handleResize);
+    handleResize();
+
+    return () => {
+      window.visualViewport.removeEventListener("resize", handleResize);
+      window.visualViewport.removeEventListener("scroll", handleResize);
+    };
+  }, []);
+
   // Autocomplete state
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -276,7 +300,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="absolute inset-0 z-50 w-full h-full bg-white flex flex-col overflow-hidden"
+      className="fixed inset-0 z-[9999] w-full h-[100dvh] bg-white flex flex-col overflow-hidden"
     >
       <div className="pt-safe flex flex-col shrink-0 bg-white relative z-10">
         <div className="p-4 pb-2 flex items-center justify-between">
@@ -736,9 +760,15 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
         )}
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 z-50 pointer-events-none">
+      <div 
+        className="absolute left-0 right-0 z-50 pointer-events-none transition-all duration-300 ease-out"
+        style={{ bottom: keyboardHeight }}
+      >
         <div className="h-10 bg-gradient-to-t from-white to-transparent pointer-events-none" />
-        <div className="bg-white px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-2 pointer-events-auto">
+        <div 
+          className="bg-white px-6 pt-2 pointer-events-auto transition-all"
+          style={{ paddingBottom: keyboardHeight > 0 ? '16px' : 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+        >
           <button
             onClick={handleNextStep}
             disabled={isNextDisabled()}
