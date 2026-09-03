@@ -253,28 +253,38 @@ export function ProductImagePicker({
               </div>
             </div>
           ) : (
-            /* Find Image Button / Placeholder */
+            /* Find Image Button / Placeholder Card */
             <button
               type="button"
               onClick={handleOpenSearch}
               aria-expanded={isExpanded}
               aria-haspopup="true"
               aria-label="Find product packaging photo online"
-              className="w-full group text-left p-6 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#e27f2c] bg-gray-50 hover:bg-[#fffcf7] transition-all flex flex-col items-center justify-center cursor-pointer gap-2"
+              className="w-full group text-left p-3.5 rounded-2xl border border-gray-200 hover:border-[#e27f2c] bg-white hover:bg-[#fffcf7] transition-all flex items-center justify-between cursor-pointer shadow-sm active:scale-[0.99]"
             >
-              <div className="w-12 h-12 rounded-full bg-white shadow-sm text-gray-400 group-hover:text-[#e27f2c] flex items-center justify-center shrink-0 group-hover:scale-105 transition-all">
-                <ImageIcon className="w-6 h-6" strokeWidth={2} />
+              <div className="flex items-center gap-3.5 min-w-0 pr-2">
+                <div className="w-[58px] h-[58px] shrink-0 relative">
+                  <img
+                    src="/assets/images/product-photo-search.jpg"
+                    alt="Find photo"
+                    className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold text-[#1a1f36] group-hover:text-[#e27f2c] transition-colors">
+                    Find product photo
+                  </p>
+                  <p className="text-[12.5px] text-[#697386] truncate mt-0.5">
+                    {formName.trim()
+                      ? `Search photos for "${formName.trim()}"`
+                      : "Search packaging photos online"}
+                  </p>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-[15px] font-semibold text-[#1a1f36] group-hover:text-[#e27f2c] transition-colors">
-                  Find a product photo
-                </p>
-                <p className="text-[13px] text-[#697386] mt-0.5">
-                  {formName.trim()
-                    ? `Search the web for "${formName.trim()}"`
-                    : "Enter a name above first"}
-                </p>
-              </div>
+
+              <span className="text-[13px] font-semibold text-[#e27f2c] px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-100 group-hover:bg-[#e27f2c] group-hover:text-white transition-all shrink-0">
+                Search
+              </span>
             </button>
           )}
 
