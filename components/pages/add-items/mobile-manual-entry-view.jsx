@@ -306,7 +306,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
         <div className="p-4 pb-2 flex items-center justify-between">
           <button
             onClick={handleBack}
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 active:bg-gray-100 text-[#1a1f36] transition-colors"
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 border border-gray-200 hover:bg-gray-200 active:bg-gray-300 text-[#1a1f36] transition-colors shadow-sm"
           >
             {currentStep === 1 ? (
               <X className="w-5 h-5" strokeWidth={2.5} />
@@ -321,7 +321,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                   onDelete(initialItem);
                 }
               }}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-red-50 text-red-600 active:bg-red-100 transition-colors"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:bg-red-200 transition-colors shadow-sm"
             >
               <Trash2 className="w-5 h-5" strokeWidth={2.5} />
             </button>
