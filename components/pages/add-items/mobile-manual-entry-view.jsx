@@ -46,7 +46,7 @@ function CleanField({ label, required, optional, hint, children }) {
     <div className="space-y-1.5 w-full">
       <div className="flex items-center justify-between ml-1">
         <label className="text-[14px] font-semibold text-gray-700">
-          {label} {required && <span className="text-[#d97757]">*</span>}
+          {label} {required && <span className="text-[#e27f2c]">*</span>}
         </label>
         {optional && (
           <span className="text-[12px] font-medium text-[#a3acb9] tracking-wide">
@@ -150,16 +150,22 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   }, [formName, isTyping, dictionary, isDictionaryLoaded]);
 
   // Step 2: Quantify
+  const [intakeMode, setIntakeMode] = useState(initialItem?.intakeMode || "count");
   const [formQty, setFormQty] = useState(initialItem?.quantity || "1");
   const [formWeight, setFormWeight] = useState(
-    initialItem?.weightPerUnit &&
-      initialItem?.weightPerUnit !== "0" &&
-      initialItem?.weightPerUnit !== "0.00"
-      ? String(initialItem.weightPerUnit)
+    initialItem?.intakeMode === "weight" && initialItem?.quantity
+      ? String(initialItem.quantity)
       : "",
   );
-  const [formWeightUnit, setFormWeightUnit] = useState("lbs");
+  const [formWeightUnit, setFormWeightUnit] = useState(
+    initialItem?.intakeMode === "weight" && initialItem?.unit
+      ? initialItem.unit
+      : "lbs"
+  );
   const [formUnit, setFormUnit] = useState(initialItem?.unit || "units");
+  
+  // Step 3: Details
+  const [formStorageLocation, setFormStorageLocation] = useState(initialItem?.storageLocation || "");
   
   const [packSize, setPackSize] = useState(initialItem?.packSize || "");
   const [packSizeMode, setPackSizeMode] = useState(() => {
@@ -180,15 +186,25 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   const [donorName, setDonorName] = useState(initialItem?.donorName || "");
 
   const handleSave = () => {
-    if (!formName.trim() || !formQty || !formCategory) return;
+    if (!formName.trim() || !formCategory) return;
 
-    const qtyNum = parseFloat(formQty) || 1;
-    let perUnitLbs = 0;
-    if (formWeight && formWeightUnit === "oz") {
-      perUnitLbs = parseFloat(formWeight) / 16;
-    } else if (formWeight) {
-      perUnitLbs = parseFloat(formWeight);
+    let finalQty, finalUnit, perUnitLbs;
+
+    if (intakeMode === "weight") {
+      finalQty = parseFloat(formWeight) || 0;
+      finalUnit = formWeightUnit;
+      // Convert weight to lbs for tracking
+      if (formWeightUnit === "oz") perUnitLbs = finalQty / 16;
+      else if (formWeightUnit === "g") perUnitLbs = finalQty / 453.592;
+      else if (formWeightUnit === "kg") perUnitLbs = finalQty * 2.20462;
+      else perUnitLbs = finalQty; // lbs
+    } else {
+      finalQty = parseFloat(formQty) || 1;
+      finalUnit = formUnit;
+      perUnitLbs = 0;
     }
+
+    if (finalQty <= 0) return;
 
     const newItem = {
       id:
@@ -198,16 +214,17 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
       name: formName.trim(),
       category: formCategory,
       categoryName: getCategoryMeta(formCategory).name,
-      quantity: String(qtyNum),
-      unit: formUnit,
+      quantity: String(finalQty),
+      unit: finalUnit,
+      intakeMode,
       weightPerUnit: perUnitLbs > 0 ? perUnitLbs.toFixed(2) : "0",
-      totalWeightLbs: Number((perUnitLbs * qtyNum).toFixed(2)),
-      intakeMode: "count",
+      totalWeightLbs: Number((perUnitLbs > 0 ? perUnitLbs : 0).toFixed(2)),
       expirationDate: expirationDate || null,
       expirationPrecision: expirationDate ? "day" : "none",
       sourceType: formSource,
       packSize: packSize ? String(packSize) : null,
       donorName: donorName.trim() || null,
+      storageLocation: formStorageLocation.trim() || null,
       photoUrl: formPhotoUrl,
     };
 
@@ -234,7 +251,10 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
 
   const isNextDisabled = () => {
     if (currentStep === 1) return !formName.trim() || !formCategory;
-    if (currentStep === 2) return !formQty || parseFloat(formQty) <= 0;
+    if (currentStep === 2) {
+      if (intakeMode === "weight") return !formWeight || parseFloat(formWeight) <= 0;
+      return !formQty || parseFloat(formQty) <= 0;
+    }
     return false;
   };
 
@@ -248,7 +268,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   };
 
   const inputClass =
-    "w-full h-[56px] px-4 rounded-xl border-2 border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none focus:border-[#d97757] focus:ring-4 focus:ring-[#d97757]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
+    "w-full h-[52px] px-4 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
 
   return (
     <motion.div
@@ -256,7 +276,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="fixed inset-0 z-[9999] w-full h-[100dvh] bg-white flex flex-col overflow-hidden"
+      className="absolute inset-0 z-50 w-full h-full bg-white flex flex-col overflow-hidden"
     >
       <div className="pt-safe flex flex-col shrink-0 bg-white relative z-10">
         <div className="p-4 pb-2 flex items-center justify-between">
@@ -286,7 +306,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
         
         <div className="h-1 w-full bg-gray-100 mt-2">
           <motion.div 
-            className="h-full bg-[#d97757]"
+            className="h-full bg-[#e27f2c]"
             initial={{ width: "33%" }}
             animate={{ width: `${(currentStep / 3) * 100}%` }}
             transition={{ ease: "easeInOut", duration: 0.3 }}
@@ -319,8 +339,8 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
             </div>
 
             {!isEditing && displayBarcode && !initialItem?.isInternal && (
-              <div className="bg-orange-50 border-l-4 border-[#d97757] p-4 flex gap-3 items-start">
-                <AlertCircle className="w-5 h-5 text-[#d97757] shrink-0 mt-0.5" />
+              <div className="bg-orange-50 border-l-4 border-[#e27f2c] p-4 flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 text-[#e27f2c] shrink-0 mt-0.5" />
                 <div>
                   <p className="text-[#c06245] font-bold text-[15px]">
                     Barcode not found
@@ -356,7 +376,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                   />
                   {isSearching && (
                     <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                      <Loader2 className="w-5 h-5 animate-spin text-[#d97757]" />
+                      <Loader2 className="w-5 h-5 animate-spin text-[#e27f2c]" />
                     </div>
                   )}
 
@@ -471,123 +491,123 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 How much is there?
               </h1>
               <p className="text-[15px] text-[#697386] mt-1">
-                Enter the quantity and measurements.
+                {intakeMode === "count"
+                  ? "Count the number of items."
+                  : "Enter the total weight of this item."}
               </p>
             </div>
 
+            {/* Count / Weight Toggle */}
+            <div className="flex bg-gray-100 rounded-full p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => setIntakeMode("count")}
+                className={`flex-1 h-[40px] rounded-full text-[14px] font-semibold transition-all ${
+                  intakeMode === "count"
+                    ? "bg-white text-[#1a1f36] shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Count
+              </button>
+              <button
+                type="button"
+                onClick={() => setIntakeMode("weight")}
+                className={`flex-1 h-[40px] rounded-full text-[14px] font-semibold transition-all ${
+                  intakeMode === "weight"
+                    ? "bg-white text-[#1a1f36] shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Weight
+              </button>
+            </div>
+
             <div className="space-y-6">
-              <CleanField label="Quantity" required>
-                <div className="flex gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center bg-white rounded-xl border-2 border-gray-200 h-[56px] min-w-0 focus-within:border-[#d97757] focus-within:ring-4 focus-within:ring-[#d97757]/10 transition-all overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setFormQty(String(Math.max(1, (parseInt(formQty, 10) || 1) - 1)))}
-                        className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-r-2 border-gray-200 transition-colors"
-                      >
-                        <Minus className="w-5 h-5" strokeWidth={2.5} />
-                      </button>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formQty}
-                        onKeyDown={handleKeyDown}
-                        onChange={(e) => setFormQty(e.target.value.replace(/[^0-9]/g, ""))}
-                        className="w-0 flex-1 min-w-0 text-center text-[20px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setFormQty(String((parseInt(formQty, 10) || 1) + 1))}
-                        className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-l-2 border-gray-200 transition-colors"
-                      >
-                        <Plus className="w-5 h-5" strokeWidth={2.5} />
-                      </button>
+              {intakeMode === "count" ? (
+                /* ── COUNT MODE ── */
+                <CleanField label="Quantity" required>
+                  <div className="flex gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center bg-white rounded-xl border border-gray-200 h-[52px] min-w-0 focus-within:border-[#e27f2c] focus-within:ring-4 focus-within:ring-[#e27f2c]/10 transition-all overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setFormQty(String(Math.max(1, (parseInt(formQty, 10) || 1) - 1)))}
+                          className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-r border-gray-200 transition-colors"
+                        >
+                          <Minus className="w-5 h-5" strokeWidth={2.5} />
+                        </button>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formQty}
+                          onKeyDown={handleKeyDown}
+                          onChange={(e) => setFormQty(e.target.value.replace(/[^0-9]/g, ""))}
+                          className="w-0 flex-1 min-w-0 text-center text-[20px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormQty(String((parseInt(formQty, 10) || 1) + 1))}
+                          className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-l border-gray-200 transition-colors"
+                        >
+                          <Plus className="w-5 h-5" strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="w-[130px] shrink-0">
+                      <div className="relative h-[52px]">
+                        <select
+                          value={formUnit}
+                          onChange={(e) => setFormUnit(e.target.value)}
+                          className="h-full w-full pl-4 pr-10 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all"
+                        >
+                          {UNIT_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-1">
+                          <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="w-[140px] shrink-0">
-                    <div className="relative h-[56px]">
+                </CleanField>
+              ) : (
+                /* ── WEIGHT MODE ── */
+                <CleanField label="Weight" required hint="Enter the total weight of this item">
+                  <div className="flex rounded-xl focus-within:ring-4 focus-within:ring-[#e27f2c]/10 transition-all overflow-hidden border border-gray-200 focus-within:border-[#e27f2c] h-[52px]">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={formWeight}
+                      onKeyDown={handleKeyDown}
+                      onChange={(e) => setFormWeight(e.target.value)}
+                      placeholder="e.g. 25"
+                      className="w-full h-full px-4 border-r border-gray-200 bg-white text-[20px] font-bold text-[#1a1f36] outline-none relative z-10 placeholder:text-[#a3acb9] placeholder:font-normal placeholder:text-[16px]"
+                      autoFocus
+                    />
+                    <div className="relative bg-gray-50 shrink-0 w-[100px]">
                       <select
-                        value={formUnit}
-                        onChange={(e) => setFormUnit(e.target.value)}
-                        className="h-full w-full pl-4 pr-10 rounded-xl border-2 border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#d97757] focus:ring-4 focus:ring-[#d97757]/10 transition-all"
+                        value={formWeightUnit}
+                        onChange={(e) => setFormWeightUnit(e.target.value)}
+                        className="h-full w-full pl-4 pr-10 bg-transparent text-[16px] font-medium text-[#1a1f36] outline-none appearance-none"
                       >
-                        {UNIT_OPTIONS.map((opt) => (
+                        {WEIGHT_UNIT_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>
                             {opt.label}
                           </option>
                         ))}
                       </select>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-1">
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                         <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
                       </div>
                     </div>
                   </div>
-                </div>
-              </CleanField>
-
-              <CleanField label="Items per pack" optional hint="How many come in one case or bag?">
-                <div className="relative">
-                  <select
-                    value={packSizeMode}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setPackSizeMode(val);
-                      if (val === "none") setPackSize("");
-                      else if (val !== "custom") setPackSize(val);
-                    }}
-                    className={`${inputClass} appearance-none pr-12`}
-                  >
-                    {PACK_SIZE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
-                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
-                  </div>
-                </div>
-                {packSizeMode === "custom" && (
-                  <input
-                    type="number"
-                    value={packSize}
-                    onKeyDown={handleKeyDown}
-                    onChange={(e) => setPackSize(e.target.value)}
-                    placeholder="e.g. 15"
-                    className={`${inputClass} mt-3`}
-                  />
-                )}
-              </CleanField>
-
-              <CleanField label="Per-unit weight" optional hint="Weight of a single item">
-                <div className="flex rounded-xl focus-within:ring-4 focus-within:ring-[#d97757]/10 transition-all overflow-hidden border-2 border-gray-200 focus-within:border-[#d97757] h-[56px]">
-                  <input
-                    type="number"
-                    value={formWeight}
-                    onKeyDown={handleKeyDown}
-                    onChange={(e) => setFormWeight(e.target.value)}
-                    placeholder="e.g. 16"
-                    className="w-full h-full px-4 border-r-2 border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none relative z-10 placeholder:text-[#a3acb9] placeholder:font-normal"
-                  />
-                  <div className="relative bg-gray-50 shrink-0 w-[110px]">
-                    <select
-                      value={formWeightUnit}
-                      onChange={(e) => setFormWeightUnit(e.target.value)}
-                      className="h-full w-full pl-4 pr-10 bg-transparent text-[16px] font-medium text-[#1a1f36] outline-none appearance-none"
-                    >
-                      {WEIGHT_UNIT_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
-                    </div>
-                  </div>
-                </div>
-              </CleanField>
+                </CleanField>
+              )}
             </div>
           </motion.div>
         )}
@@ -656,6 +676,51 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 </div>
               </CleanField>
 
+              <CleanField label="Items per pack" optional hint="How many come in one case or bag?">
+                <div className="relative">
+                  <select
+                    value={packSizeMode}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPackSizeMode(val);
+                      if (val === "none") setPackSize("");
+                      else if (val !== "custom") setPackSize(val);
+                    }}
+                    className={`${inputClass} appearance-none pr-12`}
+                  >
+                    {PACK_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
+                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
+                  </div>
+                </div>
+                {packSizeMode === "custom" && (
+                  <input
+                    type="number"
+                    value={packSize}
+                    onKeyDown={handleKeyDown}
+                    onChange={(e) => setPackSize(e.target.value)}
+                    placeholder="e.g. 15"
+                    className={`${inputClass} mt-3`}
+                  />
+                )}
+              </CleanField>
+
+              <CleanField label="Storage location" optional>
+                <input
+                  type="text"
+                  value={formStorageLocation}
+                  onKeyDown={handleKeyDown}
+                  onChange={(e) => setFormStorageLocation(e.target.value)}
+                  placeholder="e.g. Shelf A, Freezer, Back Room"
+                  className={inputClass}
+                />
+              </CleanField>
+
               <CleanField label="Donor name" optional>
                 <input
                   type="text"
@@ -677,7 +742,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
           <button
             onClick={handleNextStep}
             disabled={isNextDisabled()}
-            className="w-full h-[60px] rounded-full bg-[#d97757] hover:bg-[#c66547] text-white font-extrabold text-[16px] uppercase tracking-wider shadow-[0_8px_24px_rgba(217,119,87,0.35)] active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
+            className="w-full h-[52px] rounded-2xl bg-[#e27f2c] hover:bg-[#cf6f20] text-white font-bold text-[16px] shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
           >
             {currentStep < 3 ? (
               <>

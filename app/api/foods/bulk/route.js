@@ -323,6 +323,7 @@ export async function POST(req) {
             expiration_precision: normalizeExpPrecision(item.expirationPrecision || (expDate ? 'day' : 'none')),
             source_type: normalizeSourceType(item.sourceType),
             donor_name: item.donorName || null,
+            storage_location: item.storageLocation || null,
             received_date: new Date().toISOString().split('T')[0]
           })
           .select(`

@@ -373,27 +373,35 @@ export function MobileCartView({
                             </div>
 
                             {/* Stepper */}
-                            <div className="flex items-center rounded-full border border-[#e27f2c] h-[34px] bg-white overflow-hidden">
-                              <button
-                                type="button"
-                                onClick={() => updateItemQty(item.id, -1)}
-                                className="h-full w-10 flex items-center justify-center text-[#e27f2c] active:bg-[#fff7f2] transition-colors"
-                                aria-label="Decrease quantity"
-                              >
-                                <Minus className="h-4 w-4" strokeWidth={2} />
-                              </button>
-                              <span className="w-8 text-center text-[14px] font-medium text-[#e27f2c]">
-                                {item.quantity}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => updateItemQty(item.id, 1)}
-                                className="h-full w-10 flex items-center justify-center text-[#e27f2c] active:bg-[#fff7f2] transition-colors"
-                                aria-label="Increase quantity"
-                              >
-                                <Plus className="h-4 w-4" strokeWidth={2} />
-                              </button>
-                            </div>
+                            {item.intakeMode !== 'weight' ? (
+                              <div className="flex items-center rounded-full border border-[#e27f2c] h-[34px] bg-white overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemQty(item.id, -1)}
+                                  className="h-full w-10 flex items-center justify-center text-[#e27f2c] active:bg-[#fff7f2] transition-colors"
+                                  aria-label="Decrease quantity"
+                                >
+                                  <Minus className="h-4 w-4" strokeWidth={2} />
+                                </button>
+                                <span className="w-8 text-center text-[14px] font-medium text-[#e27f2c]">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemQty(item.id, 1)}
+                                  className="h-full w-10 flex items-center justify-center text-[#e27f2c] active:bg-[#fff7f2] transition-colors"
+                                  aria-label="Increase quantity"
+                                >
+                                  <Plus className="h-4 w-4" strokeWidth={2} />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="h-[34px] flex items-center px-2">
+                                <span className="text-[13px] font-medium text-gray-500 italic">
+                                  Use Edit to change weight
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         {!isLast && <div className="mx-4 border-b border-gray-300" />}

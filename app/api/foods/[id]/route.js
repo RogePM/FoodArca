@@ -188,6 +188,7 @@ export async function PUT(req, { params }) {
       if (!isNaN(d.getTime())) updateData.expiration_date = d.toISOString().split('T')[0];
     }
     if (data.sourceType !== undefined) updateData.source_type = data.sourceType;
+    if (data.storageLocation !== undefined) updateData.storage_location = data.storageLocation;
 
     if (Object.keys(updateData).length > 0) {
       const { error: updErr } = await auth.supabase
