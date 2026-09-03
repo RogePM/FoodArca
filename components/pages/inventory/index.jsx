@@ -548,6 +548,7 @@ export function InventoryView() {
       {/* Edit Item Flows (Mobile vs Desktop) */}
       {isSheetOpen && !isDesktop ? (
         <MobileManualEntryView
+          key={selectedItem?.id || 'edit-item'}
           initialItem={selectedItem}
           pantryId={pantryId}
           onBack={() => {

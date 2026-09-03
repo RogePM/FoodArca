@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
@@ -17,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { categories } from "@/lib/constants";
+import { ProductImagePicker, ProductImagePickerSkeleton } from "./product-image-picker";
 
 function formatExpDateDisplay(dateStr) {
   if (!dateStr) return "";
@@ -101,7 +102,23 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   // Step 1: Identify
   const [formName, setFormName] = useState(initialItem?.name || "");
   const [formCategory, setFormCategory] = useState(initialItem?.category || "");
-  const [formPhotoUrl, setFormPhotoUrl] = useState(initialItem?.photoUrl || null);
+  const [formPhotoUrl, setFormPhotoUrl] = useState(initialItem?.photoUrl || initialItem?.photo_url || null);
+
+  // Sync state if initialItem prop changes while mounted (e.g. switching items to edit or new scan)
+  useEffect(() => {
+    if (initialItem) {
+      setFormName(initialItem.name || "");
+      setFormCategory(initialItem.category || "");
+      setFormPhotoUrl(initialItem.photoUrl || initialItem.photo_url || null);
+      if (initialItem.intakeMode) setIntakeMode(initialItem.intakeMode);
+      if (initialItem.quantity) setFormQty(String(initialItem.quantity));
+      if (initialItem.unit) setFormUnit(initialItem.unit);
+      if (initialItem.expirationDate) setExpirationDate(initialItem.expirationDate);
+      if (initialItem.sourceType) setFormSource(initialItem.sourceType);
+      if (initialItem.storageLocation) setFormStorageLocation(initialItem.storageLocation);
+      if (initialItem.donorName) setDonorName(initialItem.donorName);
+    }
+  }, [initialItem]);
 
   // Keyboard avoidance
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -420,19 +437,17 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                             onClick={() => {
                               setFormName(sugg.name);
                               if (sugg.category) setFormCategory(sugg.category);
-                              if (sugg.photoUrl) setFormPhotoUrl(sugg.photoUrl);
+                              setFormPhotoUrl(sugg.photoUrl || sugg.photo_url || null);
                               setIsTyping(false);
                               setShowSuggestions(false);
-                              
-                              if (sugg.category) {
-                                setTimeout(() => setCurrentStep(2), 150);
-                              }
                             }}
                           >
                             {sugg.photoUrl ? (
                               <img
                                 src={sugg.photoUrl}
                                 alt=""
+                                referrerPolicy="no-referrer"
+                                crossOrigin="anonymous"
                                 className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0"
                               />
                             ) : (
@@ -456,35 +471,13 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                     )}
                   </AnimatePresence>
                 </div>
-
-                {formPhotoUrl && (
-                  <div className="mt-4 relative w-20 h-20 rounded-2xl border-2 border-gray-200 overflow-hidden shadow-sm">
-                    <img
-                      src={formPhotoUrl}
-                      alt="Product"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormPhotoUrl(null)}
-                      className="absolute top-1 right-1 w-6 h-6 bg-white/90 backdrop-blur border border-gray-200 rounded-full flex items-center justify-center text-gray-600 shadow-sm active:scale-95 transition-all"
-                    >
-                      <X className="w-3.5 h-3.5" strokeWidth={3} />
-                    </button>
-                  </div>
-                )}
               </CleanField>
 
               <CleanField label="Category" required>
                 <div className="relative">
                   <select
                     value={formCategory}
-                    onChange={(e) => {
-                      setFormCategory(e.target.value);
-                      if (e.target.value && formName.trim()) {
-                         setTimeout(() => setCurrentStep(2), 150);
-                      }
-                    }}
+                    onChange={(e) => setFormCategory(e.target.value)}
                     className={`${inputClass} appearance-none pr-12 ${!formCategory ? 'text-[#a3acb9]' : 'text-[#1a1f36]'}`}
                   >
                     <option value="" disabled>Select a category...</option>
@@ -498,6 +491,17 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                     <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
                   </div>
                 </div>
+              </CleanField>
+
+              <CleanField label="Product photo" optional hint="Choose a packaging photo for easy visual identification">
+                <Suspense fallback={<ProductImagePickerSkeleton />}>
+                  <ProductImagePicker
+                    formName={formName}
+                    formCategory={formCategory}
+                    photoUrl={formPhotoUrl}
+                    onSelectPhoto={(url) => setFormPhotoUrl(url)}
+                  />
+                </Suspense>
               </CleanField>
             </div>
           </motion.div>

@@ -198,12 +198,17 @@ export async function PUT(req, { params }) {
       if (updErr) throw updErr;
     }
 
-    if (data.name && batch.catalog_item) {
-      const { error: catErr } = await auth.supabase
-        .from('catalog_items')
-        .update({ name: data.name })
-        .eq('id', batch.catalog_item.id);
-      if (catErr) throw catErr;
+    if (batch.catalog_item) {
+      const catUpdate = {};
+      if (data.name) catUpdate.name = data.name;
+      if (data.photoUrl !== undefined) catUpdate.photo_url = data.photoUrl || null;
+      if (Object.keys(catUpdate).length > 0) {
+        const { error: catErr } = await auth.supabase
+          .from('catalog_items')
+          .update(catUpdate)
+          .eq('id', batch.catalog_item.id);
+        if (catErr) throw catErr;
+      }
     }
 
     if (data.quantity !== undefined && formatQty(data.quantity) !== formatQty(batch.quantity)) {

@@ -362,6 +362,7 @@ export function MobileAddFlow({ onClose }) {
   if (activeView === 'MANUAL_ENTRY') {
     return (
       <MobileManualEntryView 
+        key={scannedItem?.id || scannedItem?.barcode || 'manual-entry'}
         onBack={() => setActiveView(manualEntryReturnView)} 
         initialItem={scannedItem}
         pantryId={pantryId}
