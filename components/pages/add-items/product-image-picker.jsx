@@ -260,27 +260,21 @@ export function ProductImagePicker({
               aria-expanded={isExpanded}
               aria-haspopup="true"
               aria-label="Find product packaging photo online"
-              className="w-full group text-left p-3.5 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#e27f2c]/60 bg-[#fafbfc] hover:bg-orange-50/30 transition-all flex items-center justify-between cursor-pointer"
+              className="w-full group text-left p-6 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#e27f2c] bg-gray-50 hover:bg-[#fffcf7] transition-all flex flex-col items-center justify-center cursor-pointer gap-2"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-100/60 text-[#e27f2c] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-[14px] font-semibold text-[#1a1f36] group-hover:text-[#e27f2c] transition-colors">
-                    Find product image
-                  </p>
-                  <p className="text-[12px] text-[#697386]">
-                    {formName.trim()
-                      ? `Search photos for "${formName.trim()}"`
-                      : "Search packaging photos online"}
-                  </p>
-                </div>
+              <div className="w-12 h-12 rounded-full bg-white shadow-sm text-gray-400 group-hover:text-[#e27f2c] flex items-center justify-center shrink-0 group-hover:scale-105 transition-all">
+                <ImageIcon className="w-6 h-6" strokeWidth={2} />
               </div>
-
-              <span className="text-[13px] font-semibold text-[#e27f2c] px-3 py-1 rounded-lg bg-white border border-orange-200/60 shadow-2xs group-hover:bg-[#e27f2c] group-hover:text-white transition-all">
-                Search
-              </span>
+              <div className="text-center">
+                <p className="text-[15px] font-semibold text-[#1a1f36] group-hover:text-[#e27f2c] transition-colors">
+                  Find a product photo
+                </p>
+                <p className="text-[13px] text-[#697386] mt-0.5">
+                  {formName.trim()
+                    ? `Search the web for "${formName.trim()}"`
+                    : "Enter a name above first"}
+                </p>
+              </div>
             </button>
           )}
 
