@@ -3,23 +3,21 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Sparkles,
   Image as ImageIcon,
   Loader2,
   Check,
   X,
   RotateCw,
-  Link as LinkIcon,
   AlertCircle,
   Search,
 } from "lucide-react";
 
 /**
  * ProductImagePicker
- * Elegant two-state UI for safely searching and selecting food product packaging images.
+ * Clean two-state UI for safely searching and selecting food product packaging images.
  * 
- * State 1: Clean trigger button / placeholder or selected image preview.
- * State 2: Expanded grid displaying 3-4 fetched images to select from.
+ * State 1: Clean trigger card / preview.
+ * State 2: Expanded grid displaying fetched images to select from.
  */
 export function ProductImagePicker({
   formName = "",
@@ -31,8 +29,6 @@ export function ProductImagePicker({
   const [isLoading, setIsLoading] = useState(false);
   const [images, setImages] = useState([]);
   const [error, setError] = useState(null);
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customInputUrl, setCustomInputUrl] = useState("");
   const [failedUrls, setFailedUrls] = useState(new Set());
   const [lastSearchedQuery, setLastSearchedQuery] = useState("");
   const selectTimerRef = React.useRef(null);
@@ -84,7 +80,7 @@ export function ProductImagePicker({
         const fetchedList = Array.isArray(data.images) ? data.images : [];
 
         if (fetchedList.length === 0) {
-          setError(`No packaging images found for "${trimmedName}". You can paste a custom URL below.`);
+          setError(`No packaging images found for "${trimmedName}".`);
           setImages([]);
         } else {
           setImages(fetchedList);
@@ -92,7 +88,7 @@ export function ProductImagePicker({
         }
       } catch (err) {
         console.error("Error fetching images:", err);
-        setError("Unable to search images right now. Check your connection or paste a URL.");
+        setError("Unable to search images right now. Please check your connection.");
       } finally {
         setIsLoading(false);
       }
@@ -137,35 +133,6 @@ export function ProductImagePicker({
 
   const handleImageError = (badUrl) => {
     setFailedUrls((prev) => new Set([...prev, badUrl]));
-  };
-
-  const handleCustomUrlSubmit = (e) => {
-    e?.preventDefault();
-    let url = customInputUrl.trim();
-    if (!url) return;
-    if (url.startsWith("//")) {
-      url = "https:" + url;
-    }
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      setError("Please enter a valid URL starting with http:// or https://");
-      return;
-    }
-
-    const lower = url.toLowerCase().split(/[?#]/)[0];
-    const invalidExts = [
-      ".pdf", ".svg", ".html", ".htm", ".xml",
-      ".tif", ".tiff", ".djvu", ".webm", ".mp4",
-      ".ogv", ".ogg", ".zip", ".exe", ".doc", ".docx", ".tar", ".gz"
-    ];
-    if (invalidExts.some((ext) => lower.endsWith(ext))) {
-      setError("Please provide a direct image URL (.jpg, .png, .webp). Documents or media files are not supported.");
-      return;
-    }
-
-    onSelectPhoto(url);
-    setCustomInputUrl("");
-    setShowCustomInput(false);
-    setIsExpanded(false);
   };
 
   // Filter out any broken image URLs dynamically
@@ -274,10 +241,8 @@ export function ProductImagePicker({
                   <p className="text-[15px] font-semibold text-[#1a1f36] group-hover:text-[#e27f2c] transition-colors">
                     Find product photo
                   </p>
-                  <p className="text-[12.5px] text-[#697386] truncate mt-0.5">
-                    {formName.trim()
-                      ? `Search photos for "${formName.trim()}"`
-                      : "Search packaging photos online"}
+                  <p className="text-[12.5px] text-[#697386] mt-0.5">
+                    Search packaging photos online
                   </p>
                 </div>
               </div>
@@ -317,17 +282,9 @@ export function ProductImagePicker({
             <div className="p-4 bg-gray-50/80 border border-gray-200 rounded-2xl space-y-3.5">
               {/* Header */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-[#e27f2c]" />
-                  <span className="text-[14px] font-bold text-[#1a1f36]">
-                    Choose packaging image
-                  </span>
-                  {visibleImages.length > 0 && !isLoading && (
-                    <span className="text-[11px] font-semibold text-[#697386] bg-white px-2 py-0.5 rounded-full border border-gray-200">
-                      {visibleImages.length} options
-                    </span>
-                  )}
-                </div>
+                <span className="text-[14px] font-semibold text-[#1a1f36]">
+                  Choose packaging photo
+                </span>
 
                 <div className="flex items-center gap-1">
                   {formName.trim().length >= 2 && (
@@ -482,19 +439,9 @@ export function ProductImagePicker({
                 </div>
               )}
 
-              {/* Footer / Custom URL Toggle & Actions */}
-              <div className="pt-1 flex items-center justify-between text-[12px] text-[#697386] border-t border-gray-200/60">
-                <button
-                  type="button"
-                  onClick={() => setShowCustomInput(!showCustomInput)}
-                  aria-expanded={showCustomInput}
-                  aria-label={showCustomInput ? "Hide custom URL input" : "Paste custom image URL"}
-                  className="inline-flex items-center gap-1 font-semibold text-[#e27f2c] hover:underline cursor-pointer"
-                >
-                  <LinkIcon className="w-3 h-3" />
-                  {showCustomInput ? "Hide custom URL" : "Paste custom image URL"}
-                </button>
-
+              {/* Footer */}
+              <div className="pt-2 flex items-center justify-between text-[12px] text-[#697386] border-t border-gray-200/60">
+                <span>Tap a photo to select</span>
                 <div className="flex items-center gap-3">
                   {photoUrl && (
                     <button
@@ -511,35 +458,12 @@ export function ProductImagePicker({
                   <button
                     type="button"
                     onClick={() => setIsExpanded(false)}
-                    className="font-medium text-gray-500 hover:text-gray-800 cursor-pointer"
+                    className="font-semibold text-gray-700 hover:text-gray-900 cursor-pointer px-2.5 py-1 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     Done
                   </button>
                 </div>
               </div>
-
-              {/* Optional Custom URL Input Form */}
-              {showCustomInput && (
-                <form onSubmit={handleCustomUrlSubmit} className="pt-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={customInputUrl}
-                      onChange={(e) => setCustomInputUrl(e.target.value)}
-                      placeholder="https://example.com/image.jpg"
-                      aria-label="Direct image URL"
-                      className="flex-1 h-[38px] px-3 rounded-xl border border-gray-300 bg-white text-[13px] outline-none focus:border-[#e27f2c] focus:ring-2 focus:ring-[#e27f2c]/10"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!customInputUrl.trim()}
-                      className="px-3.5 h-[38px] rounded-xl bg-[#e27f2c] text-white text-[13px] font-semibold disabled:opacity-50 active:scale-95 transition-all shadow-2xs cursor-pointer"
-                    >
-                      Use
-                    </button>
-                  </div>
-                </form>
-              )}
             </div>
           </motion.div>
         )}
@@ -553,17 +477,17 @@ export function ProductImagePicker({
  */
 export function ProductImagePickerSkeleton() {
   return (
-    <div className="w-full p-3.5 rounded-2xl border-2 border-dashed border-gray-200 bg-[#fafbfc] flex items-center justify-between animate-pulse">
+    <div className="w-full p-3.5 rounded-2xl border border-gray-200 bg-white flex items-center justify-between animate-pulse">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-orange-100/60 flex items-center justify-center shrink-0">
-          <Sparkles className="w-5 h-5 text-orange-300" />
+        <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+          <ImageIcon className="w-6 h-6 text-gray-300" />
         </div>
         <div className="space-y-1.5">
           <div className="w-28 h-4 bg-gray-200 rounded" />
           <div className="w-44 h-3 bg-gray-100 rounded" />
         </div>
       </div>
-      <div className="w-16 h-7 bg-orange-100/50 rounded-lg" />
+      <div className="w-16 h-7 bg-gray-100 rounded-lg" />
     </div>
   );
 }

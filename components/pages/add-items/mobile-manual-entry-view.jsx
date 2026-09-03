@@ -493,7 +493,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 </div>
               </CleanField>
 
-              <CleanField label="Product photo" optional hint="Choose a packaging photo for easy visual identification">
+              <CleanField label="Product photo" optional>
                 <Suspense fallback={<ProductImagePickerSkeleton />}>
                   <ProductImagePicker
                     formName={formName}
