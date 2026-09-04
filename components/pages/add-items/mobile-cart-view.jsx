@@ -286,14 +286,14 @@ export function MobileCartView({
                 onClick={() => onBack && onBack('SEARCH')}
                 className="flex-1 h-[42px] rounded-xl bg-white border border-[#e8caa3] text-[#1a1f36] text-[13.5px] font-medium active:bg-[#fffcf7] transition-all flex items-center justify-center gap-2 shadow-[0_1.5px_3px_rgba(226,127,44,0.06)]"
               >
-                <Search className="w-4 h-4 text-[#e27f2c]" strokeWidth={2.2} />
+                <Search className="w-4 h-4 text-[#1a1f36]" strokeWidth={2} />
                 Restock
               </button>
               <button
                 onClick={() => onBack && onBack('MANUAL_ENTRY')}
                 className="flex-1 h-[42px] rounded-xl bg-white border border-[#e8caa3] text-[#1a1f36] text-[13.5px] font-medium active:bg-[#fffcf7] transition-all flex items-center justify-center gap-2 shadow-[0_1.5px_3px_rgba(226,127,44,0.06)]"
               >
-                <Plus className="w-4 h-4 text-[#e27f2c]" strokeWidth={2.2} />
+                <Plus className="w-4 h-4 text-[#1a1f36]" strokeWidth={2} />
                 Manual Entry
               </button>
             </div>
