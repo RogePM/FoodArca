@@ -284,16 +284,16 @@ export function MobileCartView({
             <div className="w-full mb-6 px-5 py-3 flex gap-2.5 bg-[#fcf3e8] border-y border-[#f3d9ba]">
               <button
                 onClick={() => onBack && onBack('SEARCH')}
-                className="flex-1 h-[42px] rounded-full bg-white border border-[#e27f2c]/50 text-[#c76214] text-[13.5px] font-semibold active:bg-[#fff9f4] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xs"
+                className="flex-1 h-[42px] rounded-xl bg-white border border-[#e8caa3] text-[#1a1f36] text-[13.5px] font-medium active:bg-[#fffcf7] transition-all flex items-center justify-center gap-2 shadow-[0_1.5px_3px_rgba(226,127,44,0.06)]"
               >
-                <Search className="w-4 h-4 text-[#e27f2c]" strokeWidth={2.2} />
+                <Search className="w-4 h-4 text-[#1a1f36]" strokeWidth={2} />
                 Restock
               </button>
               <button
                 onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                className="flex-1 h-[42px] rounded-full bg-white border border-[#e27f2c]/50 text-[#c76214] text-[13.5px] font-semibold active:bg-[#fff9f4] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xs"
+                className="flex-1 h-[42px] rounded-xl bg-white border border-[#e8caa3] text-[#1a1f36] text-[13.5px] font-medium active:bg-[#fffcf7] transition-all flex items-center justify-center gap-2 shadow-[0_1.5px_3px_rgba(226,127,44,0.06)]"
               >
-                <Plus className="w-4 h-4 text-[#e27f2c]" strokeWidth={2.2} />
+                <Plus className="w-4 h-4 text-[#1a1f36]" strokeWidth={2} />
                 Manual Entry
               </button>
             </div>
@@ -438,9 +438,11 @@ export function MobileCartView({
             {/* FLOATING ACTION BUTTON FOR SCANNING */}
             <button
               onClick={() => onBack && onBack('CAMERA')}
-              className="fixed bottom-[calc(96px+env(safe-area-inset-bottom))] right-5 z-[90] w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_8px_16px_rgba(226,127,44,0.3)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-all"
+              className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-[90] h-[46px] px-4 bg-[#e27f2c] rounded-full border-2 border-white shadow-[0_4px_14px_rgba(0,0,0,0.18)] flex items-center justify-center gap-2 text-white hover:bg-[#cf6f20] active:scale-95 transition-all"
+              aria-label="Scan barcode"
             >
-              <Scan className="w-6 h-6" strokeWidth={2.5} />
+              <Scan className="w-5 h-5" strokeWidth={2.2} />
+              <span className="text-[13.5px] font-semibold tracking-tight">Scan</span>
             </button>
 
             <div className="flex justify-center pt-2 pb-6">
