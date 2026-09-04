@@ -636,6 +636,40 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                   </div>
                 </CleanField>
               )}
+
+              <CleanField label="Items per pack" optional hint="How many come in one case or bag?">
+                <div className="relative">
+                  <select
+                    value={packSizeMode}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPackSizeMode(val);
+                      if (val === "none") setPackSize("");
+                      else if (val !== "custom") setPackSize(val);
+                    }}
+                    className={`${inputClass} appearance-none pr-12`}
+                  >
+                    {PACK_SIZE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
+                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
+                  </div>
+                </div>
+                {packSizeMode === "custom" && (
+                  <input
+                    type="number"
+                    value={packSize}
+                    onKeyDown={handleKeyDown}
+                    onChange={(e) => setPackSize(e.target.value)}
+                    placeholder="e.g. 15"
+                    className={`${inputClass} mt-3`}
+                  />
+                )}
+              </CleanField>
             </div>
           </motion.div>
         )}
@@ -685,59 +719,6 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 </div>
               </CleanField>
 
-              <CleanField label="Source type">
-                <div className="relative">
-                  <select
-                    value={formSource}
-                    onChange={(e) => setFormSource(e.target.value)}
-                    className={`${inputClass} appearance-none pr-12`}
-                  >
-                    {SOURCE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
-                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
-                  </div>
-                </div>
-              </CleanField>
-
-              <CleanField label="Items per pack" optional hint="How many come in one case or bag?">
-                <div className="relative">
-                  <select
-                    value={packSizeMode}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setPackSizeMode(val);
-                      if (val === "none") setPackSize("");
-                      else if (val !== "custom") setPackSize(val);
-                    }}
-                    className={`${inputClass} appearance-none pr-12`}
-                  >
-                    {PACK_SIZE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
-                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
-                  </div>
-                </div>
-                {packSizeMode === "custom" && (
-                  <input
-                    type="number"
-                    value={packSize}
-                    onKeyDown={handleKeyDown}
-                    onChange={(e) => setPackSize(e.target.value)}
-                    placeholder="e.g. 15"
-                    className={`${inputClass} mt-3`}
-                  />
-                )}
-              </CleanField>
-
               <CleanField label="Storage location" optional>
                 <input
                   type="text"
@@ -749,16 +730,37 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 />
               </CleanField>
 
-              <CleanField label="Donor name" optional>
-                <input
-                  type="text"
-                  value={donorName}
-                  onKeyDown={handleKeyDown}
-                  onChange={(e) => setDonorName(e.target.value)}
-                  placeholder="e.g. Target"
-                  className={inputClass}
-                />
-              </CleanField>
+              <div className="grid grid-cols-2 gap-3">
+                <CleanField label="Source type">
+                  <div className="relative">
+                    <select
+                      value={formSource}
+                      onChange={(e) => setFormSource(e.target.value)}
+                      className={`${inputClass} appearance-none pr-10`}
+                    >
+                      {SOURCE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-1">
+                      <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
+                    </div>
+                  </div>
+                </CleanField>
+
+                <CleanField label="Donor name" optional>
+                  <input
+                    type="text"
+                    value={donorName}
+                    onKeyDown={handleKeyDown}
+                    onChange={(e) => setDonorName(e.target.value)}
+                    placeholder="e.g. Target"
+                    className={inputClass}
+                  />
+                </CleanField>
+              </div>
             </div>
           </motion.div>
         )}
