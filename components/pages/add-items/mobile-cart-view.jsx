@@ -281,6 +281,23 @@ export function MobileCartView({
               </div>
             </div>
 
+            <div className="px-5 mb-4 flex gap-2">
+              <button
+                onClick={() => onBack && onBack('SEARCH')}
+                className="flex-1 h-[40px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Search className="w-4 h-4 text-gray-500" strokeWidth={2} />
+                Restock
+              </button>
+              <button
+                onClick={() => onBack && onBack('MANUAL_ENTRY')}
+                className="flex-1 h-[40px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4 text-gray-500" strokeWidth={2} />
+                Manual Entry
+              </button>
+            </div>
+
             <div className="mx-5 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
               <div className="mx-4 py-3 border-b border-gray-300 flex items-center bg-white">
                 <span className="text-[17px] text-[#1a1f36] font-medium tracking-tight">Added items</span>
@@ -418,32 +435,13 @@ export function MobileCartView({
               </div>
             </div>
 
-            {/* Bottom Actions */}
-            <div className="px-5 pb-6 flex flex-col gap-3">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onBack && onBack('CAMERA')}
-                  className="flex-1 h-[44px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Scan className="w-4 h-4 text-gray-500" strokeWidth={2} />
-                  Scan More
-                </button>
-                <button
-                  onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                  className="flex-1 h-[44px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <ScanBarcode className="w-4 h-4 text-gray-500" strokeWidth={2} />
-                  Manual Entry
-                </button>
-              </div>
-              <button
-                onClick={() => onBack && onBack('SEARCH')}
-                className="w-full h-[44px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-              >
-                <Search className="w-4 h-4 text-gray-500" strokeWidth={2} />
-                Restock from Inventory
-              </button>
-            </div>
+            {/* FLOATING ACTION BUTTON FOR SCANNING */}
+            <button
+              onClick={() => onBack && onBack('CAMERA')}
+              className="fixed bottom-[calc(96px+env(safe-area-inset-bottom))] right-5 z-[90] w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_8px_16px_rgba(226,127,44,0.3)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-all"
+            >
+              <Scan className="w-6 h-6" strokeWidth={2.5} />
+            </button>
 
             <div className="flex justify-center pt-2 pb-6">
               <button
