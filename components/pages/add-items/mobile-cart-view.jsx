@@ -323,37 +323,38 @@ export function MobileCartView({
                             )}
 
                             <div className="flex-1 min-w-0 py-1">
-                              <div className="flex items-start justify-between gap-3 mb-1.5 relative">
+                              {/* Title and Quantity Row */}
+                              <div className="flex items-start justify-between gap-3 mb-0.5">
                                 <h4 className="font-normal text-gray-900 text-[15.5px] leading-snug">
                                   {item.name}
                                 </h4>
-                                <div className="shrink-0 text-right mt-0.5 relative">
+                                <div className="shrink-0 text-right mt-0.5">
                                   <span className="text-[15.5px] font-semibold text-[#1a1f36] whitespace-nowrap block">
                                     {item.quantity} {item.unit || (Number(item.quantity) === 1 ? 'unit' : 'units')}
                                   </span>
-                                  {item.packSize && (
-                                    <span className="text-[12.5px] text-[#697386] font-normal leading-none absolute right-0 top-full mt-0.5 whitespace-nowrap">
-                                      {item.packSize}/pk
-                                    </span>
-                                  )}
                                 </div>
                               </div>
 
-                              {/* Metadata */}
-                              <div className="flex flex-col gap-1 text-[13px] text-gray-500 font-normal">
-                                <div className="flex items-center gap-1.5">
+                              {/* Category, Exp, and Pack Size Row */}
+                              <div className="flex items-start justify-between gap-3">
+                                {/* Left: Metadata */}
+                                <div className="flex flex-col gap-0.5 text-[13px] text-gray-500 font-normal">
                                   <span className="text-gray-600">
                                     {item.categoryName || catVisual.name}
                                   </span>
+                                  {expLabel ? (
+                                    <span className="text-gray-500 font-medium mt-0.5">Exp {expLabel}</span>
+                                  ) : (
+                                    <span className="text-gray-400 mt-0.5">No expiration date</span>
+                                  )}
                                 </div>
-
-                                {expLabel ? (
-                                  <div className="text-gray-500 font-medium">
-                                    Exp {expLabel}
-                                  </div>
-                                ) : (
-                                  <div className="text-gray-400">
-                                    No expiration date
+                                
+                                {/* Right: Pack Size */}
+                                {item.packSize && (
+                                  <div className="shrink-0 text-right">
+                                    <span className="text-[13px] text-[#697386] font-normal leading-none whitespace-nowrap">
+                                      {item.packSize}/pk
+                                    </span>
                                   </div>
                                 )}
                               </div>
