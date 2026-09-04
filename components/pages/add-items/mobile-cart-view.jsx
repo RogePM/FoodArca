@@ -254,7 +254,7 @@ export function MobileCartView({
           /* FILLED CART ITEMS LIST */
           <div className="flex flex-col">
             {/* ── RECEIPT-STYLE HEADER ── */}
-            <div className="bg-[#f8f9fa] border-b-2 border-dashed border-gray-200 shrink-0 mb-3.5">
+            <div className="bg-[#f8f9fa] border-b-2 border-dashed border-gray-200 shrink-0">
               <div className="px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-[13px] text-gray-500 font-medium mb-1">Total Quantity</span>
@@ -281,7 +281,7 @@ export function MobileCartView({
               </div>
             </div>
 
-            <div className="w-full mb-6 px-5 py-3 flex gap-2 bg-orange-50/70 border-y border-orange-100">
+            <div className="w-full mb-6 px-5 py-3 flex gap-2 bg-orange-50/70 border-b border-orange-100">
               <button
                 onClick={() => onBack && onBack('SEARCH')}
                 className="flex-1 h-[40px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
