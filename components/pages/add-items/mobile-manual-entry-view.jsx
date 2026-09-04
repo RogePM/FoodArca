@@ -301,7 +301,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   };
 
   const inputClass =
-    "w-full h-[46px] px-3.5 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-[#1a1f36] outline-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
+    "w-full h-[46px] px-3.5 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
 
   return (
     <motion.div

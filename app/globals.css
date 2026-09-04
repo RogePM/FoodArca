@@ -45,6 +45,13 @@ body {
   color: hsl(var(--foreground));
 }
 
+/* Prevent iOS Safari from auto-zooming into inputs on focus */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* --- CTA 3-Image Layout (Headspace Style) --- */
 .photo-brick {
   @apply absolute rounded-2xl overflow-hidden shadow-2xl;
