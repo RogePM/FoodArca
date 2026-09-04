@@ -281,19 +281,19 @@ export function MobileCartView({
               </div>
             </div>
 
-            <div className="px-5 mb-4 flex gap-2">
+            <div className="mx-5 mb-4 p-2.5 flex gap-2 bg-orange-50/70 rounded-2xl border border-orange-100/50">
               <button
                 onClick={() => onBack && onBack('SEARCH')}
-                className="flex-1 h-[40px] rounded-xl bg-orange-50 border border-orange-100 text-[#d97757] text-[13.5px] font-medium active:bg-orange-100 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                className="flex-1 h-[40px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
               >
-                <Search className="w-4 h-4 text-[#e27f2c]" strokeWidth={2} />
+                <Search className="w-4 h-4 text-gray-500" strokeWidth={2} />
                 Restock
               </button>
               <button
                 onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                className="flex-1 h-[40px] rounded-xl bg-orange-50 border border-orange-100 text-[#d97757] text-[13.5px] font-medium active:bg-orange-100 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                className="flex-1 h-[40px] rounded-xl bg-white border border-gray-200 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
               >
-                <Plus className="w-4 h-4 text-[#e27f2c]" strokeWidth={2} />
+                <Plus className="w-4 h-4 text-gray-500" strokeWidth={2} />
                 Manual Entry
               </button>
             </div>
