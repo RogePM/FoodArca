@@ -36,7 +36,7 @@ async function authenticateAndVerify(req) {
 
   // 4. Clone and Parse Body
   const body = await req.clone().json();
-  const { pantryId } = body;
+  const pantryId = req.headers.get('x-pantry-id');
   
   if (!pantryId) return { valid: false, status: 400, message: 'Pantry ID required' };
 
@@ -64,7 +64,8 @@ export async function POST(req) {
     const auth = await authenticateAndVerify(req);
     if (!auth.valid) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-    const { email, pantryId, role, pantryName, joinCode } = await req.json();
+    const pantryId = req.headers.get('x-pantry-id');
+    const { email, role, pantryName, joinCode } = await req.json();
     
     // Default to localhost if site url is missing (good for dev)
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';

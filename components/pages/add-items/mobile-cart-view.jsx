@@ -72,6 +72,7 @@ export function MobileCartView({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-pantry-id': pantryDetails?.id || '',
         },
         body: JSON.stringify({ items: cartItems }),
       });

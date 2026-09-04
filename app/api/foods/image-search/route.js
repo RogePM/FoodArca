@@ -316,6 +316,7 @@ async function fetchWikimediaImages(productName, category = '') {
 
 export async function GET(request) {
   try {
+    const pantryId = request.headers.get('x-pantry-id');
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q') || searchParams.get('query') || searchParams.get('name') || '';
     const category = searchParams.get('category') || '';

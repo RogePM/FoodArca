@@ -31,8 +31,10 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const pantryId = req.headers.get('x-pantry-id');
     const body = await req.json();
-    const { tier, organizationId } = body;
+    const { tier, organizationId: bodyOrgId } = body;
+    const organizationId = pantryId || bodyOrgId;
 
     if (!organizationId) {
       return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 });
