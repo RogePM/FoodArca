@@ -374,7 +374,8 @@ export async function POST(req) {
             reason: null,
             quantity_changed: quantityToAdd,
             total_weight_lbs_changed: formatQty(quantityToAdd * Number(cItem.weight_per_unit_lbs || 1)),
-            item_snapshot: cItem
+            catalog_item_id: cItem.id,
+            snapshot_item_name: cItem.name
           });
       }
     }

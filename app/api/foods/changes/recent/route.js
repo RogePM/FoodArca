@@ -80,7 +80,7 @@ export async function GET(req) {
     // Query activity_logs filtered by organization_id, ordered by created_at DESC
     const { data: logs, error } = await auth.supabase
       .from('activity_logs')
-      .select('*')
+      .select('*, catalog_item:catalog_items(categories(name))')
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -90,26 +90,16 @@ export async function GET(req) {
       return NextResponse.json({ message: 'Database Error' }, { status: 500 });
     }
 
-    // Query categories to resolve category_id from snapshots
-    const { data: categories } = await auth.supabase
-      .from('categories')
-      .select('id, name');
-
-    const categoryMap = new Map();
-    (categories || []).forEach(c => categoryMap.set(c.id, c.name));
-
     // Format logs for both legacy and modern UI compatibility
     const changes = (logs || []).map(log => {
-      const item = log.item_snapshot || {};
-      
       // Map action_type to legacy action strings expected by recent-changes-view.jsx
       let action = log.action_type;
       if (action === 'scan_in') action = 'added';
       else if (action === 'scan_out') action = 'distributed';
       else if (action === 'waste_disposal') action = 'deleted';
-      else if (action === 'audit_update') action = 'updated'; // ✅ CRITICAL FIX: Was 'adjustment'!
+      else if (action === 'audit_update') action = 'updated';
 
-      const resolvedCategory = item.category?.name || (typeof item.category === 'string' ? item.category : null) || categoryMap.get(item.category_id) || 'General';
+      const resolvedCategory = log.catalog_item?.categories?.name || 'General';
 
       return {
         _id: log.id,
@@ -118,12 +108,12 @@ export async function GET(req) {
         actionType: action,
         rawActionType: log.action_type,
         timestamp: log.created_at,
-        itemId: item.id || log.id,
-        itemName: item.name || 'Unknown Item',
+        itemId: log.catalog_item_id || log.id,
+        itemName: log.snapshot_item_name || 'Unknown Item',
         category: resolvedCategory,
         quantityChanged: log.quantity_changed,
         weightChanged: log.total_weight_lbs_changed,
-        clientName: item.clientName || log.reason || null,
+        clientName: log.reason || null,
         reason: log.reason || null,
         metadata: {
           reason: log.reason,

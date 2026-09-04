@@ -78,7 +78,7 @@ export async function GET(req) {
     // Query activity_logs for scan_out actions
     const { data: logs, error } = await auth.supabase
       .from('activity_logs')
-      .select('*')
+      .select('*, catalog_item:catalog_items(unit_of_measure)')
       .eq('location_id', locationId)
       .eq('action_type', 'scan_out')
       .order('created_at', { ascending: false })
@@ -90,17 +90,16 @@ export async function GET(req) {
     }
 
     const distributions = (logs || []).map(log => {
-      const item = log.item_snapshot || {};
       return {
         _id: log.id,
         id: log.id,
         clientName: 'Client Distribution',
         clientId: 'SYS',
-        itemId: item.id || log.id,
-        itemName: item.name || 'Unknown Item',
+        itemId: log.catalog_item_id || log.id,
+        itemName: log.snapshot_item_name || 'Unknown Item',
         category: 'General',
         quantityDistributed: formatQty(log.quantity_changed || 0),
-        unit: item.unit_of_measure || 'units',
+        unit: log.catalog_item?.unit_of_measure || 'units',
         reason: log.reason || 'distribution-regular',
         distributionDate: log.created_at
       };

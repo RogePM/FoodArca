@@ -222,7 +222,8 @@ export async function PUT(req, { params }) {
         reason: null,
         quantity_changed: Math.abs(diff),
         total_weight_lbs_changed: formatQty(Math.abs(diff) * Number(batch.catalog_item?.weight_per_unit_lbs || 1)),
-        item_snapshot: { ...batch.catalog_item, name: data.name || batch.catalog_item?.name }
+        catalog_item_id: batch.catalog_item?.id,
+        snapshot_item_name: data.name || batch.catalog_item?.name
       });
       if (logErr) console.error("Activity log insert error:", logErr);
     }

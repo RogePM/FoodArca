@@ -381,7 +381,7 @@ export async function POST(req) {
 
     if (batchErr) throw batchErr;
 
-    // 4. Insert Activity Log (with full item_snapshot required by NOT NULL constraint)
+    // 4. Insert Activity Log
     const weightChanged = formatQty(quantityToAdd * Number(catalogItem.weight_per_unit_lbs || 1));
     const { error: logErr } = await auth.supabase
       .from('activity_logs')
@@ -393,7 +393,8 @@ export async function POST(req) {
         reason: null,
         quantity_changed: quantityToAdd,
         total_weight_lbs_changed: weightChanged,
-        item_snapshot: catalogItem
+        catalog_item_id: catalogItem.id,
+        snapshot_item_name: catalogItem.name
       });
     if (logErr) console.error("Activity log insert error:", logErr);
 
