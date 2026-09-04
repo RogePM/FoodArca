@@ -111,8 +111,15 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
       setFormCategory(initialItem.category || "");
       setFormPhotoUrl(initialItem.photoUrl || initialItem.photo_url || null);
       if (initialItem.intakeMode) setIntakeMode(initialItem.intakeMode);
-      if (initialItem.quantity) setFormQty(String(initialItem.quantity));
-      if (initialItem.unit) setFormUnit(initialItem.unit);
+      
+      if (initialItem.intakeMode === "weight") {
+        if (initialItem.quantity) setFormWeight(String(initialItem.quantity));
+        if (initialItem.unit) setFormWeightUnit(initialItem.unit);
+      } else {
+        if (initialItem.quantity) setFormQty(String(initialItem.quantity));
+        if (initialItem.unit) setFormUnit(initialItem.unit);
+      }
+      
       if (initialItem.expirationDate) setExpirationDate(initialItem.expirationDate);
       if (initialItem.sourceType) setFormSource(initialItem.sourceType);
       if (initialItem.storageLocation) setFormStorageLocation(initialItem.storageLocation);
@@ -192,18 +199,26 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
 
   // Step 2: Quantify
   const [intakeMode, setIntakeMode] = useState(initialItem?.intakeMode || "count");
-  const [formQty, setFormQty] = useState(initialItem?.quantity || "1");
+  const [formQty, setFormQty] = useState(
+    initialItem?.intakeMode !== "weight" && initialItem?.quantity 
+      ? String(initialItem.quantity) 
+      : "1"
+  );
   const [formWeight, setFormWeight] = useState(
     initialItem?.intakeMode === "weight" && initialItem?.quantity
       ? String(initialItem.quantity)
-      : "",
+      : ""
   );
   const [formWeightUnit, setFormWeightUnit] = useState(
     initialItem?.intakeMode === "weight" && initialItem?.unit
       ? initialItem.unit
       : "lbs"
   );
-  const [formUnit, setFormUnit] = useState(initialItem?.unit || "units");
+  const [formUnit, setFormUnit] = useState(
+    initialItem?.intakeMode !== "weight" && initialItem?.unit
+      ? initialItem.unit
+      : "units"
+  );
   
   // Step 3: Details
   const [formStorageLocation, setFormStorageLocation] = useState(initialItem?.storageLocation || "");
