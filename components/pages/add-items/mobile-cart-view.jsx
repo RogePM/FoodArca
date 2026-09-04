@@ -281,7 +281,7 @@ export function MobileCartView({
               </div>
             </div>
 
-            <div className="w-full mb-6 px-5 py-3 flex gap-2 bg-[#f8f9fa] border-b border-gray-200">
+            <div className="w-full mb-6 px-5 py-3 flex gap-2 bg-[#fff0eb] border-b border-[#fce3d7]">
               <button
                 onClick={() => onBack && onBack('SEARCH')}
                 className="flex-1 h-[40px] rounded-xl bg-white border border-gray-300 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-all flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
