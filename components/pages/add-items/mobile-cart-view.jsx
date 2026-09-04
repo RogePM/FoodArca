@@ -323,14 +323,19 @@ export function MobileCartView({
                             )}
 
                             <div className="flex-1 min-w-0 py-1">
-                              <div className="flex items-start justify-between gap-3 mb-1.5">
+                              <div className="flex items-start justify-between gap-3 mb-1.5 relative">
                                 <h4 className="font-normal text-gray-900 text-[15.5px] leading-snug">
                                   {item.name}
                                 </h4>
-                                <div className="shrink-0 text-right mt-0.5">
-                                  <span className="text-[15.5px] font-semibold text-[#1a1f36] whitespace-nowrap">
+                                <div className="shrink-0 text-right mt-0.5 relative">
+                                  <span className="text-[15.5px] font-semibold text-[#1a1f36] whitespace-nowrap block">
                                     {item.quantity} {item.unit || (Number(item.quantity) === 1 ? 'unit' : 'units')}
                                   </span>
+                                  {item.packSize && (
+                                    <span className="text-[12.5px] text-[#697386] font-normal leading-none absolute right-0 top-full mt-0.5 whitespace-nowrap">
+                                      {item.packSize}/pk
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
@@ -340,12 +345,6 @@ export function MobileCartView({
                                   <span className="text-gray-600">
                                     {item.categoryName || catVisual.name}
                                   </span>
-                                  {item.packSize && (
-                                    <>
-                                      <span className="text-gray-300">•</span>
-                                      <span className="text-gray-500">{item.packSize}/pk</span>
-                                    </>
-                                  )}
                                 </div>
 
                                 {expLabel ? (
