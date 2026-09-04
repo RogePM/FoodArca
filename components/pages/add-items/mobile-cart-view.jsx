@@ -438,7 +438,7 @@ export function MobileCartView({
             {/* FLOATING ACTION BUTTON FOR SCANNING */}
             <button
               onClick={() => onBack && onBack('CAMERA')}
-              className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-5 z-[90] w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-all"
+              className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-3.5 z-[90] w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-all cursor-pointer"
               aria-label="Scan barcode"
             >
               <Scan className="w-6 h-6" strokeWidth={2.4} />
