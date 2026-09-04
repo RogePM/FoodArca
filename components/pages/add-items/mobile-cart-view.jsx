@@ -323,23 +323,29 @@ export function MobileCartView({
                             )}
 
                             <div className="flex-1 min-w-0 py-1">
-                              <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="flex items-start justify-between gap-3 mb-1.5">
                                 <h4 className="font-normal text-gray-900 text-[15.5px] leading-snug">
                                   {item.name}
                                 </h4>
                                 <div className="shrink-0 text-right mt-0.5">
-                                  <span className="text-[14.5px] font-semibold text-[#1a1f36] whitespace-nowrap bg-gray-100/70 px-2 py-0.5 rounded-md">
+                                  <span className="text-[15.5px] font-semibold text-[#1a1f36] whitespace-nowrap">
                                     {item.quantity} {item.unit || (Number(item.quantity) === 1 ? 'unit' : 'units')}
                                   </span>
                                 </div>
                               </div>
 
                               {/* Metadata */}
-                              <div className="flex flex-col gap-1.5 text-[13px] text-gray-500 font-normal">
-                                <div className="flex items-center gap-2">
+                              <div className="flex flex-col gap-1 text-[13px] text-gray-500 font-normal">
+                                <div className="flex items-center gap-1.5">
                                   <span className="text-gray-600">
                                     {item.categoryName || catVisual.name}
                                   </span>
+                                  {item.packSize && (
+                                    <>
+                                      <span className="text-gray-300">•</span>
+                                      <span className="text-gray-500">{item.packSize}/pk</span>
+                                    </>
+                                  )}
                                 </div>
 
                                 {expLabel ? (
