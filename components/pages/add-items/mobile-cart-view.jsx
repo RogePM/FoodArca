@@ -254,7 +254,7 @@ export function MobileCartView({
           /* FILLED CART ITEMS LIST */
           <div className="flex flex-col">
             {/* ── RECEIPT-STYLE HEADER ── */}
-            <div className="bg-white border-b-2 border-dashed border-gray-200 shrink-0">
+            <div className="bg-white shrink-0">
               <div className="px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-[13px] text-gray-500 font-medium mb-1">Total Quantity</span>
@@ -281,17 +281,17 @@ export function MobileCartView({
               </div>
             </div>
 
-            <div className="w-full mb-6 px-5 py-3 flex gap-2 bg-[#fff0eb] border-b border-[#fce3d7]">
+            <div className="w-full mb-6 px-5 py-2 flex gap-2 bg-white">
               <button
                 onClick={() => onBack && onBack('SEARCH')}
-                className="flex-1 h-[40px] rounded-xl bg-white border border-gray-300 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-all flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+                className="flex-1 h-[40px] rounded-xl bg-gray-50 border border-gray-300 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-100 transition-all flex items-center justify-center gap-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
               >
                 <Search className="w-4 h-4 text-gray-500" strokeWidth={2} />
                 Restock
               </button>
               <button
                 onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                className="flex-1 h-[40px] rounded-xl bg-white border border-gray-300 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-50 transition-all flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+                className="flex-1 h-[40px] rounded-xl bg-gray-50 border border-gray-300 text-[#1a1f36] text-[13.5px] font-medium active:bg-gray-100 transition-all flex items-center justify-center gap-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
               >
                 <Plus className="w-4 h-4 text-gray-500" strokeWidth={2} />
                 Manual Entry
