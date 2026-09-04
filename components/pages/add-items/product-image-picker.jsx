@@ -154,12 +154,12 @@ export function ProductImagePicker({
         >
           {photoUrl ? (
             /* Selected Photo Preview Card */
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-white border border-gray-200 shadow-sm hover:border-gray-300 transition-all">
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="relative w-14 h-14 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden shrink-0 flex items-center justify-center">
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200 shadow-sm hover:border-gray-300 transition-all">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative w-12 h-12 rounded-lg border border-gray-100 bg-gray-50 overflow-hidden shrink-0 flex items-center justify-center">
                   {failedUrls.has(photoUrl) ? (
                     <div className="w-full h-full flex flex-col items-center justify-center text-amber-500 bg-amber-50">
-                      <AlertCircle className="w-6 h-6" />
+                      <AlertCircle className="w-5 h-5" />
                     </div>
                   ) : (
                     <img
@@ -176,25 +176,25 @@ export function ProductImagePicker({
                   <div className="flex items-center gap-1.5">
                     {failedUrls.has(photoUrl) ? (
                       <>
-                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-700">
+                        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100 text-amber-700">
                           <AlertCircle className="w-2.5 h-2.5" strokeWidth={3} />
                         </span>
-                        <p className="text-[14px] font-semibold text-amber-900 truncate">
+                        <p className="text-[13.5px] font-semibold text-amber-900 truncate">
                           Image preview failed
                         </p>
                       </>
                     ) : (
                       <>
-                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-100 text-green-700">
+                        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-green-100 text-green-700">
                           <Check className="w-2.5 h-2.5" strokeWidth={3} />
                         </span>
-                        <p className="text-[14px] font-semibold text-[#1a1f36] truncate">
+                        <p className="text-[13.5px] font-semibold text-[#1a1f36] truncate">
                           Photo attached
                         </p>
                       </>
                     )}
                   </div>
-                  <p className="text-[12px] text-[#697386] truncate mt-0.5">
+                  <p className="text-[11.5px] text-[#697386] truncate mt-0.5">
                     {failedUrls.has(photoUrl)
                       ? "External link unreachable. Tap Change to pick another."
                       : "Packaging image selected"}
@@ -202,18 +202,18 @@ export function ProductImagePicker({
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+              <div className="flex items-center gap-1 shrink-0 ml-2">
                 <button
                   type="button"
                   onClick={handleOpenSearch}
-                  className="px-3 py-1.5 text-[13px] font-semibold text-[#e27f2c] hover:bg-orange-50 rounded-xl transition-colors active:scale-95 cursor-pointer"
+                  className="px-2.5 py-1 text-[12.5px] font-semibold text-[#e27f2c] hover:bg-orange-50 rounded-lg transition-colors active:scale-95 cursor-pointer"
                 >
                   Change
                 </button>
                 <button
                   type="button"
                   onClick={handleRemovePhoto}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors active:scale-95 cursor-pointer"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors active:scale-95 cursor-pointer"
                   title="Remove image"
                   aria-label="Remove attached photo"
                 >
@@ -230,14 +230,14 @@ export function ProductImagePicker({
               aria-expanded={isExpanded}
               aria-haspopup="true"
               aria-label="Find product packaging photo online"
-              className={`w-full group text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between shadow-sm ${
+              className={`w-full group text-left p-2.5 px-3 rounded-xl border transition-all flex items-center justify-between shadow-sm ${
                 isSearchDisabled
                   ? "border-gray-200 bg-gray-50/50 cursor-not-allowed"
                   : "border-gray-200 hover:border-[#e27f2c] bg-white hover:bg-[#fffcf7] cursor-pointer active:scale-[0.99]"
               }`}
             >
-              <div className="flex items-center gap-3.5 min-w-0 pr-2">
-                <div className="w-[58px] h-[58px] shrink-0 relative">
+              <div className="flex items-center gap-3 min-w-0 pr-2">
+                <div className="w-[46px] h-[46px] shrink-0 relative">
                   <img
                     src="/assets/images/product-photo-search.jpg"
                     alt="Find photo"
@@ -247,12 +247,12 @@ export function ProductImagePicker({
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className={`text-[15px] font-semibold transition-colors ${
+                  <p className={`text-[14px] font-semibold transition-colors ${
                     isSearchDisabled ? "text-gray-400" : "text-[#1a1f36] group-hover:text-[#e27f2c]"
                   }`}>
                     Find product photo
                   </p>
-                  <p className="text-[12.5px] text-[#697386] mt-0.5">
+                  <p className="text-[12px] text-[#697386] mt-0.5">
                     {!formName.trim()
                       ? "Enter an item name above first"
                       : !formCategory
@@ -262,7 +262,7 @@ export function ProductImagePicker({
                 </div>
               </div>
 
-              <span className={`h-[38px] px-4 rounded-full text-white text-[13px] font-bold shadow-sm flex items-center justify-center transition-all shrink-0 ${
+              <span className={`h-[34px] px-3.5 rounded-full text-white text-[12.5px] font-bold shadow-sm flex items-center justify-center transition-all shrink-0 ${
                 isSearchDisabled
                   ? "bg-[#e27f2c] opacity-40 cursor-not-allowed"
                   : "bg-[#e27f2c] group-hover:bg-[#cf6f20] active:scale-95"

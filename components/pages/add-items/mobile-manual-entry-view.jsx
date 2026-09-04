@@ -44,20 +44,20 @@ function getCategoryMeta(catName) {
 
 function CleanField({ label, required, optional, hint, children }) {
   return (
-    <div className="space-y-1.5 w-full">
-      <div className="flex items-center justify-between ml-1">
-        <label className="text-[14px] font-semibold text-gray-700">
+    <div className="space-y-1 w-full">
+      <div className="flex items-center justify-between ml-0.5">
+        <label className="text-[13px] font-semibold text-gray-700">
           {label} {required && <span className="text-[#e27f2c]">*</span>}
         </label>
         {optional && (
-          <span className="text-[12px] font-medium text-[#a3acb9] tracking-wide">
+          <span className="text-[11.5px] font-medium text-[#a3acb9] tracking-wide">
             Optional
           </span>
         )}
       </div>
       {children}
       {hint && (
-        <p className="text-[13px] text-gray-500 ml-1">{hint}</p>
+        <p className="text-[12px] text-gray-500 ml-0.5">{hint}</p>
       )}
     </div>
   );
@@ -127,29 +127,6 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
     }
   }, [initialItem]);
 
-  // Keyboard avoidance
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-    const handleResize = () => {
-      // Safely calculate the keyboard height using visualViewport
-      const viewportHeight = window.visualViewport.height;
-      const windowHeight = window.innerHeight;
-      const diff = windowHeight - viewportHeight;
-      // Only lift if diff is significant (e.g. > 100px)
-      setKeyboardHeight(diff > 100 ? diff : 0);
-    };
-
-    window.visualViewport.addEventListener("resize", handleResize);
-    window.visualViewport.addEventListener("scroll", handleResize);
-    handleResize();
-
-    return () => {
-      window.visualViewport.removeEventListener("resize", handleResize);
-      window.visualViewport.removeEventListener("scroll", handleResize);
-    };
-  }, []);
 
   // Autocomplete state
   const [suggestions, setSuggestions] = useState([]);
@@ -324,7 +301,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   };
 
   const inputClass =
-    "w-full h-[52px] px-4 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
+    "w-full h-[46px] px-3.5 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-[#1a1f36] outline-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
 
   return (
     <motion.div
@@ -335,15 +312,15 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
       className="fixed inset-0 z-[9999] w-full h-[100dvh] bg-white flex flex-col overflow-hidden"
     >
       <div className="pt-safe flex flex-col shrink-0 bg-white relative z-10">
-        <div className="p-4 pb-2 flex items-center justify-between">
+        <div className="px-5 py-2.5 flex items-center justify-between">
           <button
             onClick={handleBack}
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 border border-gray-200 hover:bg-gray-200 active:bg-gray-300 text-[#1a1f36] transition-colors shadow-sm"
+            className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 border border-gray-200 hover:bg-gray-200 active:bg-gray-300 text-[#1a1f36] transition-colors shadow-sm"
           >
             {currentStep === 1 ? (
-              <X className="w-5 h-5" strokeWidth={2.5} />
+              <X className="w-4 h-4" strokeWidth={2.5} />
             ) : (
-              <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+              <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
             )}
           </button>
           {isEditing && onDelete && (
@@ -353,14 +330,14 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                   onDelete(initialItem);
                 }
               }}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:bg-red-200 transition-colors shadow-sm"
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:bg-red-200 transition-colors shadow-sm"
             >
-              <Trash2 className="w-5 h-5" strokeWidth={2.5} />
+              <Trash2 className="w-4 h-4" strokeWidth={2.5} />
             </button>
           )}
         </div>
         
-        <div className="h-1 w-full bg-gray-100 mt-2">
+        <div className="h-1 w-full bg-gray-100">
           <motion.div 
             className="h-full bg-[#e27f2c]"
             initial={{ width: "33%" }}
@@ -370,45 +347,45 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-[140px]">
+      <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 pb-24">
         {currentStep === 1 && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="space-y-8"
+            className="space-y-4"
           >
-            <div className="mt-2">
-              <h1 className="text-[28px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
+            <div className="mt-0.5">
+              <h1 className="text-[22px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
                 {isEditing ? "Edit item" : "What are you adding?"}
               </h1>
-              <p className="text-[15px] text-[#697386] mt-1">
+              <p className="text-[13.5px] text-[#697386] mt-0.5">
                 {isEditing ? "Update the product details below." : "Enter the product name and category."}
               </p>
               
               {displayBarcode && !initialItem?.isInternal && (
-                <div className="inline-flex items-center gap-2 mt-3 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  <span className="text-[12px] font-bold text-gray-600 uppercase tracking-widest">{displayBarcode}</span>
+                <div className="inline-flex items-center gap-1.5 mt-2 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                  <span className="text-[11px] font-bold text-gray-600 uppercase tracking-widest">{displayBarcode}</span>
                 </div>
               )}
             </div>
 
             {!isEditing && displayBarcode && !initialItem?.isInternal && (
-              <div className="bg-orange-50 border-l-4 border-[#e27f2c] p-4 flex gap-3 items-start">
-                <AlertCircle className="w-5 h-5 text-[#e27f2c] shrink-0 mt-0.5" />
+              <div className="bg-orange-50 border-l-4 border-[#e27f2c] p-3 rounded-r-xl flex gap-2.5 items-start">
+                <AlertCircle className="w-4 h-4 text-[#e27f2c] shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-[#c06245] font-bold text-[15px]">
+                  <p className="text-[#c06245] font-bold text-[13.5px]">
                     Barcode not found
                   </p>
-                  <p className="text-[#c06245]/80 text-[14px] mt-1 leading-snug font-medium">
+                  <p className="text-[#c06245]/85 text-[12.5px] mt-0.5 leading-snug font-medium">
                     This item isn't in our database yet. Fill in the details below and it will be saved for future scans!
                   </p>
                 </div>
               </div>
             )}
 
-            <div className="space-y-6">
+            <div className="space-y-3.5">
               <CleanField label="Item name" required>
                 <div className="relative">
                   <input
@@ -781,32 +758,24 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
         )}
       </div>
 
-      <div 
-        className="absolute left-0 right-0 z-50 pointer-events-none transition-all duration-300 ease-out"
-        style={{ bottom: keyboardHeight }}
-      >
-        <div className="h-10 bg-gradient-to-t from-white to-transparent pointer-events-none" />
-        <div 
-          className="bg-white px-6 pt-2 pointer-events-auto transition-all"
-          style={{ paddingBottom: keyboardHeight > 0 ? '16px' : 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+      {/* ── STILL BOTTOM ACTION BAR ── */}
+      <div className="shrink-0 bg-white border-t border-gray-100 px-5 pt-3 pb-[calc(14px+env(safe-area-inset-bottom))] z-40">
+        <button
+          onClick={handleNextStep}
+          disabled={isNextDisabled()}
+          className="w-full h-[48px] rounded-xl bg-[#e27f2c] hover:bg-[#cf6f20] text-white font-bold text-[15.5px] shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
         >
-          <button
-            onClick={handleNextStep}
-            disabled={isNextDisabled()}
-            className="w-full h-[52px] rounded-2xl bg-[#e27f2c] hover:bg-[#cf6f20] text-white font-bold text-[16px] shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
-          >
-            {currentStep < 3 ? (
-              <>
-                Continue <ArrowRight className="w-5 h-5" strokeWidth={3} />
-              </>
-            ) : (
-               <>
-                {isEditing ? <Save className="w-5 h-5" strokeWidth={3} /> : <Plus className="w-6 h-6" strokeWidth={3} />}
-                {isEditing ? "Save changes" : "Add item"}
-              </>
-            )}
-          </button>
-        </div>
+          {currentStep < 3 ? (
+            <>
+              Continue <ArrowRight className="w-5 h-5" strokeWidth={2.5} />
+            </>
+          ) : (
+             <>
+              {isEditing ? <Save className="w-5 h-5" strokeWidth={2.5} /> : <Plus className="w-6 h-6" strokeWidth={2.5} />}
+              {isEditing ? "Save changes" : "Add item"}
+            </>
+          )}
+        </button>
       </div>
     </motion.div>
   );
