@@ -13,6 +13,12 @@ import {
   ScanBarcode,
   Search,
 } from 'lucide-react';
+import {
+  MagnifyingGlassIcon,
+  PencilSquareIcon,
+  ViewfinderCircleIcon,
+  PlusIcon
+} from '@heroicons/react/24/outline';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { getCategoryVisual, formatDate } from '@/components/pages/inventory/inventory-utils';
 
@@ -30,6 +36,7 @@ export function MobileCartView({
   const [isSubmittingCart, setIsSubmittingCart] = useState(false);
   const [cartSuccess, setCartSuccess] = useState('');
   const [cartError, setCartError] = useState('');
+  const [isFabOpen, setIsFabOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -281,22 +288,7 @@ export function MobileCartView({
               </div>
             </div>
 
-            <div className="w-full mb-4 px-4 py-2 flex gap-2 bg-[#fcf3e8] border-y border-[#f3d9ba]">
-              <button
-                onClick={() => onBack && onBack('SEARCH')}
-                className="flex-1 h-[38px] rounded-xl bg-white border border-[#e8caa3] text-[#1a1f36] text-[13px] font-medium active:bg-[#fffcf7] transition-all flex items-center justify-center gap-2 shadow-[0_1px_2px_rgba(226,127,44,0.06)]"
-              >
-                <Search className="w-3.5 h-3.5 text-[#1a1f36]" strokeWidth={2.2} />
-                Restock
-              </button>
-              <button
-                onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                className="flex-1 h-[38px] rounded-xl bg-white border border-[#e8caa3] text-[#1a1f36] text-[13px] font-medium active:bg-[#fffcf7] transition-all flex items-center justify-center gap-2 shadow-[0_1px_2px_rgba(226,127,44,0.06)]"
-              >
-                <Plus className="w-3.5 h-3.5 text-[#1a1f36]" strokeWidth={2.2} />
-                Manual Entry
-              </button>
-            </div>
+            {/* Secondary actions moved to FAB */}
 
             <div className="mx-4 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
               <div className="mx-4 py-3 border-b border-gray-300 flex items-center bg-white">
@@ -435,14 +427,88 @@ export function MobileCartView({
               </div>
             </div>
 
-            {/* FLOATING ACTION BUTTON FOR SCANNING */}
-            <button
-              onClick={() => onBack && onBack('CAMERA')}
-              className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-3.5 z-[90] w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-all cursor-pointer"
-              aria-label="Scan barcode"
-            >
-              <Scan className="w-6 h-6" strokeWidth={2.4} />
-            </button>
+            {/* SPEED DIAL FAB */}
+            <div className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-3.5 z-[90] flex flex-col items-end gap-3">
+              <AnimatePresence>
+                {isFabOpen && (
+                  <>
+                    <motion.button
+                      initial={{ opacity: 0, y: 15, scale: 0.8 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 15, scale: 0.8 }}
+                      transition={{ duration: 0.15, delay: 0.1 }}
+                      onClick={() => { setIsFabOpen(false); onBack && onBack('MANUAL_ENTRY'); }}
+                      className="flex items-center gap-3 pr-2"
+                    >
+                      <span className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg text-[13.5px] font-medium text-[#1a1f36] shadow-sm shadow-black/5">
+                        Manual Entry
+                      </span>
+                      <div className="w-11 h-11 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-gray-700 active:bg-gray-50">
+                        <PencilSquareIcon className="w-5 h-5" />
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      initial={{ opacity: 0, y: 15, scale: 0.8 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 15, scale: 0.8 }}
+                      transition={{ duration: 0.15, delay: 0.05 }}
+                      onClick={() => { setIsFabOpen(false); onBack && onBack('SEARCH'); }}
+                      className="flex items-center gap-3 pr-2"
+                    >
+                      <span className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg text-[13.5px] font-medium text-[#1a1f36] shadow-sm shadow-black/5">
+                        Search Items
+                      </span>
+                      <div className="w-11 h-11 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-gray-700 active:bg-gray-50">
+                        <MagnifyingGlassIcon className="w-5 h-5" />
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      initial={{ opacity: 0, y: 15, scale: 0.8 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 15, scale: 0.8 }}
+                      transition={{ duration: 0.15, delay: 0 }}
+                      onClick={() => { setIsFabOpen(false); onBack && onBack('CAMERA'); }}
+                      className="flex items-center gap-3 pr-2"
+                    >
+                      <span className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg text-[13.5px] font-medium text-[#1a1f36] shadow-sm shadow-black/5">
+                        Scan Barcode
+                      </span>
+                      <div className="w-11 h-11 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-gray-700 active:bg-gray-50">
+                        <ViewfinderCircleIcon className="w-5 h-5" />
+                      </div>
+                    </motion.button>
+                  </>
+                )}
+              </AnimatePresence>
+
+              <button
+                onClick={() => setIsFabOpen(!isFabOpen)}
+                className="w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-all cursor-pointer relative z-10"
+                aria-label="Add options"
+              >
+                <motion.div
+                  animate={{ rotate: isFabOpen ? 45 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <PlusIcon className="w-6 h-6" strokeWidth={2.4} />
+                </motion.div>
+              </button>
+            </div>
+            
+            {/* Backdrop for FAB */}
+            <AnimatePresence>
+              {isFabOpen && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsFabOpen(false)}
+                  className="fixed inset-0 z-[80] bg-white/60 backdrop-blur-[2px]"
+                />
+              )}
+            </AnimatePresence>
 
             <div className="flex justify-center pt-2 pb-6">
               <button
