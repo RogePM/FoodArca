@@ -36,7 +36,7 @@ export function DashboardLayout({ activeView: propActiveView, setActiveView: pro
         </div>
         
         {/* Spacer: Height of bottom-nav + safe-area on mobile, standard padding on desktop */}
-        <main className="flex-1 flex flex-col overflow-x-hidden overflow-y-auto pb-[calc(90px+env(safe-area-inset-bottom))] md:pb-6">
+        <main className="flex-1 flex flex-col overflow-x-hidden overflow-y-auto pb-[calc(70px+env(safe-area-inset-bottom))] md:pb-6">
           {children}
         </main>
       </div>
