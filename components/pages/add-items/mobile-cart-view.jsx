@@ -424,7 +424,7 @@ export function MobileCartView({
             </div>
 
             {/* SPEED DIAL FAB */}
-            <div className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-3.5 z-[90] flex flex-col items-end gap-3">
+            <div className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-4 z-[90] flex flex-col items-end gap-3">
               <AnimatePresence>
                 {isFabOpen && (
                   <>
