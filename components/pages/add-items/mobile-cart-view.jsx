@@ -705,14 +705,10 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('CAMERA');
                   }}
-                  className="flex flex-col items-center justify-between p-3 py-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-xs hover:border-gray-300 active:scale-95 transition-all cursor-pointer text-center group h-[130px]"
+                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-white border border-gray-300 shadow-sm hover:border-gray-400 active:scale-95 transition-all cursor-pointer text-center group h-[124px]"
                 >
-                  <div className="w-14 h-14 flex items-center justify-center">
-                    <img
-                      src="/assets/images/add-scan-amber.jpg?v=4"
-                      alt="Scan Barcode"
-                      className="w-full h-full object-contain mix-blend-multiply group-active:scale-95 transition-transform"
-                    />
+                  <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 group-active:scale-95 transition-transform">
+                    <Scan className="w-6 h-6" strokeWidth={2.2} />
                   </div>
                   <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
                     Scan<br />Barcode
@@ -726,14 +722,10 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('SEARCH');
                   }}
-                  className="flex flex-col items-center justify-between p-3 py-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-xs hover:border-gray-300 active:scale-95 transition-all cursor-pointer text-center group h-[130px]"
+                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-white border border-gray-300 shadow-sm hover:border-gray-400 active:scale-95 transition-all cursor-pointer text-center group h-[124px]"
                 >
-                  <div className="w-14 h-14 flex items-center justify-center">
-                    <img
-                      src="/assets/images/add-restock-amber.jpg?v=2"
-                      alt="Search Items"
-                      className="w-full h-full object-contain mix-blend-multiply group-active:scale-95 transition-transform"
-                    />
+                  <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 group-active:scale-95 transition-transform">
+                    <Search className="w-6 h-6" strokeWidth={2.2} />
                   </div>
                   <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
                     Search<br />Items
@@ -747,14 +739,10 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('MANUAL_ENTRY');
                   }}
-                  className="flex flex-col items-center justify-between p-3 py-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-xs hover:border-gray-300 active:scale-95 transition-all cursor-pointer text-center group h-[130px]"
+                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-white border border-gray-300 shadow-sm hover:border-gray-400 active:scale-95 transition-all cursor-pointer text-center group h-[124px]"
                 >
-                  <div className="w-14 h-14 flex items-center justify-center">
-                    <img
-                      src="/assets/images/add-manual-amber.jpg?v=2"
-                      alt="Manual Entry"
-                      className="w-full h-full object-contain mix-blend-multiply group-active:scale-95 transition-transform"
-                    />
+                  <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 group-active:scale-95 transition-transform">
+                    <Keyboard className="w-6 h-6" strokeWidth={2.2} />
                   </div>
                   <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
                     Manual<br />Entry
