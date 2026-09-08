@@ -53,6 +53,9 @@ const BLOCKED_TERMS = [
   'drug', 'drugs', 'weed', 'cannabis', 'marijuana', 'cocaine', 'heroin', 'meth', 'methamphetamine', 'ecstasy', 'shrooms', 'bong', 'joint'
 ];
 
+// Universal exclusions to prevent tech companies from hijacking food queries (e.g. Apple, Blackberry)
+const TECH_EXCLUSIONS = '-mac -iphone -ipad -smartphone -tech -computer -laptop -software -ios -electronics';
+
 /**
  * Sanitize and enforce food context on query
  */
@@ -114,7 +117,9 @@ function buildSafeSearchQuery(rawQuery, rawCategory) {
     }
   }
 
-  return { safeQuery: `${cleanQuery} ${appended.join(' ')}`.trim(), isValid: true, blocked: false };
+  const finalQuery = `${cleanQuery} ${appended.join(' ')} ${TECH_EXCLUSIONS}`.trim();
+
+  return { safeQuery: finalQuery, isValid: true, blocked: false };
 }
 
 /**
@@ -339,7 +344,7 @@ export async function GET(request) {
 
     // Fallback 1: If contextual query returns fewer than 3 images, try a broader web search
     if (images.length < 3) {
-      const broaderImages = await scrapeBingImages(`${cleanName} grocery`);
+      const broaderImages = await scrapeBingImages(`${cleanName} grocery ${TECH_EXCLUSIONS}`);
       if (broaderImages.length > 0) {
         const combined = new Set([...images, ...broaderImages]);
         images = Array.from(combined).slice(0, 4);
