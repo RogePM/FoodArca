@@ -423,10 +423,10 @@ export function MobileCartView({
             <button
               type="button"
               onClick={() => setShowAddActionSheet(true)}
-              className="fixed bottom-[calc(84px+env(safe-area-inset-bottom))] right-4 z-[90] w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(226,127,44,0.35)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-transform cursor-pointer"
+              className="fixed bottom-[calc(84px+env(safe-area-inset-bottom))] right-4 z-[90] w-[52px] h-[52px] bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(226,127,44,0.35)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-transform cursor-pointer"
               aria-label="Add items"
             >
-              <Plus className="w-6 h-6" strokeWidth={2.4} />
+              <Plus className="w-[22px] h-[22px]" strokeWidth={2.5} />
             </button>
 
             <div className="flex justify-center pt-2 pb-6">
