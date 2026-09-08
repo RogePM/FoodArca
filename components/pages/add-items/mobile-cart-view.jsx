@@ -692,10 +692,10 @@ export function MobileCartView({
                 <button
                   type="button"
                   onClick={() => setShowAddActionSheet(false)}
-                  className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 hover:text-gray-700 flex items-center justify-center active:scale-95 transition-transform"
+                  className="w-9 h-9 rounded-full bg-gray-100 text-[#1a1f36] hover:bg-gray-200 flex items-center justify-center active:scale-95 transition-all"
                   aria-label="Close"
                 >
-                  <X className="w-4 h-4" strokeWidth={2.5} />
+                  <X className="w-5 h-5" strokeWidth={2.4} />
                 </button>
               </div>
 
@@ -710,7 +710,7 @@ export function MobileCartView({
                   }}
                   className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-orange-100/70 text-[#e27f2c] flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-xl bg-[#fdf3eb] border border-[#f8e3d2]/70 text-[#e27f2c] flex items-center justify-center shrink-0">
                     <Scan className="w-5 h-5" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -729,7 +729,7 @@ export function MobileCartView({
                   }}
                   className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-xl bg-[#fdf3eb] border border-[#f8e3d2]/70 text-[#e27f2c] flex items-center justify-center shrink-0">
                     <Search className="w-5 h-5" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -748,7 +748,7 @@ export function MobileCartView({
                   }}
                   className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <div className="w-11 h-11 rounded-xl bg-[#fdf3eb] border border-[#f8e3d2]/70 text-[#e27f2c] flex items-center justify-center shrink-0">
                     <Keyboard className="w-5 h-5" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -763,7 +763,7 @@ export function MobileCartView({
               <button
                 type="button"
                 onClick={() => setShowAddActionSheet(false)}
-                className="w-full h-[46px] rounded-xl bg-gray-100 text-gray-700 text-[14px] font-semibold active:bg-gray-200 transition-colors"
+                className="w-full h-[50px] rounded-2xl bg-white border border-gray-200 text-[#1a1f36] text-[15px] font-semibold shadow-xs active:bg-gray-50 transition-colors flex items-center justify-center"
               >
                 Cancel
               </button>
