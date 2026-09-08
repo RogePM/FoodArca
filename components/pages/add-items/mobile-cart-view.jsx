@@ -699,8 +699,8 @@ export function MobileCartView({
                 </button>
               </div>
 
-              {/* Options List */}
-              <div className="bg-gray-50/80 border border-gray-200/70 rounded-2xl overflow-hidden divide-y divide-gray-200/60 mb-3.5">
+              {/* Options List Stack */}
+              <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden divide-y divide-gray-100 shadow-xs mb-4">
                 {/* 1. Scan Barcode */}
                 <button
                   type="button"
@@ -708,10 +708,10 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('CAMERA');
                   }}
-                  className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
+                  className="w-full p-4 flex items-center gap-3.5 text-left active:bg-gray-50 transition-colors"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#fdf3eb] border border-[#f8e3d2]/70 text-[#e27f2c] flex items-center justify-center shrink-0">
-                    <Scan className="w-5 h-5" strokeWidth={2.2} />
+                  <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                    <Scan className="w-6 h-6 text-[#e27f2c]" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[15px] font-semibold text-[#1a1f36] block">Scan Barcode</span>
@@ -727,10 +727,10 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('SEARCH');
                   }}
-                  className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
+                  className="w-full p-4 flex items-center gap-3.5 text-left active:bg-gray-50 transition-colors"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#fdf3eb] border border-[#f8e3d2]/70 text-[#e27f2c] flex items-center justify-center shrink-0">
-                    <Search className="w-5 h-5" strokeWidth={2.2} />
+                  <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                    <Search className="w-6 h-6 text-[#1a1f36]" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[15px] font-semibold text-[#1a1f36] block">Search Inventory</span>
@@ -746,10 +746,10 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('MANUAL_ENTRY');
                   }}
-                  className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
+                  className="w-full p-4 flex items-center gap-3.5 text-left active:bg-gray-50 transition-colors"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#fdf3eb] border border-[#f8e3d2]/70 text-[#e27f2c] flex items-center justify-center shrink-0">
-                    <Keyboard className="w-5 h-5" strokeWidth={2.2} />
+                  <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                    <Keyboard className="w-6 h-6 text-[#1a1f36]" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[15px] font-semibold text-[#1a1f36] block">Manual Entry</span>
@@ -763,7 +763,7 @@ export function MobileCartView({
               <button
                 type="button"
                 onClick={() => setShowAddActionSheet(false)}
-                className="w-full h-[50px] rounded-2xl bg-white border border-gray-200 text-[#1a1f36] text-[15px] font-semibold shadow-xs active:bg-gray-50 transition-colors flex items-center justify-center"
+                className="w-full h-[50px] rounded-2xl bg-white border-2 border-gray-300 text-[#1a1f36] text-[15px] font-bold shadow-xs active:bg-gray-100 transition-all flex items-center justify-center"
               >
                 Cancel
               </button>
