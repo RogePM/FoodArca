@@ -730,7 +730,7 @@ export function MobileCartView({
                   className="w-full p-4 flex items-center gap-3.5 text-left active:bg-gray-50 transition-colors"
                 >
                   <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                    <Search className="w-6 h-6 text-[#1a1f36]" strokeWidth={2.2} />
+                    <Search className="w-6 h-6 text-[#e27f2c]" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[15px] font-semibold text-[#1a1f36] block">Search Inventory</span>
@@ -749,7 +749,7 @@ export function MobileCartView({
                   className="w-full p-4 flex items-center gap-3.5 text-left active:bg-gray-50 transition-colors"
                 >
                   <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                    <Keyboard className="w-6 h-6 text-[#1a1f36]" strokeWidth={2.2} />
+                    <Keyboard className="w-6 h-6 text-[#e27f2c]" strokeWidth={2.2} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[15px] font-semibold text-[#1a1f36] block">Manual Entry</span>
