@@ -26,7 +26,7 @@ export function BottomNav({ activeView, setActiveView }) {
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 w-full z-[100] bg-white/95 backdrop-blur-2xl border-t border-gray-100 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] flex items-center justify-evenly px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.06)]">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 w-full z-[100] bg-white/80 backdrop-blur-xl pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] flex items-center justify-evenly px-3 shadow-[0_-1px_0_rgba(0,0,0,0.04),0_-8px_24px_rgba(0,0,0,0.03)]">
       
       {tabs.map((tab) => {
         const active = isActive(tab.href || tab.view);
@@ -39,16 +39,23 @@ export function BottomNav({ activeView, setActiveView }) {
             onClick={() => handleNavClick(tab.view, tab.href)}
             className="relative flex flex-col items-center justify-center w-14 pt-0.5"
           >
+            {/* Active pill indicator */}
+            {active && (
+              <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full bg-[#c06245]" />
+            )}
+
             <div className={cn(
-              "transition-all duration-200 flex items-center justify-center h-6",
-              active ? "text-[#c06245] scale-110" : "text-gray-500 hover:text-gray-700"
+              "transition-all duration-300 ease-out flex items-center justify-center h-6",
+              active ? "text-[#1a1f36]" : "text-gray-400 hover:text-gray-600"
             )}>
-              <TabIcon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
+              <TabIcon className="h-[18px] w-[18px]" strokeWidth={active ? 2.5 : 1.75} />
             </div>
             
             <span className={cn(
-              "text-[10px] mt-0.5 transition-all duration-200",
-              active ? "text-[#c06245] font-semibold" : "text-gray-500 font-medium"
+              "text-[10px] mt-0.5 transition-all duration-300 tracking-wide",
+              active 
+                ? "text-[#1a1f36] font-semibold" 
+                : "text-gray-400 font-medium"
             )}>
               {tab.label}
             </span>
