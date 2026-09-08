@@ -258,7 +258,7 @@ export function MobileCartView({
           <div className="flex flex-col">
             {/* ── RECEIPT-STYLE HEADER ── */}
             <div className="bg-white shrink-0 relative z-20 border-b border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.03)] mb-5">
-              <div className="px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-3.5 flex items-center justify-between">
+              <div className="px-4 pt-[calc(env(safe-area-inset-top)+8px)] pb-2.5 flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-[12px] text-gray-500 font-medium mb-0.5">Total Quantity</span>
                   <span className="text-[18px] text-[#1a1f36] font-bold tracking-tight leading-none">
@@ -269,7 +269,7 @@ export function MobileCartView({
                 <button
                   disabled={isSubmittingCart}
                   onClick={() => setShowSubmitConfirm(true)}
-                  className="h-[36px] px-4 rounded-full bg-[#e27f2c] text-white text-[13.5px] font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="h-[42px] px-5 rounded-full bg-[#e27f2c] text-white text-[14.5px] font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   {isSubmittingCart ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
