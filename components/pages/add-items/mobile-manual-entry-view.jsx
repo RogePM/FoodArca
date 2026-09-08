@@ -130,7 +130,6 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
 
   // Autocomplete state
   const [suggestions, setSuggestions] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
 
@@ -395,7 +394,6 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                     onChange={(e) => {
                       setFormName(e.target.value);
                       setIsTyping(true);
-                      setIsSearching(true);
                     }}
                     onFocus={() => {
                       if (suggestions.length > 0) setShowSuggestions(true);
@@ -404,13 +402,22 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                       setTimeout(() => setShowSuggestions(false), 200);
                     }}
                     placeholder="e.g. Campbell's Tomato Soup"
-                    className={inputClass}
+                    className={`${inputClass} pr-12`}
                     autoFocus
                   />
-                  {isSearching && (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                      <Loader2 className="w-5 h-5 animate-spin text-[#e27f2c]" />
-                    </div>
+                  {formName.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormName("");
+                        setSuggestions([]);
+                        setIsTyping(false);
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 active:bg-gray-300 transition-colors"
+                      title="Clear name"
+                    >
+                      <X className="w-4 h-4" strokeWidth={2.5} />
+                    </button>
                   )}
 
                   <AnimatePresence>
