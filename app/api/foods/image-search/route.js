@@ -149,64 +149,28 @@ function isValidImageUrl(url) {
 }
 
 /**
- * Scrape image URLs from DuckDuckGo with strict SafeSearch enabled
+ * Scrape image URLs from Bing Images
  */
-async function scrapeDuckDuckGoImages(contextualQuery) {
+async function scrapeBingImages(contextualQuery) {
   try {
-    // 1. Fetch vqd token with kp=1 (strict safe search)
-    const tokenUrl = `https://duckduckgo.com/?q=${encodeURIComponent(contextualQuery)}&kp=1`;
-    const tokenRes = await fetch(tokenUrl, {
+    const url = `https://www.bing.com/images/search?q=${encodeURIComponent(contextualQuery)}&first=1`;
+    const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
       },
       signal: AbortSignal.timeout(6000),
     });
 
-    if (!tokenRes.ok) return [];
+    if (!res.ok) return [];
 
-    const html = await tokenRes.text();
-    const vqdMatch = 
-      html.match(/vqd=([0-9a-zA-Z_-]+)/) || 
-      html.match(/vqd=['"]([0-9a-zA-Z_-]+)['"]/) ||
-      html.match(/data-vqd=['"]([0-9a-zA-Z_-]+)['"]/) ||
-      html.match(/vqd:\s*['"]([0-9a-zA-Z_-]+)['"]/);
-
-    if (!vqdMatch || !vqdMatch[1]) {
-      return [];
-    }
-
-    const vqd = vqdMatch[1];
-
-    // 2. Fetch images with p=1 (strict safe search parameter)
-    const imagesUrl = `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(contextualQuery)}&vqd=${vqd}&f=,,,;&p=1`;
-    const imagesRes = await fetch(imagesUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': 'https://duckduckgo.com/',
-        'Accept': 'application/json',
-      },
-      signal: AbortSignal.timeout(6000),
-    });
-
-    if (!imagesRes.ok) return [];
-
-    const data = await imagesRes.json();
-    if (!data.results || !Array.isArray(data.results)) return [];
-
+    const html = await res.text();
     const urls = [];
     const seen = new Set();
-
-    for (const item of data.results) {
-      // Prioritize standard original web image (crisp commercial packaging shot), fallback to thumbnail
-      let candidate = item.image || item.thumbnail;
-      if (candidate && typeof candidate === 'string') {
-        if (candidate.startsWith('//')) candidate = 'https:' + candidate;
-        if (candidate.startsWith('http://') && (candidate.includes('bing.net') || candidate.includes('duckduckgo.com') || candidate.includes('wikimedia.org') || candidate.includes('openfoodfacts.org'))) {
-          candidate = candidate.replace(/^http:\/\//i, 'https://');
-        }
-      }
+    const regex = /murl&quot;:&quot;(.*?)&quot;/g;
+    
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      let candidate = match[1];
       if (isValidImageUrl(candidate) && !seen.has(candidate)) {
         seen.add(candidate);
         urls.push(candidate);
@@ -216,7 +180,7 @@ async function scrapeDuckDuckGoImages(contextualQuery) {
 
     return urls;
   } catch (err) {
-    console.warn('⚠️ DuckDuckGo image scrape warning:', err?.message || err);
+    console.warn('⚠️ Bing image scrape warning:', err?.message || err);
     return [];
   }
 }
@@ -339,6 +303,10 @@ export async function GET(request) {
         category,
         source: cached.source,
         cached: true,
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+        }
       });
     }
 
@@ -363,13 +331,13 @@ export async function GET(request) {
       }, { status: 200 });
     }
 
-    // Primary: DuckDuckGo with strict safe search
-    let images = await scrapeDuckDuckGoImages(safeQuery);
-    let source = 'duckduckgo';
+    // Primary: Bing Images with strict safe search
+    let images = await scrapeBingImages(safeQuery);
+    let source = 'bing';
 
     // Fallback 1: If contextual query returns fewer than 3 images, try a broader web search
     if (images.length < 3) {
-      const broaderImages = await scrapeDuckDuckGoImages(`${cleanName} grocery`);
+      const broaderImages = await scrapeBingImages(`${cleanName} grocery`);
       if (broaderImages.length > 0) {
         const combined = new Set([...images, ...broaderImages]);
         images = Array.from(combined).slice(0, 4);
@@ -415,6 +383,10 @@ export async function GET(request) {
       category,
       source,
       count: finalImages.length,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      }
     });
   } catch (error) {
     console.error('❌ Error in /api/foods/image-search:', error);

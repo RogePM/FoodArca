@@ -73,6 +73,7 @@ export function ProductImagePicker({
         const params = new URLSearchParams({
           q: trimmedName,
           category: formCategory || "",
+          t: Date.now().toString()
         });
 
         const res = await fetch(`/api/foods/image-search?${params.toString()}`);
