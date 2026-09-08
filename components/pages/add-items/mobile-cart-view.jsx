@@ -681,18 +681,18 @@ export function MobileCartView({
               className="relative bg-white rounded-t-[32px] p-5 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
             >
               {/* Grab Handle */}
-              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mt-1 mb-3.5 shrink-0" />
 
               {/* Header */}
               <div className="flex items-center justify-between mb-4 px-1">
-                <h3 className="text-[18px] font-bold text-[#1a1f36] tracking-tight">Add Items</h3>
+                <h3 className="text-[17px] font-semibold text-[#1a1f36] tracking-tight">Add Items</h3>
                 <button
                   type="button"
                   onClick={() => setShowAddActionSheet(false)}
-                  className="w-9 h-9 rounded-full bg-gray-100 text-[#1a1f36] hover:bg-gray-200 flex items-center justify-center active:scale-95 transition-all"
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 border border-gray-200/60 text-[#1a1f36] flex items-center justify-center active:scale-95 transition-all"
                   aria-label="Close"
                 >
-                  <X className="w-5 h-5" strokeWidth={2.4} />
+                  <X className="w-4 h-4" strokeWidth={2.2} />
                 </button>
               </div>
 
@@ -705,12 +705,16 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('CAMERA');
                   }}
-                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-[#fffbf7] border border-[#f3dfce] shadow-xs active:scale-95 active:border-[#e27f2c] transition-all cursor-pointer text-center group"
+                  className="flex flex-col items-center justify-between p-3 py-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-xs hover:border-gray-300 active:scale-95 transition-all cursor-pointer text-center group h-[130px]"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-[#fdf2e8] flex items-center justify-center text-[#e27f2c] mb-2 group-active:scale-95 transition-transform">
-                    <Scan className="w-6 h-6" strokeWidth={2.2} />
+                  <div className="w-14 h-14 flex items-center justify-center">
+                    <img
+                      src="/assets/images/add-scan-amber.jpg?v=4"
+                      alt="Scan Barcode"
+                      className="w-full h-full object-contain mix-blend-multiply group-active:scale-95 transition-transform"
+                    />
                   </div>
-                  <span className="text-[13px] font-bold text-[#1a1f36] leading-tight">
+                  <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
                     Scan<br />Barcode
                   </span>
                 </button>
@@ -722,12 +726,16 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('SEARCH');
                   }}
-                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-[#fffbf7] border border-[#f3dfce] shadow-xs active:scale-95 active:border-[#e27f2c] transition-all cursor-pointer text-center group"
+                  className="flex flex-col items-center justify-between p-3 py-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-xs hover:border-gray-300 active:scale-95 transition-all cursor-pointer text-center group h-[130px]"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-[#fdf2e8] flex items-center justify-center text-[#e27f2c] mb-2 group-active:scale-95 transition-transform">
-                    <Search className="w-6 h-6" strokeWidth={2.2} />
+                  <div className="w-14 h-14 flex items-center justify-center">
+                    <img
+                      src="/assets/images/add-restock-amber.jpg?v=2"
+                      alt="Search Items"
+                      className="w-full h-full object-contain mix-blend-multiply group-active:scale-95 transition-transform"
+                    />
                   </div>
-                  <span className="text-[13px] font-bold text-[#1a1f36] leading-tight">
+                  <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
                     Search<br />Items
                   </span>
                 </button>
@@ -739,12 +747,16 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('MANUAL_ENTRY');
                   }}
-                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-[#fffbf7] border border-[#f3dfce] shadow-xs active:scale-95 active:border-[#e27f2c] transition-all cursor-pointer text-center group"
+                  className="flex flex-col items-center justify-between p-3 py-3.5 rounded-2xl bg-white border border-gray-200/90 shadow-xs hover:border-gray-300 active:scale-95 transition-all cursor-pointer text-center group h-[130px]"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-[#fdf2e8] flex items-center justify-center text-[#e27f2c] mb-2 group-active:scale-95 transition-transform">
-                    <Keyboard className="w-6 h-6" strokeWidth={2.2} />
+                  <div className="w-14 h-14 flex items-center justify-center">
+                    <img
+                      src="/assets/images/add-manual-amber.jpg?v=2"
+                      alt="Manual Entry"
+                      className="w-full h-full object-contain mix-blend-multiply group-active:scale-95 transition-transform"
+                    />
                   </div>
-                  <span className="text-[13px] font-bold text-[#1a1f36] leading-tight">
+                  <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
                     Manual<br />Entry
                   </span>
                 </button>
@@ -754,7 +766,7 @@ export function MobileCartView({
               <button
                 type="button"
                 onClick={() => setShowAddActionSheet(false)}
-                className="w-full h-[48px] rounded-2xl bg-white border-2 border-gray-300 text-[#1a1f36] text-[15px] font-bold shadow-xs active:bg-gray-100 transition-all flex items-center justify-center"
+                className="w-full h-[48px] rounded-full bg-gray-100 hover:bg-gray-200 border border-gray-200/80 text-[#1a1f36] text-[15px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center"
               >
                 Cancel
               </button>
