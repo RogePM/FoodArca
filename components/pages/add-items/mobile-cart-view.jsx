@@ -261,7 +261,7 @@ export function MobileCartView({
           /* FILLED CART ITEMS LIST */
           <div className="flex flex-col">
             {/* ── RECEIPT-STYLE HEADER ── */}
-            <div className="bg-white shrink-0 relative z-20 border-b border-gray-200 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.08)] mb-5">
+            <div className="bg-white shrink-0 relative z-20 border-b border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.03)] mb-5">
               <div className="px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-3.5 flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-[12px] text-gray-500 font-medium mb-0.5">Total Quantity</span>
