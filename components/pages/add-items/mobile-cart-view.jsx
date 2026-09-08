@@ -438,13 +438,13 @@ export function MobileCartView({
                       exit={{ opacity: 0, y: 15, scale: 0.8 }}
                       transition={{ duration: 0.15, delay: 0.1 }}
                       onClick={() => { setIsFabOpen(false); onBack && onBack('MANUAL_ENTRY'); }}
-                      className="flex items-center gap-3 pr-2"
+                      className="flex items-center gap-3 pr-2 active:scale-95 transition-transform"
                     >
-                      <span className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg text-[13.5px] font-medium text-[#1a1f36] shadow-sm shadow-black/5">
+                      <span className="bg-white px-3.5 py-1.5 rounded-xl text-[13.5px] font-semibold text-[#1a1f36] shadow-lg border border-gray-100">
                         Manual Entry
                       </span>
-                      <div className="w-11 h-11 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-gray-700 active:bg-gray-50">
-                        <PencilSquareIcon className="w-5 h-5" />
+                      <div className="w-11 h-11 bg-white rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-[#1a1f36]">
+                        <PencilSquareIcon className="w-5 h-5 text-[#1a1f36]" strokeWidth={2} />
                       </div>
                     </motion.button>
 
@@ -454,13 +454,13 @@ export function MobileCartView({
                       exit={{ opacity: 0, y: 15, scale: 0.8 }}
                       transition={{ duration: 0.15, delay: 0.05 }}
                       onClick={() => { setIsFabOpen(false); onBack && onBack('SEARCH'); }}
-                      className="flex items-center gap-3 pr-2"
+                      className="flex items-center gap-3 pr-2 active:scale-95 transition-transform"
                     >
-                      <span className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg text-[13.5px] font-medium text-[#1a1f36] shadow-sm shadow-black/5">
+                      <span className="bg-white px-3.5 py-1.5 rounded-xl text-[13.5px] font-semibold text-[#1a1f36] shadow-lg border border-gray-100">
                         Search Items
                       </span>
-                      <div className="w-11 h-11 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-gray-700 active:bg-gray-50">
-                        <MagnifyingGlassIcon className="w-5 h-5" />
+                      <div className="w-11 h-11 bg-white rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-[#1a1f36]">
+                        <MagnifyingGlassIcon className="w-5 h-5 text-[#1a1f36]" strokeWidth={2} />
                       </div>
                     </motion.button>
 
@@ -470,13 +470,13 @@ export function MobileCartView({
                       exit={{ opacity: 0, y: 15, scale: 0.8 }}
                       transition={{ duration: 0.15, delay: 0 }}
                       onClick={() => { setIsFabOpen(false); onBack && onBack('CAMERA'); }}
-                      className="flex items-center gap-3 pr-2"
+                      className="flex items-center gap-3 pr-2 active:scale-95 transition-transform"
                     >
-                      <span className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg text-[13.5px] font-medium text-[#1a1f36] shadow-sm shadow-black/5">
+                      <span className="bg-white px-3.5 py-1.5 rounded-xl text-[13.5px] font-semibold text-[#1a1f36] shadow-lg border border-gray-100">
                         Scan Barcode
                       </span>
-                      <div className="w-11 h-11 bg-white rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-gray-700 active:bg-gray-50">
-                        <ViewfinderCircleIcon className="w-5 h-5" />
+                      <div className="w-11 h-11 bg-white rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-[#1a1f36]">
+                        <ViewfinderCircleIcon className="w-5 h-5 text-[#1a1f36]" strokeWidth={2} />
                       </div>
                     </motion.button>
                   </>
@@ -505,7 +505,7 @@ export function MobileCartView({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onClick={() => setIsFabOpen(false)}
-                  className="fixed inset-0 z-[80] bg-white/60 backdrop-blur-[2px]"
+                  className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm"
                 />
               )}
             </AnimatePresence>
