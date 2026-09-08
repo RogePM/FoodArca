@@ -12,13 +12,9 @@ import {
   Scan,
   ScanBarcode,
   Search,
+  ChevronRight,
+  Keyboard,
 } from 'lucide-react';
-import {
-  MagnifyingGlassIcon,
-  PencilSquareIcon,
-  ViewfinderCircleIcon,
-  PlusIcon
-} from '@heroicons/react/24/outline';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { getCategoryVisual, formatDate } from '@/components/pages/inventory/inventory-utils';
 
@@ -33,10 +29,10 @@ export function MobileCartView({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showAddActionSheet, setShowAddActionSheet] = useState(false);
   const [isSubmittingCart, setIsSubmittingCart] = useState(false);
   const [cartSuccess, setCartSuccess] = useState('');
   const [cartError, setCartError] = useState('');
-  const [isFabOpen, setIsFabOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -423,88 +419,15 @@ export function MobileCartView({
               </div>
             </div>
 
-            {/* SPEED DIAL FAB */}
-            <div className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-4 z-[90] flex flex-col items-end gap-3">
-              <AnimatePresence>
-                {isFabOpen && (
-                  <>
-                    <motion.button
-                      initial={{ opacity: 0, y: 15, scale: 0.8 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 15, scale: 0.8 }}
-                      transition={{ duration: 0.15, delay: 0.1 }}
-                      onClick={() => { setIsFabOpen(false); onBack && onBack('MANUAL_ENTRY'); }}
-                      className="flex items-center gap-3 pr-2 active:scale-95 transition-transform"
-                    >
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl text-[13.5px] font-semibold text-[#1a1f36] shadow-lg border border-gray-100">
-                        Manual Entry
-                      </span>
-                      <div className="w-11 h-11 bg-white rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-[#1a1f36]">
-                        <PencilSquareIcon className="w-5 h-5 text-[#1a1f36]" strokeWidth={2} />
-                      </div>
-                    </motion.button>
-
-                    <motion.button
-                      initial={{ opacity: 0, y: 15, scale: 0.8 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 15, scale: 0.8 }}
-                      transition={{ duration: 0.15, delay: 0.05 }}
-                      onClick={() => { setIsFabOpen(false); onBack && onBack('SEARCH'); }}
-                      className="flex items-center gap-3 pr-2 active:scale-95 transition-transform"
-                    >
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl text-[13.5px] font-semibold text-[#1a1f36] shadow-lg border border-gray-100">
-                        Search Items
-                      </span>
-                      <div className="w-11 h-11 bg-white rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-[#1a1f36]">
-                        <MagnifyingGlassIcon className="w-5 h-5 text-[#1a1f36]" strokeWidth={2} />
-                      </div>
-                    </motion.button>
-
-                    <motion.button
-                      initial={{ opacity: 0, y: 15, scale: 0.8 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 15, scale: 0.8 }}
-                      transition={{ duration: 0.15, delay: 0 }}
-                      onClick={() => { setIsFabOpen(false); onBack && onBack('CAMERA'); }}
-                      className="flex items-center gap-3 pr-2 active:scale-95 transition-transform"
-                    >
-                      <span className="bg-white px-3.5 py-1.5 rounded-xl text-[13.5px] font-semibold text-[#1a1f36] shadow-lg border border-gray-100">
-                        Scan Barcode
-                      </span>
-                      <div className="w-11 h-11 bg-white rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-[#1a1f36]">
-                        <ViewfinderCircleIcon className="w-5 h-5 text-[#1a1f36]" strokeWidth={2} />
-                      </div>
-                    </motion.button>
-                  </>
-                )}
-              </AnimatePresence>
-
-              <button
-                onClick={() => setIsFabOpen(!isFabOpen)}
-                className="w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-all cursor-pointer relative z-10"
-                aria-label="Add options"
-              >
-                <motion.div
-                  animate={{ rotate: isFabOpen ? 45 : 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <PlusIcon className="w-6 h-6" strokeWidth={2.4} />
-                </motion.div>
-              </button>
-            </div>
-            
-            {/* Backdrop for FAB */}
-            <AnimatePresence>
-              {isFabOpen && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setIsFabOpen(false)}
-                  className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm"
-                />
-              )}
-            </AnimatePresence>
+            {/* FLOATING ADD BUTTON */}
+            <button
+              type="button"
+              onClick={() => setShowAddActionSheet(true)}
+              className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-4 z-[90] w-14 h-14 bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(226,127,44,0.35)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-transform cursor-pointer"
+              aria-label="Add items"
+            >
+              <Plus className="w-6 h-6" strokeWidth={2.4} />
+            </button>
 
             <div className="flex justify-center pt-2 pb-6">
               <button
@@ -731,6 +654,118 @@ export function MobileCartView({
                 className="w-full h-[44px] bg-[#e27f2c] text-white text-[14px] font-semibold rounded-xl active:bg-[#d67828] transition-colors shadow-sm"
               >
                 Got it
+              </button>
+            </motion.div>
+          </div>,
+          document.body
+        )}
+
+      {/* 4. IOS-STYLE BOTTOM ACTION SHEET: ADD ITEMS */}
+      {mounted &&
+        showAddActionSheet &&
+        createPortal(
+          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" style={{ isolation: 'isolate' }}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowAddActionSheet(false)}
+            />
+
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="relative bg-white rounded-t-[32px] p-5 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
+            >
+              {/* Grab Handle */}
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4 px-1">
+                <div>
+                  <h3 className="text-[18px] font-bold text-[#1a1f36] tracking-tight">Add Items</h3>
+                  <p className="text-[13px] text-gray-500 font-normal mt-0.5">Select how you want to add stock</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddActionSheet(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 hover:text-gray-700 flex items-center justify-center active:scale-95 transition-transform"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" strokeWidth={2.5} />
+                </button>
+              </div>
+
+              {/* Options List */}
+              <div className="bg-gray-50/80 border border-gray-200/70 rounded-2xl overflow-hidden divide-y divide-gray-200/60 mb-3.5">
+                {/* 1. Scan Barcode */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddActionSheet(false);
+                    onBack && onBack('CAMERA');
+                  }}
+                  className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-orange-100/70 text-[#e27f2c] flex items-center justify-center shrink-0">
+                    <Scan className="w-5 h-5" strokeWidth={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[15px] font-semibold text-[#1a1f36] block">Scan Barcode</span>
+                    <span className="text-[12.5px] text-gray-500 block mt-0.5">Use camera for instant continuous scanning</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={2} />
+                </button>
+
+                {/* 2. Search Items */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddActionSheet(false);
+                    onBack && onBack('SEARCH');
+                  }}
+                  className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Search className="w-5 h-5" strokeWidth={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[15px] font-semibold text-[#1a1f36] block">Search Inventory</span>
+                    <span className="text-[12.5px] text-gray-500 block mt-0.5">Restock existing items from your pantry</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={2} />
+                </button>
+
+                {/* 3. Manual Entry */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddActionSheet(false);
+                    onBack && onBack('MANUAL_ENTRY');
+                  }}
+                  className="w-full p-3.5 flex items-center gap-3.5 text-left active:bg-gray-100/80 transition-colors"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Keyboard className="w-5 h-5" strokeWidth={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[15px] font-semibold text-[#1a1f36] block">Manual Entry</span>
+                    <span className="text-[12.5px] text-gray-500 block mt-0.5">Create custom or unbarcoded items</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={2} />
+                </button>
+              </div>
+
+              {/* Cancel Button */}
+              <button
+                type="button"
+                onClick={() => setShowAddActionSheet(false)}
+                className="w-full h-[46px] rounded-xl bg-gray-100 text-gray-700 text-[14px] font-semibold active:bg-gray-200 transition-colors"
+              >
+                Cancel
               </button>
             </motion.div>
           </div>,
