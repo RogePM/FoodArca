@@ -115,11 +115,7 @@ export function MobileCartView({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className={
-        cartItems.length > 0
-          ? 'absolute inset-0 z-50 bg-white flex flex-col'
-          : 'absolute inset-0 z-50 bg-[#fdf8ed] flex flex-col'
-      }
+      className="absolute inset-0 z-50 bg-[#fdf8ed] flex flex-col"
     >
       {/* ─── SCROLLABLE CONTENT (HEADER + CARDS ALL SCROLL TOGETHER) ─── */}
       <div className="flex-1 overflow-y-auto w-full pb-[calc(110px+env(safe-area-inset-bottom))]">
