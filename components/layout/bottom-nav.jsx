@@ -19,7 +19,7 @@ export function BottomNav({ activeView, setActiveView }) {
 
   const tabs = [
     { name: 'Home', label: 'Home', icon: Home, view: 'Dashboard', href: '/dashboard' },
-    { name: 'Add', label: 'Add', icon: Plus, view: 'Add Items', href: '/dashboard/add', isAdd: true },
+    { name: 'Add', label: 'Add', icon: Plus, view: 'Add Items', href: '/dashboard/add' },
     { name: 'Inventory', label: 'Inventory', icon: Package, view: 'View Inventory', href: '/dashboard/inventory' },
     { name: 'Remove', label: 'Remove', icon: MinusSquare, view: 'Remove Items', href: '/dashboard/remove' },
     { name: 'Workspace', label: 'Workspace', icon: UserCircle, view: 'Settings', href: '/dashboard/settings' },
@@ -37,34 +37,18 @@ export function BottomNav({ activeView, setActiveView }) {
             key={tab.name}
             href={tab.href}
             onClick={() => handleNavClick(tab.view, tab.href)}
-            className={cn(
-              "relative flex flex-col items-center justify-center w-14 pt-0.5",
-              tab.isAdd && "group"
-            )}
+            className="relative flex flex-col items-center justify-center w-14 pt-0.5"
           >
-            {tab.isAdd ? (
-              <div className={cn(
-                "h-8 w-8 rounded-full flex items-center justify-center transition-all duration-200",
-                active
-                  ? "bg-[#d97757]/20 text-[#c06245] scale-105"
-                  : "bg-[#d97757]/10 text-[#d97757] group-hover:bg-[#d97757]/20"
-              )}>
-                <TabIcon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
-              </div>
-            ) : (
-              <div className={cn(
-                "transition-all duration-200 flex items-center justify-center h-6",
-                active ? "text-[#c06245] scale-110" : "text-gray-500 hover:text-gray-700"
-              )}>
-                <TabIcon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
-              </div>
-            )}
+            <div className={cn(
+              "transition-all duration-200 flex items-center justify-center h-6",
+              active ? "text-[#c06245] scale-110" : "text-gray-500 hover:text-gray-700"
+            )}>
+              <TabIcon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
+            </div>
             
             <span className={cn(
               "text-[10px] mt-0.5 transition-all duration-200",
-              tab.isAdd
-                ? (active ? "text-[#c06245] font-semibold" : "text-[#d97757] font-medium")
-                : (active ? "text-[#c06245] font-semibold" : "text-gray-500 font-medium")
+              active ? "text-[#c06245] font-semibold" : "text-gray-500 font-medium"
             )}>
               {tab.label}
             </span>
