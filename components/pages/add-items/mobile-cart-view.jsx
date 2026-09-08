@@ -685,10 +685,7 @@ export function MobileCartView({
 
               {/* Header */}
               <div className="flex items-center justify-between mb-4 px-1">
-                <div>
-                  <h3 className="text-[18px] font-bold text-[#1a1f36] tracking-tight">Add Items</h3>
-                  <p className="text-[13px] text-gray-500 font-normal mt-0.5">Select how you want to add stock</p>
-                </div>
+                <h3 className="text-[18px] font-bold text-[#1a1f36] tracking-tight">Add Items</h3>
                 <button
                   type="button"
                   onClick={() => setShowAddActionSheet(false)}
@@ -699,8 +696,8 @@ export function MobileCartView({
                 </button>
               </div>
 
-              {/* Options List: Distinct Clickable Action Cards */}
-              <div className="flex flex-col gap-2.5 mb-4">
+              {/* 3-Column Action Tile Grid */}
+              <div className="grid grid-cols-3 gap-2.5 mb-4">
                 {/* 1. Scan Barcode */}
                 <button
                   type="button"
@@ -708,18 +705,14 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('CAMERA');
                   }}
-                  className="w-full p-3.5 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center gap-3.5 text-left active:scale-[0.98] active:border-[#e27f2c] active:bg-[#fffcf9] transition-all cursor-pointer"
+                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-[#fffbf7] border border-[#f3dfce] shadow-xs active:scale-95 active:border-[#e27f2c] transition-all cursor-pointer text-center group"
                 >
-                  <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                    <Scan className="w-6 h-6 text-[#e27f2c]" strokeWidth={2.2} />
+                  <div className="w-12 h-12 rounded-2xl bg-[#fdf2e8] flex items-center justify-center text-[#e27f2c] mb-2 group-active:scale-95 transition-transform">
+                    <Scan className="w-6 h-6" strokeWidth={2.2} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[15px] font-bold text-[#1a1f36] block">Scan Barcode</span>
-                    <span className="text-[12.5px] text-gray-500 block mt-0.5">Use camera for instant continuous scanning</span>
-                  </div>
-                  <div className="w-7 h-7 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 shrink-0">
-                    <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
-                  </div>
+                  <span className="text-[13px] font-bold text-[#1a1f36] leading-tight">
+                    Scan<br />Barcode
+                  </span>
                 </button>
 
                 {/* 2. Search Items */}
@@ -729,18 +722,14 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('SEARCH');
                   }}
-                  className="w-full p-3.5 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center gap-3.5 text-left active:scale-[0.98] active:border-[#e27f2c] active:bg-[#fffcf9] transition-all cursor-pointer"
+                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-[#fffbf7] border border-[#f3dfce] shadow-xs active:scale-95 active:border-[#e27f2c] transition-all cursor-pointer text-center group"
                 >
-                  <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                    <Search className="w-6 h-6 text-[#e27f2c]" strokeWidth={2.2} />
+                  <div className="w-12 h-12 rounded-2xl bg-[#fdf2e8] flex items-center justify-center text-[#e27f2c] mb-2 group-active:scale-95 transition-transform">
+                    <Search className="w-6 h-6" strokeWidth={2.2} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[15px] font-bold text-[#1a1f36] block">Search Inventory</span>
-                    <span className="text-[12.5px] text-gray-500 block mt-0.5">Restock existing items from your pantry</span>
-                  </div>
-                  <div className="w-7 h-7 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 shrink-0">
-                    <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
-                  </div>
+                  <span className="text-[13px] font-bold text-[#1a1f36] leading-tight">
+                    Search<br />Items
+                  </span>
                 </button>
 
                 {/* 3. Manual Entry */}
@@ -750,18 +739,14 @@ export function MobileCartView({
                     setShowAddActionSheet(false);
                     onBack && onBack('MANUAL_ENTRY');
                   }}
-                  className="w-full p-3.5 rounded-2xl bg-white border border-gray-200 shadow-xs flex items-center gap-3.5 text-left active:scale-[0.98] active:border-[#e27f2c] active:bg-[#fffcf9] transition-all cursor-pointer"
+                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-[#fffbf7] border border-[#f3dfce] shadow-xs active:scale-95 active:border-[#e27f2c] transition-all cursor-pointer text-center group"
                 >
-                  <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                    <Keyboard className="w-6 h-6 text-[#e27f2c]" strokeWidth={2.2} />
+                  <div className="w-12 h-12 rounded-2xl bg-[#fdf2e8] flex items-center justify-center text-[#e27f2c] mb-2 group-active:scale-95 transition-transform">
+                    <Keyboard className="w-6 h-6" strokeWidth={2.2} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[15px] font-bold text-[#1a1f36] block">Manual Entry</span>
-                    <span className="text-[12.5px] text-gray-500 block mt-0.5">Create custom or unbarcoded items</span>
-                  </div>
-                  <div className="w-7 h-7 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 shrink-0">
-                    <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
-                  </div>
+                  <span className="text-[13px] font-bold text-[#1a1f36] leading-tight">
+                    Manual<br />Entry
+                  </span>
                 </button>
               </div>
 
@@ -769,7 +754,7 @@ export function MobileCartView({
               <button
                 type="button"
                 onClick={() => setShowAddActionSheet(false)}
-                className="w-full h-[50px] rounded-2xl bg-white border-2 border-gray-300 text-[#1a1f36] text-[15px] font-bold shadow-xs active:bg-gray-100 transition-all flex items-center justify-center"
+                className="w-full h-[48px] rounded-2xl bg-white border-2 border-gray-300 text-[#1a1f36] text-[15px] font-bold shadow-xs active:bg-gray-100 transition-all flex items-center justify-center"
               >
                 Cancel
               </button>
