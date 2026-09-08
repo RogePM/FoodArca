@@ -148,30 +148,29 @@ export function MobileCheckoutCartView({
       >
         {cartItems.length === 0 ? (
           <>
-            {/* â”€â”€ HEADER BLOCK â”€â”€ */}
+            {/* ─── HEADER BLOCK ─── */}
             <div className="px-4 pt-safe mt-4">
               {/* Row: back arrow + tiny label */}
-              <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="flex items-center gap-1.5 mb-1">
                 {onBack && (
                   <button
                     onClick={onBack}
-                    className="p-0.5 -ml-1.5 text-gray-500 active:text-[#1a1f36] transition-colors"
+                    className="p-0.5 -ml-1.5 text-[#d97757] active:opacity-70 transition-opacity"
                   >
-                    <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+                    <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
                   </button>
                 )}
-                <span className="text-[13px] text-gray-500 font-normal">Your Pantry</span>
+                <span className="text-[12px] text-[#d97757] font-bold uppercase tracking-wider">Outbound Checkout</span>
               </div>
 
-              {/* Pantry name */}
+              {/* Action Name */}
               <h1 className="text-[28px] font-semibold text-[#1a1f36] tracking-tight leading-tight mt-0.5">
-                {pantryDetails?.name || 'Food Arca'}
+                Remove Items
               </h1>
 
-              {/* Status line */}
-              <p className="text-[14px] text-gray-500 mt-1.5">
-                Active<span className="mx-1.5 text-gray-300">|</span>
-                <button className="text-[#d97757] font-medium active:underline">Manage</button>
+              {/* Subtitle / Pantry Name */}
+              <p className="text-[14px] text-gray-500 mt-1.5 flex items-center">
+                From:<span className="font-medium text-gray-700 ml-1.5">{pantryDetails?.name || 'Food Arca'}</span>
               </p>
             </div>
 
