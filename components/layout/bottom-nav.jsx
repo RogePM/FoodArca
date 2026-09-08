@@ -2,9 +2,26 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Home, Package, Plus, MinusSquare, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDashboardRoute } from './use-dashboard-route';
+
+// Outline icons (inactive state)
+import {
+  HomeIcon as HomeOutline,
+  ArchiveBoxIcon as InventoryOutline,
+  PlusCircleIcon as AddOutline,
+  MinusCircleIcon as RemoveOutline,
+  UserCircleIcon as WorkspaceOutline,
+} from '@heroicons/react/24/outline';
+
+// Solid/filled icons (active state)
+import {
+  HomeIcon as HomeSolid,
+  ArchiveBoxIcon as InventorySolid,
+  PlusCircleIcon as AddSolid,
+  MinusCircleIcon as RemoveSolid,
+  UserCircleIcon as WorkspaceSolid,
+} from '@heroicons/react/24/solid';
 
 export function BottomNav({ activeView, setActiveView }) {
   const { isActive, navigateToView } = useDashboardRoute(activeView);
@@ -18,11 +35,11 @@ export function BottomNav({ activeView, setActiveView }) {
   };
 
   const tabs = [
-    { name: 'Home', label: 'Home', icon: Home, view: 'Dashboard', href: '/dashboard' },
-    { name: 'Add', label: 'Add', icon: Plus, view: 'Add Items', href: '/dashboard/add' },
-    { name: 'Inventory', label: 'Inventory', icon: Package, view: 'View Inventory', href: '/dashboard/inventory' },
-    { name: 'Remove', label: 'Remove', icon: MinusSquare, view: 'Remove Items', href: '/dashboard/remove' },
-    { name: 'Workspace', label: 'Workspace', icon: UserCircle, view: 'Settings', href: '/dashboard/settings' },
+    { name: 'Home', label: 'Home', outline: HomeOutline, solid: HomeSolid, view: 'Dashboard', href: '/dashboard' },
+    { name: 'Add', label: 'Add', outline: AddOutline, solid: AddSolid, view: 'Add Items', href: '/dashboard/add' },
+    { name: 'Inventory', label: 'Inventory', outline: InventoryOutline, solid: InventorySolid, view: 'View Inventory', href: '/dashboard/inventory' },
+    { name: 'Remove', label: 'Remove', outline: RemoveOutline, solid: RemoveSolid, view: 'Remove Items', href: '/dashboard/remove' },
+    { name: 'Workspace', label: 'Workspace', outline: WorkspaceOutline, solid: WorkspaceSolid, view: 'Settings', href: '/dashboard/settings' },
   ];
 
   return (
@@ -30,7 +47,7 @@ export function BottomNav({ activeView, setActiveView }) {
       
       {tabs.map((tab) => {
         const active = isActive(tab.href || tab.view);
-        const TabIcon = tab.icon; 
+        const Icon = active ? tab.solid : tab.outline;
         
         return (
           <Link
@@ -46,16 +63,16 @@ export function BottomNav({ activeView, setActiveView }) {
 
             <div className={cn(
               "transition-all duration-300 ease-out flex items-center justify-center h-6",
-              active ? "text-[#1a1f36]" : "text-gray-400 hover:text-gray-600"
+              active ? "text-[#c06245]" : "text-gray-500 hover:text-gray-600"
             )}>
-              <TabIcon className="h-[18px] w-[18px]" strokeWidth={active ? 2.5 : 1.75} />
+              <Icon className="h-[22px] w-[22px]" />
             </div>
             
             <span className={cn(
               "text-[10px] mt-0.5 transition-all duration-300 tracking-wide",
               active 
-                ? "text-[#1a1f36] font-semibold" 
-                : "text-gray-400 font-medium"
+                ? "text-[#c06245] font-semibold" 
+                : "text-gray-500 font-medium"
             )}>
               {tab.label}
             </span>
