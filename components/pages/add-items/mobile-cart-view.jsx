@@ -120,7 +120,7 @@ export function MobileCartView({
           /* EMPTY STATE: REMOVE-PAGE STYLE ACTION CARDS */
           <>
             {/* ─── HEADER BLOCK ─── */}
-            <div className="px-5 pt-safe mt-4">
+            <div className="px-4 pt-safe mt-4">
               <div className="mb-1">
                 <span className="text-[13px] text-gray-500 font-normal">Your Pantry</span>
               </div>
@@ -136,8 +136,8 @@ export function MobileCartView({
             </div>
 
             {/* ─── CARD 1: SCAN TO ADD ─── */}
-            <div className="px-5 mt-4">
-              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+            <div className="px-4 mt-4">
+              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col pr-4">
                     <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
@@ -169,7 +169,7 @@ export function MobileCartView({
                   </span>
                   <button
                     onClick={() => onBack && onBack('CAMERA')}
-                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
                   >
                     Open Scanner
                   </button>
@@ -178,8 +178,8 @@ export function MobileCartView({
             </div>
 
             {/* ─── CARD 2: SEARCH TO RESTOCK ─── */}
-            <div className="px-5 mt-4">
-              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+            <div className="px-4 mt-4">
+              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col pr-4">
                     <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
@@ -206,7 +206,7 @@ export function MobileCartView({
                   <button
                     type="button"
                     onClick={() => onBack && onBack('SEARCH')}
-                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
                   >
                     Find Items
                   </button>
@@ -215,8 +215,8 @@ export function MobileCartView({
             </div>
 
             {/* ─── CARD 3: MANUAL ENTRY ─── */}
-            <div className="px-5 mt-4 mb-6">
-              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+            <div className="px-4 mt-4 mb-6">
+              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col pr-4">
                     <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
@@ -243,7 +243,7 @@ export function MobileCartView({
                   <button
                     type="button"
                     onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
                   >
                     New Item
                   </button>
@@ -256,7 +256,7 @@ export function MobileCartView({
           <div className="flex flex-col">
             {/* ── RECEIPT-STYLE HEADER ── */}
             <div className="bg-white shrink-0">
-              <div className="px-5 pt-[calc(env(safe-area-inset-top)+10px)] pb-2.5 flex items-center justify-between">
+              <div className="px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2.5 flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-[12px] text-gray-500 font-medium mb-0.5">Total Quantity</span>
                   <span className="text-[18px] text-[#1a1f36] font-bold tracking-tight leading-none">
@@ -282,7 +282,7 @@ export function MobileCartView({
               </div>
             </div>
 
-            <div className="w-full mb-4 px-5 py-2 flex gap-2 bg-[#fcf3e8] border-y border-[#f3d9ba]">
+            <div className="w-full mb-4 px-4 py-2 flex gap-2 bg-[#fcf3e8] border-y border-[#f3d9ba]">
               <button
                 onClick={() => onBack && onBack('SEARCH')}
                 className="flex-1 h-[38px] rounded-xl bg-white border border-[#e8caa3] text-[#1a1f36] text-[13px] font-medium active:bg-[#fffcf7] transition-all flex items-center justify-center gap-2 shadow-[0_1px_2px_rgba(226,127,44,0.06)]"
@@ -299,7 +299,7 @@ export function MobileCartView({
               </button>
             </div>
 
-            <div className="mx-5 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
+            <div className="mx-4 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
               <div className="mx-4 py-3 border-b border-gray-300 flex items-center bg-white">
                 <span className="text-[17px] text-[#1a1f36] font-medium tracking-tight">Added items</span>
               </div>
@@ -319,9 +319,9 @@ export function MobileCartView({
                         transition={{ duration: 0.15 }}
                         className="bg-white"
                       >
-                        <div className="p-4 flex flex-col gap-3">
+                        <div className="p-3.5 flex flex-col gap-3">
                           {/* Item Info Row */}
-                          <div className="flex gap-4 items-start">
+                          <div className="flex gap-3.5 items-start">
                             {item.photoUrl ? (
                               <img
                                 src={item.photoUrl}
@@ -381,7 +381,7 @@ export function MobileCartView({
 
                           {/* Actions Row */}
                           <div className="flex items-center justify-between mt-2">
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3.5">
                               <button
                                 onClick={() => onEdit && onEdit(item)}
                                 className="text-[14px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-[#e27f2c] transition-colors"
@@ -461,7 +461,7 @@ export function MobileCartView({
       {mounted &&
         showClearConfirm &&
         createPortal(
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3.5">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -480,7 +480,7 @@ export function MobileCartView({
               {/* Close 'X' Button */}
               <button
                 onClick={() => setShowClearConfirm(false)}
-                className="absolute top-4 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
+                className="absolute top-3.5 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" strokeWidth={2.5} />
@@ -523,7 +523,7 @@ export function MobileCartView({
       {mounted &&
         showSubmitConfirm &&
         createPortal(
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3.5">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -542,7 +542,7 @@ export function MobileCartView({
               {/* Close 'X' Button */}
               <button
                 onClick={() => setShowSubmitConfirm(false)}
-                className="absolute top-4 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
+                className="absolute top-3.5 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" strokeWidth={2.5} />
@@ -591,7 +591,7 @@ export function MobileCartView({
       {mounted &&
         showHowItWorks &&
         createPortal(
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3.5">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -610,7 +610,7 @@ export function MobileCartView({
               {/* Close 'X' Button */}
               <button
                 onClick={() => setShowHowItWorks(false)}
-                className="absolute top-4 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
+                className="absolute top-3.5 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" strokeWidth={2.5} />

@@ -149,7 +149,7 @@ export function MobileCheckoutCartView({
         {cartItems.length === 0 ? (
           <>
             {/* â”€â”€ HEADER BLOCK â”€â”€ */}
-            <div className="px-5 pt-safe mt-4">
+            <div className="px-4 pt-safe mt-4">
               {/* Row: back arrow + tiny label */}
               <div className="flex items-center gap-1.5 mb-1.5">
                 {onBack && (
@@ -176,7 +176,7 @@ export function MobileCheckoutCartView({
             </div>
 
             {/* â”€â”€ SEARCH BAR â”€â”€ */}
-            <div className="px-5 mt-6 mb-2">
+            <div className="px-4 mt-6 mb-2">
               <div
                 className="flex items-center w-full h-[48px] bg-white border border-gray-200 shadow-sm rounded-full px-4 gap-3 cursor-text active:border-gray-300 transition-all"
                 onClick={() => onOpenVisualGrid('all')}
@@ -189,8 +189,8 @@ export function MobileCheckoutCartView({
             </div>
 
             {/* â”€â”€ SCAN & GO CARD â”€â”€ */}
-            <div className="px-5 mt-4">
-              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+            <div className="px-4 mt-4">
+              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
                 {/* Top section */}
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col pr-4">
@@ -221,7 +221,7 @@ export function MobileCheckoutCartView({
                   </span>
                   <button
                     onClick={onOpenScanner}
-                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
+                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
                   >
                     Open Scanner
                   </button>
@@ -230,8 +230,8 @@ export function MobileCheckoutCartView({
             </div>
 
             {/* â”€â”€ BROWSE ITEMS CARD â”€â”€ */}
-            <div className="px-5 mt-4 mb-6">
-              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+            <div className="px-4 mt-4 mb-6">
+              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
                 {/* Top section */}
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col pr-4">
@@ -257,7 +257,7 @@ export function MobileCheckoutCartView({
                   <button
                     type="button"
                     onClick={() => onOpenVisualGrid('all')}
-                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
+                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
                   >
                     Open Grid
                   </button>
@@ -267,19 +267,19 @@ export function MobileCheckoutCartView({
 
             {/* â”€â”€ STATS TILES (CAROUSEL) â”€â”€ */}
             <div className="mb-8">
-              <div className="px-5 mb-3">
+              <div className="px-4 mb-3">
                 <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
                   Inventory Alerts
                 </h2>
               </div>
               {/* Carousel Container */}
-              <div className="flex gap-3 px-5 overflow-x-auto snap-x scroll-pl-5 scroll-smooth pb-4 -mb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden after:content-[''] after:w-1 after:shrink-0">
+              <div className="flex gap-3 px-4 overflow-x-auto snap-x scroll-pl-5 scroll-smooth pb-4 -mb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden after:content-[''] after:w-1 after:shrink-0">
 
                 {/* Expired Tile */}
                 <button
                   type="button"
                   onClick={() => onOpenVisualGrid('expired')}
-                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
+                  className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
@@ -300,7 +300,7 @@ export function MobileCheckoutCartView({
                 <button
                   type="button"
                   onClick={() => onOpenVisualGrid('expiring_soon')}
-                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
+                  className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
@@ -321,7 +321,7 @@ export function MobileCheckoutCartView({
                 <button
                   type="button"
                   onClick={() => onOpenVisualGrid('low_stock')}
-                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
+                  className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
@@ -342,7 +342,7 @@ export function MobileCheckoutCartView({
                 <button
                   type="button"
                   onClick={() => onOpenVisualGrid('no_date')}
-                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
+                  className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0"></span>
@@ -364,7 +364,7 @@ export function MobileCheckoutCartView({
         ) : (
           <>
             {/* ── SEARCH BAR (FILLED STATE) ── */}
-            <div className="bg-[#d97757] px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 w-full relative z-10 shadow-sm">
+            <div className="bg-[#d97757] px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 w-full relative z-10 shadow-sm">
               <div className="flex items-center gap-3">
                 {onBack && (
                   <button
@@ -387,7 +387,7 @@ export function MobileCheckoutCartView({
             </div>
 
             {/* ── TOP CHECKOUT ROW ── */}
-            <div className="px-5 py-4 mb-2 flex items-center justify-between bg-white">
+            <div className="px-4 py-4 mb-2 flex items-center justify-between bg-white">
               <span className="text-[18px] text-[#1a1f36] font-semibold tracking-tight">
                 Total: {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
               </span>
@@ -399,7 +399,7 @@ export function MobileCheckoutCartView({
               </button>
             </div>
 
-            <div className="mx-5 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
+            <div className="mx-4 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
               <div className="mx-4 py-3 border-b border-gray-300 flex items-center bg-white">
                 <span className="text-[17px] text-[#1a1f36] font-medium tracking-tight">Scanned items</span>
               </div>
@@ -421,9 +421,9 @@ export function MobileCheckoutCartView({
                         transition={{ duration: 0.15 }}
                         className="bg-white"
                       >
-                        <div className="p-4 flex flex-col gap-3">
+                        <div className="p-3.5 flex flex-col gap-3">
                         {/* Top Row: Image & Info */}
-                        <div className="flex gap-4 items-start">
+                        <div className="flex gap-3.5 items-start">
                           {item.photoUrl ? (
                             <img
                               src={item.photoUrl}
@@ -532,7 +532,7 @@ export function MobileCheckoutCartView({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="absolute right-4 bottom-[calc(120px+env(safe-area-inset-bottom))] flex flex-col gap-4 z-40"
+            className="absolute right-4 bottom-[calc(120px+env(safe-area-inset-bottom))] flex flex-col gap-3.5 z-40"
           >
 
             <button
@@ -557,7 +557,7 @@ export function MobileCheckoutCartView({
         <AnimatePresence>
           {showClearConfirm && (
             <div
-              className="fixed inset-0 z-[10001] flex items-center justify-center p-4"
+              className="fixed inset-0 z-[10001] flex items-center justify-center p-3.5"
               style={{ isolation: 'isolate' }}
             >
               <motion.div
@@ -618,7 +618,7 @@ export function MobileCheckoutCartView({
         <AnimatePresence>
           {showSubmitConfirm && (
             <div
-              className="fixed inset-0 z-[10001] flex items-center justify-center p-4"
+              className="fixed inset-0 z-[10001] flex items-center justify-center p-3.5"
               style={{ isolation: 'isolate' }}
             >
               <motion.div
@@ -708,7 +708,7 @@ export function MobileCheckoutCartView({
                     </h2>
 
                     <div className="w-full space-y-5 mb-8 px-2">
-                      <div className="flex gap-4 items-start">
+                      <div className="flex gap-3.5 items-start">
                         <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
                           <Scan className="w-5 h-5" strokeWidth={2.5} />
                         </div>
@@ -722,7 +722,7 @@ export function MobileCheckoutCartView({
                         </div>
                       </div>
 
-                      <div className="flex gap-4 items-start">
+                      <div className="flex gap-3.5 items-start">
                         <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
                           <Search className="w-5 h-5" strokeWidth={2.5} />
                         </div>
@@ -736,7 +736,7 @@ export function MobileCheckoutCartView({
                         </div>
                       </div>
 
-                      <div className="flex gap-4 items-start">
+                      <div className="flex gap-3.5 items-start">
                         <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
                           <MinusSquare className="w-5 h-5" strokeWidth={2.5} />
                         </div>
