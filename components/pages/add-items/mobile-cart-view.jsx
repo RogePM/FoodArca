@@ -163,7 +163,7 @@ export function MobileCartView({
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between gap-3 -mx-1.5">
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-1.5 flex items-center justify-between gap-3 -mx-1.5">
                   <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
                     Uses your device camera
                   </span>
@@ -199,7 +199,7 @@ export function MobileCartView({
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between gap-3 -mx-1.5">
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-1.5 flex items-center justify-between gap-3 -mx-1.5">
                   <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
                     Existing inventory items
                   </span>
@@ -236,7 +236,7 @@ export function MobileCartView({
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between gap-3 -mx-1.5">
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-1.5 flex items-center justify-between gap-3 -mx-1.5">
                   <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
                     Custom item form
                   </span>
