@@ -118,101 +118,139 @@ export function MobileCartView({
       <div className="flex-1 overflow-y-auto w-full pb-[calc(110px+env(safe-area-inset-bottom))]">
         {cartItems.length === 0 ? (
           /* EMPTY STATE: REMOVE-PAGE STYLE ACTION CARDS */
-          <div className="min-h-[calc(100%+1px)] flex flex-col pb-6">
+          <>
             {/* ─── HEADER BLOCK ─── */}
-            <div className="px-5 pt-safe mt-6 mb-2">
-              <span className="text-[13px] font-semibold text-[#e27f2c] tracking-wide uppercase mb-1 block">
-                Stock Intake
-              </span>
-              <h1 className="text-[28px] font-bold text-[#1a1f36] tracking-tight leading-tight">
+            <div className="px-5 pt-safe mt-4">
+              <div className="mb-1">
+                <span className="text-[13px] text-gray-500 font-normal">Your Pantry</span>
+              </div>
+
+              <h1 className="text-[28px] font-semibold text-[#1a1f36] tracking-tight leading-tight mt-0.5">
                 {pantryDetails?.name || 'Food Arca'}
               </h1>
-              <p className="text-[14.5px] text-[#697386] mt-1.5 leading-relaxed">
-                Choose how you want to add new items or restock existing inventory.
+
+              <p className="text-[14px] text-gray-500 mt-1.5">
+                Stock Intake<span className="mx-1.5 text-gray-300">|</span>
+                <span className="text-[#e27f2c] font-medium">Ready</span>
               </p>
             </div>
 
-            <div className="px-5 space-y-3 mt-4">
-              {/* ─── CARD 1: SCAN TO ADD ─── */}
-              <button
-                type="button"
-                onClick={() => onBack && onBack('CAMERA')}
-                className="w-full text-left bg-white border border-gray-200 rounded-[20px] p-4 flex items-center justify-between shadow-sm active:scale-[0.98] active:bg-gray-50 transition-all cursor-pointer group"
-              >
-                <div className="flex flex-col flex-1 pr-4">
-                  <h2 className="text-[17px] font-bold text-[#1a1f36] tracking-tight group-hover:text-[#e27f2c] transition-colors">
-                    Scan to Add
-                  </h2>
-                  <p className="text-[13.5px] text-[#697386] mt-1 leading-snug">
-                    Use your camera to instantly identify and stage items.
-                  </p>
-                </div>
-                <div className="w-[64px] h-[64px] shrink-0 bg-orange-50 rounded-2xl flex items-center justify-center p-2">
-                  <img
-                    src="/assets/images/add-scan-amber.jpg?v=4"
-                    alt=""
-                    className="w-full h-full object-contain mix-blend-multiply"
-                  />
-                </div>
-              </button>
+            {/* ─── CARD 1: SCAN TO ADD ─── */}
+            <div className="px-5 mt-4">
+              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col pr-4">
+                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                      Scan to Add
+                    </h2>
+                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
+                      Skip manual entry.{' '}
+                      <button
+                        onClick={() => setShowHowItWorks(true)}
+                        className="underline underline-offset-2 decoration-gray-400 text-[#1a1f36] font-normal"
+                      >
+                        How it works
+                      </button>
+                    </p>
+                  </div>
 
-              {/* ─── CARD 2: SEARCH TO RESTOCK ─── */}
-              <button
-                type="button"
-                onClick={() => onBack && onBack('SEARCH')}
-                className="w-full text-left bg-white border border-gray-200 rounded-[20px] p-4 flex items-center justify-between shadow-sm active:scale-[0.98] active:bg-gray-50 transition-all cursor-pointer group"
-              >
-                <div className="flex flex-col flex-1 pr-4">
-                  <h2 className="text-[17px] font-bold text-[#1a1f36] tracking-tight group-hover:text-[#e27f2c] transition-colors">
-                    Search to Restock
-                  </h2>
-                  <p className="text-[13.5px] text-[#697386] mt-1 leading-snug">
-                    Quickly find existing items to add more stock.
-                  </p>
+                  <div className="w-[76px] h-[76px] shrink-0 relative">
+                    <img
+                      src="/assets/images/add-scan-amber.jpg?v=4"
+                      alt="Scan to Add"
+                      className="w-full h-full object-contain mix-blend-multiply"
+                    />
+                  </div>
                 </div>
-                <div className="w-[64px] h-[64px] shrink-0 bg-orange-50 rounded-2xl flex items-center justify-center p-2">
-                  <img
-                    src="/assets/images/add-restock-amber.jpg?v=2"
-                    alt=""
-                    className="w-full h-full object-contain mix-blend-multiply"
-                  />
-                </div>
-              </button>
 
-              {/* ─── CARD 3: MANUAL ENTRY ─── */}
-              <button
-                type="button"
-                onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                className="w-full text-left bg-white border border-gray-200 rounded-[20px] p-4 flex items-center justify-between shadow-sm active:scale-[0.98] active:bg-gray-50 transition-all cursor-pointer group"
-              >
-                <div className="flex flex-col flex-1 pr-4">
-                  <h2 className="text-[17px] font-bold text-[#1a1f36] tracking-tight group-hover:text-[#e27f2c] transition-colors">
-                    Manual Entry
-                  </h2>
-                  <p className="text-[13.5px] text-[#697386] mt-1 leading-snug">
-                    Create custom items completely from scratch.
-                  </p>
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between gap-3 -mx-1.5">
+                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
+                    Uses your device camera
+                  </span>
+                  <button
+                    onClick={() => onBack && onBack('CAMERA')}
+                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                  >
+                    Open Scanner
+                  </button>
                 </div>
-                <div className="w-[64px] h-[64px] shrink-0 bg-orange-50 rounded-2xl flex items-center justify-center p-2">
-                  <img
-                    src="/assets/images/add-manual-amber.jpg?v=2"
-                    alt=""
-                    className="w-full h-full object-contain mix-blend-multiply"
-                  />
-                </div>
-              </button>
+              </div>
             </div>
 
-            {/* Force scrolling bottom spacer */}
-            <div className="mt-8 px-5 flex justify-center pb-8">
-              <button
-                onClick={() => setShowHowItWorks(true)}
-                className="text-[13.5px] font-medium text-[#697386] underline underline-offset-4 decoration-gray-300 hover:text-[#1a1f36]"
-              >
-                How does staging work?
-              </button>
+            {/* ─── CARD 2: SEARCH TO RESTOCK ─── */}
+            <div className="px-5 mt-4">
+              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col pr-4">
+                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                      Search to Restock
+                    </h2>
+                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
+                      Add stock to existing items.
+                    </p>
+                  </div>
+
+                  <div className="w-[76px] h-[76px] shrink-0 relative">
+                    <img
+                      src="/assets/images/add-restock-amber.jpg?v=2"
+                      alt="Search to Restock"
+                      className="w-full h-full object-contain mix-blend-multiply"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between gap-3 -mx-1.5">
+                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
+                    Existing inventory items
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onBack && onBack('SEARCH')}
+                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                  >
+                    Find Items
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+
+            {/* ─── CARD 3: MANUAL ENTRY ─── */}
+            <div className="px-5 mt-4 mb-6">
+              <div className="border border-gray-200 rounded-2xl bg-white p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-col pr-4">
+                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                      Manual Entry
+                    </h2>
+                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
+                      Create items without barcodes.
+                    </p>
+                  </div>
+
+                  <div className="w-[76px] h-[76px] shrink-0 relative">
+                    <img
+                      src="/assets/images/add-manual-amber.jpg?v=2"
+                      alt="Manual Entry"
+                      className="w-full h-full object-contain mix-blend-multiply"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-4 flex items-center justify-between gap-3 -mx-1.5">
+                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
+                    Custom item form
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onBack && onBack('MANUAL_ENTRY')}
+                    className="h-[36px] px-5 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                  >
+                    New Item
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
         ) : (
           /* FILLED CART ITEMS LIST */
           <div className="flex flex-col">
