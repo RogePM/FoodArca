@@ -47,6 +47,16 @@ export function ProductImagePicker({
     }
   }, [formName, formCategory, error]);
 
+  // Collapse and clear state if the user clears the item name
+  useEffect(() => {
+    if (!formName.trim() || formName.trim().length < 2) {
+      setIsExpanded(false);
+      setImages([]);
+      setLastSearchedQuery("");
+      setError(null);
+    }
+  }, [formName]);
+
   const handleFetchImages = useCallback(
     async (force = false) => {
       const trimmedName = formName.trim();
@@ -85,7 +95,7 @@ export function ProductImagePicker({
         const fetchedList = Array.isArray(data.images) ? data.images : [];
 
         if (fetchedList.length === 0) {
-          setError(`No packaging images found for "${trimmedName}".`);
+          setError(`No product images found for "${trimmedName}".`);
           setImages([]);
         } else {
           setImages(fetchedList);
@@ -165,7 +175,7 @@ export function ProductImagePicker({
                   ) : (
                     <img
                       src={photoUrl}
-                      alt={`Packaging preview for ${formName.trim() || "selected item"}`}
+                      alt={`Product image preview for ${formName.trim() || "selected item"}`}
                       referrerPolicy="no-referrer"
                       crossOrigin="anonymous"
                       className="w-full h-full object-contain p-1"
@@ -198,7 +208,7 @@ export function ProductImagePicker({
                   <p className="text-[11.5px] text-[#697386] truncate mt-0.5">
                     {failedUrls.has(photoUrl)
                       ? "External link unreachable. Tap Change to pick another."
-                      : "Packaging image selected"}
+                      : "Product image selected"}
                   </p>
                 </div>
               </div>
@@ -230,7 +240,7 @@ export function ProductImagePicker({
               disabled={isSearchDisabled}
               aria-expanded={isExpanded}
               aria-haspopup="true"
-              aria-label="Find product packaging photo online"
+              aria-label="Find product photo online"
               className={`w-full group text-left p-2.5 px-3 rounded-xl border transition-all flex items-center justify-between shadow-sm ${
                 isSearchDisabled
                   ? "border-gray-200 bg-gray-50/50 cursor-not-allowed"
@@ -303,7 +313,7 @@ export function ProductImagePicker({
               {/* Header */}
               <div className="flex items-center justify-between">
                 <span className="text-[14px] font-semibold text-[#1a1f36]">
-                  Choose packaging photo
+                  Choose product image
                 </span>
 
                 <div className="flex items-center gap-1">
@@ -352,7 +362,7 @@ export function ProductImagePicker({
                     <Loader2 className="w-5 h-5 animate-spin text-[#e27f2c]" />
                   </div>
                   <p className="text-[13px] font-medium text-gray-600 animate-pulse">
-                    Finding safe packaging photos...
+                    Finding safe product photos...
                   </p>
                 </div>
               )}
@@ -381,9 +391,9 @@ export function ProductImagePicker({
                 <div className="py-4 text-center space-y-2.5">
                   <p className="text-[13px] text-gray-600">
                     {formName.trim().length >= 2 ? (
-                      <>Ready to search packaging photos for <span className="font-semibold text-gray-800">"{formName.trim()}"</span></>
+                      <>Ready to search product photos for <span className="font-semibold text-gray-800">"{formName.trim()}"</span></>
                     ) : (
-                      "Enter an item name above to search for packaging photos."
+                      "Enter an item name above to search for product photos."
                     )}
                   </p>
                   {formName.trim().length >= 2 && (
@@ -436,12 +446,12 @@ export function ProductImagePicker({
                             : "border-gray-200 hover:border-[#e27f2c]/50"
                         }`}
                         title={isSelected ? "Deselect image" : `Select option ${idx + 1}`}
-                        aria-label={isSelected ? `Deselect option ${idx + 1}` : `Select packaging image option ${idx + 1}`}
+                        aria-label={isSelected ? `Deselect option ${idx + 1}` : `Select product image option ${idx + 1}`}
                         aria-pressed={isSelected}
                       >
                         <img
                           src={url}
-                          alt={`Packaging photo option ${idx + 1} for ${formName.trim() || "item"}`}
+                          alt={`Product photo option ${idx + 1} for ${formName.trim() || "item"}`}
                           referrerPolicy="no-referrer"
                           crossOrigin="anonymous"
                           className="w-full h-full object-contain p-1.5 transition-transform group-hover:scale-105"
