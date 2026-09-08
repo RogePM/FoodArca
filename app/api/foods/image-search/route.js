@@ -161,7 +161,7 @@ async function scrapeDuckDuckGoImages(contextualQuery) {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(6000),
     });
 
     if (!tokenRes.ok) return [];
@@ -187,7 +187,7 @@ async function scrapeDuckDuckGoImages(contextualQuery) {
         'Referer': 'https://duckduckgo.com/',
         'Accept': 'application/json',
       },
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(6000),
     });
 
     if (!imagesRes.ok) return [];
@@ -199,8 +199,8 @@ async function scrapeDuckDuckGoImages(contextualQuery) {
     const seen = new Set();
 
     for (const item of data.results) {
-      // Prioritize fast, high-speed edge CDN thumbnail (~20-30KB, 50ms latency), fallback to raw origin image
-      let candidate = item.thumbnail || item.image;
+      // Prioritize standard original web image (crisp commercial packaging shot), fallback to thumbnail
+      let candidate = item.image || item.thumbnail;
       if (candidate && typeof candidate === 'string') {
         if (candidate.startsWith('//')) candidate = 'https:' + candidate;
         if (candidate.startsWith('http://') && (candidate.includes('bing.net') || candidate.includes('duckduckgo.com') || candidate.includes('wikimedia.org') || candidate.includes('openfoodfacts.org'))) {
@@ -367,13 +367,12 @@ export async function GET(request) {
     let images = await scrapeDuckDuckGoImages(safeQuery);
     let source = 'duckduckgo';
 
-    // Fallback 1: If DDG returns fewer than 3 images, query Open Food Facts
+    // Fallback 1: If contextual query returns fewer than 3 images, try a broader web search
     if (images.length < 3) {
-      const offImages = await fetchOpenFoodFactsImages(cleanName);
-      if (offImages.length > 0) {
-        const combined = new Set([...images, ...offImages]);
+      const broaderImages = await scrapeDuckDuckGoImages(`${cleanName} grocery`);
+      if (broaderImages.length > 0) {
+        const combined = new Set([...images, ...broaderImages]);
         images = Array.from(combined).slice(0, 4);
-        source = images.length === offImages.length ? 'openfoodfacts' : 'combined';
       }
     }
 
