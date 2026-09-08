@@ -122,7 +122,7 @@ export function MobileCartView({
             {/* ─── HEADER BLOCK ─── */}
             <div className="px-4 pt-safe mt-4">
               <div className="mb-1">
-                <span className="text-[12px] text-[#e27f2c] font-bold uppercase tracking-wider">Inbound Staging</span>
+                <span className="text-[12px] text-gray-500 font-bold uppercase tracking-wider">Inbound Staging</span>
               </div>
 
               <h1 className="text-[28px] font-semibold text-[#1a1f36] tracking-tight leading-tight mt-0.5">

@@ -155,12 +155,12 @@ export function MobileCheckoutCartView({
                 {onBack && (
                   <button
                     onClick={onBack}
-                    className="p-0.5 -ml-1.5 text-[#d97757] active:opacity-70 transition-opacity"
+                    className="p-0.5 -ml-1.5 text-gray-500 active:text-[#1a1f36] transition-colors"
                   >
                     <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
                   </button>
                 )}
-                <span className="text-[12px] text-[#d97757] font-bold uppercase tracking-wider">Outbound Checkout</span>
+                <span className="text-[12px] text-gray-500 font-bold uppercase tracking-wider">Outbound Checkout</span>
               </div>
 
               {/* Action Name */}
