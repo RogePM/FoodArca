@@ -412,6 +412,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                         setFormName("");
                         setSuggestions([]);
                         setIsTyping(false);
+                        setFormPhotoUrl(null);
                       }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 active:bg-gray-300 transition-colors"
                       title="Clear name"
