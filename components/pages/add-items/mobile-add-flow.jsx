@@ -8,7 +8,8 @@ import { categories } from '@/lib/constants';
 import { RestockSheet } from '@/components/pages/add-items/restock-sheet';
 import { 
   X, ShoppingBag, Plus, Minus, Calendar,
-  CheckCircle2, Package, Loader2, Keyboard, ChevronLeft, ChevronDown, Check
+  CheckCircle2, Package, Loader2, Keyboard, ChevronLeft, ChevronDown, Check,
+  Scan, Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -299,6 +300,29 @@ export function MobileAddFlow({ onClose }) {
   // ROUTER RENDER LOGIC
   // ============================
 
+  const handleRestockItem = (item) => {
+    const newItem = {
+      id: item.id,
+      barcode: item.barcode,
+      name: item.name,
+      category: item.category,
+      categoryName: getCategoryMeta(item.category).name,
+      quantity: String(item.quantity),
+      unit: item.unit || 'units',
+      weightPerUnit: item.weightPerUnit ? String(item.weightPerUnit) : '0',
+      totalWeightLbs: item.totalWeightLbs || 0,
+      intakeMode: 'count',
+      expirationDate: item.expirationDate || null,
+      expirationPrecision: item.expirationPrecision || 'none',
+      sourceType: 'donation',
+      photoUrl: item.photoUrl || null,
+      isNewBatch: item.isNewBatch,
+      existingBatchId: item.existingBatchId || null,
+    };
+    addItemToCartMerged(newItem);
+    showToast(newItem.name, cartItems.length + 1);
+  };
+
   if (activeView === 'CART') {
     return (
       <>
@@ -332,28 +356,7 @@ export function MobileAddFlow({ onClose }) {
       <RestockSheet 
         isOpen={isGridSheetOpen}
         onClose={() => setIsGridSheetOpen(false)}
-        onRestockItem={(item) => {
-          const newItem = {
-            id: item.id,
-            barcode: item.barcode,
-            name: item.name,
-            category: item.category,
-            categoryName: getCategoryMeta(item.category).name,
-            quantity: String(item.quantity),
-            unit: item.unit || 'units',
-            weightPerUnit: item.weightPerUnit ? String(item.weightPerUnit) : '0',
-            totalWeightLbs: item.totalWeightLbs || 0,
-            intakeMode: 'count',
-            expirationDate: item.expirationDate || null,
-            expirationPrecision: item.expirationPrecision || 'none',
-            sourceType: 'donation',
-            photoUrl: item.photoUrl || null,
-            isNewBatch: item.isNewBatch,
-            existingBatchId: item.existingBatchId || null,
-          };
-          addItemToCartMerged(newItem);
-          showToast(newItem.name, cartItems.length + 1);
-        }}
+        onRestockItem={handleRestockItem}
       />
       </>
     );
@@ -388,7 +391,7 @@ export function MobileAddFlow({ onClose }) {
       {/* 1. BACKGROUND CAMERA LAYER (Unmounts when navigating away) */}
       <BarcodeScannerOverlay 
         onScan={handleScan}
-        isPaused={false} // True continuous mode! Never pause!
+        isPaused={isGridSheetOpen || sheetState !== 'CLOSED'}
         showCloseButton={false} 
         className="absolute inset-0 z-0"
       />
@@ -399,17 +402,9 @@ export function MobileAddFlow({ onClose }) {
           variant="secondary" 
           onClick={() => setActiveView('CART')}
           className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 shadow-lg pointer-events-auto"
+          aria-label="Back to Cart"
         >
           <ChevronLeft className="h-7 w-7" strokeWidth={2.5} />
-        </Button>
-        
-        <Button 
-          variant="secondary" 
-          onClick={handleManualEntry}
-          className="h-12 px-4 rounded-full bg-white/20 backdrop-blur-md text-white font-semibold text-[13px] tracking-wide border border-white/30 shadow-lg pointer-events-auto flex items-center gap-2"
-        >
-          <Keyboard className="h-5 w-5" strokeWidth={2.5} />
-          Manual
         </Button>
       </div>
 
@@ -419,7 +414,7 @@ export function MobileAddFlow({ onClose }) {
           <motion.div 
             key="toast"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-            className="absolute inset-x-0 bottom-[calc(80px+env(safe-area-inset-bottom)+8px)] z-40 flex justify-center px-4"
+            className="absolute inset-x-0 bottom-[calc(105px+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 pointer-events-auto"
           >
             <button 
               onClick={() => setActiveView('CART')}
@@ -431,7 +426,7 @@ export function MobileAddFlow({ onClose }) {
               </div>
               <div className="flex items-center gap-2 pl-3 border-l border-gray-600 ml-3 shrink-0">
                 <span className="text-[13px] font-bold text-gray-300">Open Cart</span>
-                <span className="bg-[#d97757] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+                <span className="bg-[#e27f2c] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
                   {toastMessage.count}
                 </span>
               </div>
@@ -440,35 +435,71 @@ export function MobileAddFlow({ onClose }) {
         )}
       </AnimatePresence>
 
-      {/* 4. MINI-CART BAR (Replaces FAB) */}
-      <div className="absolute bottom-0 inset-x-0 bg-white shadow-[0_-20px_40px_rgba(0,0,0,0.12)] pb-[env(safe-area-inset-bottom)] z-40 pointer-events-auto">
-        <div className="h-[76px] px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
+      {/* 4. BOTTOM NAVIGATION BAR (Scanner, Search items, Manual entry, Cart) */}
+      <div className="absolute bottom-0 inset-x-0 bg-white z-40 pointer-events-auto shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+        {/* Helper Text Subheader */}
+        <div className="border-b border-gray-100 py-3.5 px-6 text-center">
+          <p className="text-[14px] font-medium text-[#1a1f36]">
+            Scan a barcode to add an item to inventory
+          </p>
+        </div>
+        
+        {/* Bottom Tabs */}
+        <div className="flex items-center justify-between px-1 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)]">
+          {/* Scanner Tab (Active) */}
+          <button 
+            type="button"
+            className="flex flex-col items-center justify-center py-2 px-1 flex-1"
+          >
+            <Scan className="w-6 h-6 text-[#e27f2c] mb-1.5" strokeWidth={2.2} />
+            <span className="text-[11px] font-semibold text-[#e27f2c]">Scanner</span>
+          </button>
+
+          {/* Search Items Tab */}
+          <button 
+            type="button"
+            onClick={() => setIsGridSheetOpen(true)}
+            className="flex flex-col items-center justify-center py-2 px-1 flex-1 active:opacity-70 transition-opacity"
+          >
+            <Search className="w-6 h-6 text-[#1a1f36] mb-1.5" strokeWidth={2.2} />
+            <span className="text-[11px] font-medium text-[#1a1f36]">Search items</span>
+          </button>
+
+          {/* Manual Entry Tab */}
+          <button 
+            type="button"
+            onClick={handleManualEntry}
+            className="flex flex-col items-center justify-center py-2 px-1 flex-1 active:opacity-70 transition-opacity"
+          >
+            <Keyboard className="w-6 h-6 text-[#1a1f36] mb-1.5" strokeWidth={2.2} />
+            <span className="text-[11px] font-medium text-[#1a1f36]">Manual entry</span>
+          </button>
+
+          {/* Cart Tab */}
+          <button 
+            type="button"
+            onClick={() => setActiveView('CART')}
+            className="flex flex-col items-center justify-center py-2 px-1 flex-1 active:opacity-70 transition-opacity"
+          >
             <div className="relative">
-              <ShoppingBag className="w-[26px] h-[26px] text-[#1a1f36]" strokeWidth={2.5} />
+              <ShoppingBag className="w-6 h-6 text-[#1a1f36] mb-1.5" strokeWidth={2.2} />
               {cartItems.length > 0 && (
                 <div className="absolute -top-1.5 -right-2 bg-[#FF3B30] text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
                   {cartItems.length}
                 </div>
               )}
             </div>
-            <div className="flex flex-col">
-              <span className="text-[15px] font-bold text-[#1a1f36] tracking-tight">
-                {cartItems.length === 0 ? 'Batch is empty' : `${cartItems.length} items staged`}
-              </span>
-              {cartItems.length > 0 && (
-                <span className="text-[13px] font-medium text-[#8792a2]">Ready for intake</span>
-              )}
-            </div>
-          </div>
-          <Button
-            onClick={() => setActiveView('CART')}
-            className="h-11 px-5 rounded-full bg-[#f4f4f6] text-[#1a1f36] font-bold text-[14px] hover:bg-gray-200"
-          >
-            View Cart
-          </Button>
+            <span className="text-[11px] font-medium text-[#1a1f36]">Cart</span>
+          </button>
         </div>
       </div>
+
+      {/* RESTOCK / SEARCH ITEMS SHEET */}
+      <RestockSheet 
+        isOpen={isGridSheetOpen}
+        onClose={() => setIsGridSheetOpen(false)}
+        onRestockItem={handleRestockItem}
+      />
 
       {/* 5. BOTTOM SHEETS (Only Known Item left) */}
       <AnimatePresence>
