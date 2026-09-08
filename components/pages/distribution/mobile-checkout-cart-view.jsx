@@ -386,7 +386,7 @@ export function MobileCheckoutCartView({
             </div>
 
             {/* ── TOP CHECKOUT ROW ── */}
-            <div className="px-4 py-4 mb-2 flex items-center justify-between bg-white">
+            <div className="px-4 py-3.5 mb-5 flex items-center justify-between bg-white relative z-20 border-b border-gray-200 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.08)]">
               <span className="text-[18px] text-[#1a1f36] font-semibold tracking-tight">
                 Total: {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
               </span>
