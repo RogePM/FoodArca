@@ -327,10 +327,11 @@ export function InventoryView() {
       <div className="z-20 sticky top-0 bg-[#d97757] md:bg-white px-4 md:px-6 pt-3 pb-2 shadow-[0_1px_0_0_#d97757] md:shadow-none transition-colors shrink-0">
         
         {/* MOBILE REUSABLE SEARCH BAR */}
-        <MobileInventorySearch 
+        <MobileInventorySearch
           initialQuery={searchQuery}
           onQueryChange={setSearchQuery}
           inventoryData={batchedInventory}
+          onItemSelect={handleSelectItem}
         />
 
         {/* DESKTOP REAL SEARCH BAR */}

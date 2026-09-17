@@ -6,7 +6,7 @@ export function MobileGridSkeleton() {
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="flex flex-col text-left border-b border-gray-200 pb-5 pt-4">
           {/* Image Block Skeleton */}
-          <div className="w-full aspect-[4/5] bg-gray-100/80 rounded-xl mb-3 animate-pulse" />
+          <div className="w-full aspect-square bg-gray-100/80 rounded-xl mb-3 animate-pulse" />
           
           {/* Title Skeleton */}
           <div className="w-3/4 h-4 bg-gray-200/80 rounded-md animate-pulse mb-2.5" />

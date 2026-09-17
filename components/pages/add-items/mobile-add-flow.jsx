@@ -56,6 +56,19 @@ function getCategoryMeta(catName) {
   return { icon: Package, name: 'Other', value: 'other' };
 }
 
+// Weight units convert to lbs directly; volume units (fl_oz/ml/l/gal) have no
+// reliable weight without a per-product density, so they're stored as-is and
+// contribute 0 toward totalWeightLbs — same gap the full manual-entry form has.
+function computePerUnitLbs(weightStr, unit) {
+  const val = parseFloat(weightStr);
+  if (!val || val <= 0) return 0;
+  if (unit === 'lbs') return val;
+  if (unit === 'oz') return val / 16;
+  if (unit === 'g') return val / 453.592;
+  if (unit === 'kg') return val * 2.20462;
+  return 0;
+}
+
 export function MobileAddFlow({ onClose }) {
   const { pantryId } = usePantry();
 
@@ -145,6 +158,17 @@ export function MobileAddFlow({ onClose }) {
     { value: 'bottles', label: 'Bottles' },
     { value: 'bags', label: 'Bags' },
     { value: 'cases', label: 'Cases' },
+  ];
+
+  const WEIGHT_UNIT_OPTIONS = [
+    { value: 'lbs', label: 'lbs' },
+    { value: 'oz', label: 'oz' },
+    { value: 'fl_oz', label: 'fl oz' },
+    { value: 'kg', label: 'kg' },
+    { value: 'g', label: 'g' },
+    { value: 'ml', label: 'mL' },
+    { value: 'l', label: 'L' },
+    { value: 'gal', label: 'gal' },
   ];
 
   const lastScanRef = useRef({ code: null, time: 0 });
@@ -501,38 +525,39 @@ export function MobileAddFlow({ onClose }) {
         onRestockItem={handleRestockItem}
       />
 
-      {/* 5. BOTTOM SHEETS (Only Known Item left) */}
+      {/* 5. FAST INTAKE SHEET (For Known Barcodes) — its own fixed layer so it
+          always renders above the camera, bottom nav and scrim regardless of
+          the camera container's overflow-hidden. */}
       <AnimatePresence>
-        {/* SCRIM */}
-        {sheetState !== 'CLOSED' && (
-          <motion.div 
-            key="scrim"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
-            onClick={closeSheet}
-          />
-        )}
-
-        {/* FAST INTAKE POPUP (For Known Barcodes) */}
         {sheetState === 'KNOWN' && (
-          <motion.div
-            key="known-popup"
-            initial={{ y: 40, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 40, opacity: 0, scale: 0.98 }}
-            transition={{ type: "spring", damping: 28, stiffness: 260 }}
-            className="absolute bottom-[calc(76px+12px+env(safe-area-inset-bottom))] inset-x-4 z-50 bg-white rounded-[24px] shadow-[0_20px_50px_-10px_rgba(26,31,54,0.35)] border border-gray-100 overflow-hidden"
-          >
-            {/* Header */}
-            <div className="px-5 pt-5 pb-4 border-b border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[12px] font-bold text-[#d97757] bg-[#fff0eb] px-2.5 py-1 rounded-full flex items-center gap-1.5 tracking-wide">
-                  <Package className="w-3.5 h-3.5" /> Item Found
-                </span>
-                <button onClick={() => setSheetState('CLOSED')} className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-[#8792a2] active:bg-gray-200 transition-colors shrink-0">
-                  <X className="w-4 h-4" strokeWidth={2.5} />
-                </button>
-              </div>
+          <div className="fixed inset-0 z-[10000] flex flex-col justify-end" style={{ isolation: 'isolate' }}>
+            {/* SCRIM */}
+            <motion.div
+              key="known-scrim"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+              onClick={closeSheet}
+            />
 
-              <div className="flex items-center gap-3.5 min-w-0">
+            {/* SLIDE-UP SHEET */}
+            <motion.div
+              key="known-sheet"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="relative bg-white rounded-t-[28px] shadow-[0_-10px_40px_rgba(0,0,0,0.15)] flex flex-col w-full max-h-[90dvh] overflow-y-auto"
+            >
+              {/* Close button — no "Item Found" title row, saves vertical space */}
+              <button
+                onClick={closeSheet}
+                className="absolute right-4 top-4 h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-[#8792a2] active:bg-gray-200 transition-colors z-10 shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" strokeWidth={2.5} />
+              </button>
+
+              {/* Header: photo + editable name + tappable category */}
+              <div className="px-5 pt-5 pb-4 pr-14 border-b border-gray-100 flex items-start gap-3.5 min-w-0">
                 {scannedItem?.photoUrl ? (
                   <img src={scannedItem.photoUrl} alt="" className="w-14 h-14 rounded-2xl object-cover border border-gray-100 shadow-sm shrink-0" />
                 ) : (
@@ -540,17 +565,41 @@ export function MobileAddFlow({ onClose }) {
                     <Package className="h-6 w-6 text-[#d97757]" />
                   </div>
                 )}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-[16px] font-bold text-[#1a1f36] leading-tight tracking-tight truncate">{formName}</h3>
-                  <p className="text-[12px] font-medium text-[#8792a2] mt-1 truncate">
-                    {formWeight ? `${formWeight} ${formWeightUnit} · ` : ''}{getCategoryMeta(formCategory).name}
-                  </p>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <input
+                    type="text"
+                    value={formName}
+                    onChange={e => setFormName(e.target.value)}
+                    placeholder="Item name"
+                    className="w-full text-[16px] font-bold text-[#1a1f36] bg-transparent outline-none border-b border-transparent focus:border-[#d97757] leading-tight truncate pb-0.5"
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="inline-flex items-center gap-1 max-w-full text-[12px] font-bold text-[#d97757] bg-[#fff0eb] pl-2.5 pr-1.5 py-1 rounded-full outline-none data-[state=open]:ring-1 data-[state=open]:ring-[#d97757] transition-shadow">
+                      <span className="truncate">{getCategoryMeta(formCategory).name}</span>
+                      <ChevronDown className="h-3 w-3 shrink-0" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48 max-h-64 overflow-y-auto p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[10050]">
+                      {categories.map(cat => (
+                        <DropdownMenuItem
+                          key={cat.value}
+                          onClick={() => setFormCategory(cat.value)}
+                          className={`flex items-center justify-between px-3 py-2 text-[13px] rounded-lg cursor-pointer ${
+                            formCategory === cat.value
+                              ? 'bg-[#fff0eb] text-[#d97757] font-bold'
+                              : 'text-[#3c4257] font-medium'
+                          }`}
+                        >
+                          <span>{cat.name}</span>
+                          {formCategory === cat.value && <Check className="h-3.5 w-3.5 text-[#d97757]" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
-            </div>
 
-            {/* Controls */}
-            <div className="px-5 py-4 space-y-4">
+              {/* Controls */}
+              <div className="px-5 py-4 space-y-4">
 
               {/* Row 1: Quantity + Unit */}
               <div className="flex gap-3 min-w-0">
@@ -613,7 +662,48 @@ export function MobileAddFlow({ onClose }) {
                 </div>
               </div>
 
-              {/* Row 2: Expiration Date */}
+              {/* Row 2: Weight / Volume per unit — editable so a wrong auto-filled
+                  size (e.g. from a barcode lookup) can be corrected on the spot */}
+              <div className="flex gap-3 min-w-0">
+                <div className="flex-1 min-w-0">
+                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Size per unit</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={formWeight}
+                    onChange={e => setFormWeight(e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder="Optional"
+                    className="w-full h-[48px] px-3.5 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors"
+                  />
+                </div>
+                <div className="w-[112px] shrink-0">
+                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Unit</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="w-full h-[48px] px-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[13px] font-bold text-[#1a1f36] flex items-center justify-between outline-none data-[state=open]:border-[#d97757] data-[state=open]:bg-white transition-colors">
+                      <span className="truncate">{WEIGHT_UNIT_OPTIONS.find(o => o.value === formWeightUnit)?.label || 'lbs'}</span>
+                      <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] shrink-0" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-32 max-h-64 overflow-y-auto p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[10050]">
+                      {WEIGHT_UNIT_OPTIONS.map(opt => (
+                        <DropdownMenuItem
+                          key={opt.value}
+                          onClick={() => setFormWeightUnit(opt.value)}
+                          className={`flex items-center justify-between px-3 py-2 text-[13px] rounded-lg cursor-pointer ${
+                            formWeightUnit === opt.value
+                              ? 'bg-[#fff0eb] text-[#d97757] font-bold'
+                              : 'text-[#3c4257] font-medium'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {formWeightUnit === opt.value && <Check className="h-3.5 w-3.5 text-[#d97757]" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* Row 3: Expiration Date */}
               <div>
                 <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Expiration Date</span>
                 <div className="relative">
@@ -662,8 +752,10 @@ export function MobileAddFlow({ onClose }) {
                     categoryName: getCategoryMeta(formCategory).name,
                     quantity: String(parseInt(formQty) || 1),
                     unit: formUnit,
-                    weightPerUnit: formWeight ? (formWeightUnit === 'oz' ? (parseFloat(formWeight) / 16).toFixed(2) : parseFloat(formWeight).toFixed(2)) : '0',
-                    totalWeightLbs: formWeight ? Number(((formWeightUnit === 'oz' ? parseFloat(formWeight) / 16 : parseFloat(formWeight)) * (parseInt(formQty) || 1)).toFixed(2)) : 0,
+                    weightPerUnit: computePerUnitLbs(formWeight, formWeightUnit).toFixed(2),
+                    totalWeightLbs: Number((computePerUnitLbs(formWeight, formWeightUnit) * (parseInt(formQty) || 1)).toFixed(2)),
+                    sizeValue: formWeight || null,
+                    sizeUnit: formWeight ? formWeightUnit : null,
                     intakeMode: 'count',
                     expirationDate: formExpDate || null,
                     expirationPrecision: formExpDate ? 'day' : 'none',
@@ -680,7 +772,8 @@ export function MobileAddFlow({ onClose }) {
                 Add to Batch
               </button>
             </div>
-          </motion.div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

@@ -7,7 +7,28 @@ import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { getCategoryVisual } from '@/components/pages/inventory/inventory-utils';
 
-export function MobileInventorySearch({ 
+function SearchResultThumb({ item }) {
+  const [imgError, setImgError] = useState(false);
+  const catVisual = getCategoryVisual(item.category);
+  const showPhoto = Boolean(item.photoUrl) && !imgError;
+
+  return (
+    <div className={`w-[50px] h-[50px] shrink-0 rounded-md flex items-center justify-center border border-gray-100 ${catVisual.style.bg}`}>
+      {showPhoto ? (
+        <img
+          src={item.photoUrl}
+          alt=""
+          onError={() => setImgError(true)}
+          className="w-full h-full object-contain rounded-md"
+        />
+      ) : (
+        <img src={catVisual.imagePath} alt="" className="w-7 h-7 opacity-75 mix-blend-multiply" />
+      )}
+    </div>
+  );
+}
+
+export function MobileInventorySearch({
   initialQuery = '', 
   onQueryChange, 
   inventoryData = null, 
@@ -178,13 +199,7 @@ export function MobileInventorySearch({
                        onClick={() => handleSelect(item)}
                        className="flex items-center gap-3 py-3 border-b border-gray-100 last:border-0 active:scale-[0.98] transition-transform cursor-pointer px-2"
                      >
-                        <div className={`w-[50px] h-[50px] shrink-0 rounded-md flex items-center justify-center border border-gray-100 ${getCategoryVisual(item.category).style.bg}`}>
-                          {item.photoUrl ? (
-                            <img src={item.photoUrl} alt="" className="w-full h-full object-cover rounded-md" />
-                          ) : (
-                            <img src={getCategoryVisual(item.category).imagePath} alt="" className="w-7 h-7 opacity-75 mix-blend-multiply" />
-                          )}
-                        </div>
+                        <SearchResultThumb item={item} />
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-[15px] text-[#1a1f36] truncate">{item.name}</h4>
                           <p className="text-[13px] font-normal text-gray-500">

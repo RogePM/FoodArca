@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Layers, Package } from 'lucide-react';
+import React, { useState } from 'react';
+import { Layers, Package, Pencil } from 'lucide-react';
 import {
   getCategoryName,
   getCategoryVisual,
@@ -48,6 +48,113 @@ export function getProductStatusMeta(item) {
 }
 
 /**
+ * ProductTile
+ * Single grid tile. Owns its own broken-photo fallback state, since a real
+ * `photoUrl` can 404 independently of whether the category icon fallback applies.
+ */
+function ProductTile({ item, handleSelect }) {
+  const [imgError, setImgError] = useState(false);
+  const catVisual = getCategoryVisual(item.category);
+  const batchCount =
+    item.batches && Array.isArray(item.batches)
+      ? item.batches.length
+      : item.logicalBatchCount || 1;
+
+  const { totalQty, displayDate, isExpired, isExpiring } =
+    getProductStatusMeta(item);
+
+  const showPhoto = Boolean(item.photoUrl) && !imgError;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => handleSelect && handleSelect(item)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleSelect && handleSelect(item);
+        }
+      }}
+      className="flex flex-col text-left transition-all active:scale-[0.98] group relative cursor-pointer border-b border-gray-200 pb-5 pt-4"
+    >
+      {/* 1. Image Area */}
+      <div
+        className={`w-full aspect-square flex items-center justify-center relative overflow-hidden rounded-md mb-2 border border-gray-100 ${catVisual.style.bg}`}
+      >
+        {showPhoto ? (
+          <div className="w-full h-full flex items-center justify-center p-3">
+            <img
+              src={item.photoUrl}
+              alt={item.name}
+              loading="lazy"
+              decoding="async"
+              onError={() => setImgError(true)}
+              className="w-full h-full object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-200"
+            />
+          </div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center p-4">
+            <img
+              src={catVisual.imagePath}
+              alt={catVisual.name}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-contain drop-shadow-sm group-hover:scale-110 transition-transform duration-300 mix-blend-multiply"
+            />
+          </div>
+        )}
+
+        {/* Multi-Batch Count Overlay Badge (Top-Right) */}
+        {batchCount > 1 && (
+          <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-medium px-1.5 py-0.5 rounded shadow-sm border border-gray-100 flex items-center gap-1">
+            <Layers className="w-3 h-3 text-[#1a1f36]" />
+            <span>{batchCount}</span>
+          </div>
+        )}
+
+        {/* Edit Affordance (Bottom-Right) — signals the tile is tappable-to-edit */}
+        <div className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-gray-100 shadow-sm flex items-center justify-center text-gray-500 group-hover:text-[#d97757] group-hover:bg-white transition-colors">
+          <Pencil className="w-3.5 h-3.5" strokeWidth={2.25} />
+        </div>
+      </div>
+
+      {/* 2. Product Name — 2 lines so similar products (sizes/flavors) stay distinguishable */}
+      <h4 className="text-[14px] font-medium text-[#1a1f36] leading-snug line-clamp-2 min-h-[2.5em] mb-1 px-0.5 tracking-tight">
+        {item.name}
+      </h4>
+
+      {/* 3. Metadata Cluster */}
+      <div className="flex flex-col gap-1 text-[13px] font-normal text-gray-500 px-0.5 mb-1 mt-auto">
+        {/* Category & Stock */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-gray-600 truncate min-w-0">
+            {getCategoryName(item.category)}
+          </span>
+          <span className="text-gray-300 shrink-0">|</span>
+          <span className="text-gray-600 shrink-0 whitespace-nowrap">
+            Stock: {totalQty}
+          </span>
+        </div>
+
+        {/* Expiration Date */}
+        {displayDate ? (
+          <div className={`font-medium ${
+            isExpired ? 'text-red-600' : isExpiring ? 'text-amber-600' : 'text-gray-500'
+          }`}>
+            Exp: {formatDate(displayDate)}
+          </div>
+        ) : (
+          <div className="text-gray-400">
+            No exp date
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * MobileGridView
  * Renders a 2-column responsive CSS grid of product cards inspired by Sam's Club.
  * Large image area, clean product name, minimal metadata.
@@ -81,19 +188,6 @@ export function MobileGridView({
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
       {inventory.map((item) => {
-        const catVisual = getCategoryVisual(item.category);
-        const batchCount =
-          item.batches && Array.isArray(item.batches)
-            ? item.batches.length
-            : item.logicalBatchCount || 1;
-
-        const {
-          totalQty,
-          displayDate,
-          isExpired,
-          isExpiring,
-        } = getProductStatusMeta(item);
-
         const itemKey =
           item.catalogItemId ||
           item._id ||
@@ -101,81 +195,7 @@ export function MobileGridView({
           `${item.name}__${item.category}`;
 
         return (
-          <div
-            key={itemKey}
-            role="button"
-            tabIndex={0}
-            onClick={() => handleSelect && handleSelect(item)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleSelect && handleSelect(item);
-              }
-            }}
-            className="flex flex-col text-left transition-all active:scale-[0.98] group relative cursor-pointer border-b border-gray-200 pb-5 pt-4"
-          >
-            {/* 1. Image Area */}
-            <div
-              className={`w-full aspect-square flex items-center justify-center relative overflow-hidden rounded-md mb-2 border border-gray-100 ${
-                item.photoUrl ? 'bg-gray-50' : catVisual.style.bg
-              }`}
-            >
-              {item.photoUrl ? (
-                <img
-                  src={item.photoUrl}
-                  alt={item.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center p-4">
-                  <img
-                    src={catVisual.imagePath}
-                    alt={catVisual.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-contain drop-shadow-sm group-hover:scale-110 transition-transform duration-300 mix-blend-multiply"
-                  />
-                </div>
-              )}
-
-              {/* Multi-Batch Count Overlay Badge (Top-Right) */}
-              {(item.batches?.length > 1 || batchCount > 1) && (
-                <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-medium px-1.5 py-0.5 rounded shadow-sm border border-gray-100 flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-[#1a1f36]" />
-                  <span>{batchCount}</span>
-                </div>
-              )}
-
-            </div>
-
-            {/* 2. Product Name */}
-            <h4 className="text-[14px] font-medium text-[#1a1f36] leading-snug truncate mb-1 px-0.5 tracking-tight">
-              {item.name}
-            </h4>
-
-            {/* 3. Metadata Cluster */}
-            <div className="flex flex-col gap-1 text-[13px] font-normal text-gray-500 px-0.5 mb-1 mt-auto">
-              {/* Category & Stock */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-gray-600">{getCategoryName(item.category)}</span>
-                <span className="text-gray-300">|</span>
-                <span className="text-gray-600">Stock: {totalQty}</span>
-              </div>
-
-              {/* Expiration Date */}
-              {displayDate ? (
-                <div className={`font-medium ${
-                  isExpired ? 'text-red-600' : isExpiring ? 'text-amber-600' : 'text-gray-500'
-                }`}>
-                  Exp: {formatDate(displayDate)}
-                </div>
-              ) : (
-                <div className="text-gray-400">
-                  No exp date
-                </div>
-              )}
-            </div>
-          </div>
+          <ProductTile key={itemKey} item={item} handleSelect={handleSelect} />
         );
       })}
     </div>

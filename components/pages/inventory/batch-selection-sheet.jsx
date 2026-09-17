@@ -31,6 +31,14 @@ export function InventoryBatchSelectionSheet({
     return item.batches;
   }, [item]);
 
+  // Hide zero-quantity remnants (e.g. fully-used merged batches) from the picker —
+  // they have nothing to select and only add confusing empty rows. Fall back to the
+  // unfiltered list if that would leave nothing to show.
+  const visibleBatches = useMemo(() => {
+    const withStock = batches.filter((b) => parseFloat(b.quantity) > 0);
+    return withStock.length > 0 ? withStock : batches;
+  }, [batches]);
+
   // Lock background body scroll when open
   useEffect(() => {
     if (isOpen && item && batches.length > 1) {
@@ -87,7 +95,7 @@ export function InventoryBatchSelectionSheet({
                 </h2>
                 <span className="bg-orange-50 text-[#d97757] text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-orange-100 flex items-center gap-1">
                   <Layers className="w-3 h-3 text-[#d97757]" />
-                  {batches.length} Batches
+                  {visibleBatches.length} Batches
                 </span>
               </div>
               <button
@@ -137,7 +145,7 @@ export function InventoryBatchSelectionSheet({
 
             {/* Logical Batches List */}
             <div className="flex-1 overflow-y-auto px-6 py-3 space-y-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-              {batches.map((batch, idx) => {
+              {visibleBatches.map((batch, idx) => {
                 const statusStyles = getUrgentStatusStyles(batch);
                 const formattedExp = formatDate(batch.expirationDate);
                 const mergedCount = batch.rawBatchIds?.length || 1;
