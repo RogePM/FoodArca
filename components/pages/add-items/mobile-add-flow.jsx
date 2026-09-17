@@ -160,6 +160,15 @@ export function MobileAddFlow({ onClose }) {
     { value: 'cases', label: 'Cases' },
   ];
 
+  const UNIT_SINGULAR = {
+    units: 'unit',
+    cans: 'can',
+    boxes: 'box',
+    bottles: 'bottle',
+    bags: 'bag',
+    cases: 'case',
+  };
+
   const WEIGHT_UNIT_OPTIONS = [
     { value: 'lbs', label: 'lbs' },
     { value: 'oz', label: 'oz' },
@@ -605,7 +614,7 @@ export function MobileAddFlow({ onClose }) {
               <div className="flex gap-3 min-w-0">
                 {/* Quantity Stepper */}
                 <div className="flex-1 min-w-0">
-                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Qty</span>
+                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">How many?</span>
                   <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200/80 h-[48px] min-w-0">
                     <button
                       type="button"
@@ -663,21 +672,28 @@ export function MobileAddFlow({ onClose }) {
               </div>
 
               {/* Row 2: Weight / Volume per unit — editable so a wrong auto-filled
-                  size (e.g. from a barcode lookup) can be corrected on the spot */}
-              <div className="flex gap-3 min-w-0">
-                <div className="flex-1 min-w-0">
-                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Size per unit</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={formWeight}
-                    onChange={e => setFormWeight(e.target.value.replace(/[^0-9.]/g, ''))}
-                    placeholder="Optional"
-                    className="w-full h-[48px] px-3.5 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors"
-                  />
+                  size (e.g. from a barcode lookup) can be corrected on the spot.
+                  Framed as a plain question, not a spec-sheet term, since staff
+                  read this as "how big is ONE of these" not "size per unit". */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider">
+                    How big is 1 {UNIT_SINGULAR[formUnit] || 'unit'}?
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#a3acb9] uppercase tracking-wide">Optional</span>
                 </div>
-                <div className="w-[112px] shrink-0">
-                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Unit</span>
+                <div className="flex gap-3 min-w-0">
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formWeight}
+                      onChange={e => setFormWeight(e.target.value.replace(/[^0-9.]/g, ''))}
+                      placeholder="e.g. 500"
+                      className="w-full h-[48px] px-3.5 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors"
+                    />
+                  </div>
+                  <div className="w-[112px] shrink-0">
                   <DropdownMenu>
                     <DropdownMenuTrigger className="w-full h-[48px] px-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[13px] font-bold text-[#1a1f36] flex items-center justify-between outline-none data-[state=open]:border-[#d97757] data-[state=open]:bg-white transition-colors">
                       <span className="truncate">{WEIGHT_UNIT_OPTIONS.find(o => o.value === formWeightUnit)?.label || 'lbs'}</span>
@@ -700,7 +716,11 @@ export function MobileAddFlow({ onClose }) {
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  </div>
                 </div>
+                <p className="text-[11px] font-medium text-[#a3acb9] mt-1.5 ml-0.5">
+                  The size on the label — e.g. 500 mL, 12 oz. Leave blank if unsure.
+                </p>
               </div>
 
               {/* Row 3: Expiration Date */}
