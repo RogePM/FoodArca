@@ -292,9 +292,9 @@ export function MobileCartView({
 
             {/* Secondary actions moved to FAB */}
 
-            <div className="mx-4 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
-              <div className="mx-4 py-3 border-b border-gray-300 flex items-center bg-white">
-                <span className="text-[17px] text-[#1a1f36] font-medium tracking-tight">Added items</span>
+            <div className="mx-4 mb-6 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
+              <div className="mx-4 py-2.5 border-b border-gray-300 flex items-center bg-white">
+                <span className="text-[16px] text-[#1a1f36] font-medium tracking-tight">Added items</span>
               </div>
               <div className="flex flex-col bg-white">
                 <AnimatePresence initial={false}>
@@ -312,18 +312,18 @@ export function MobileCartView({
                         transition={{ duration: 0.15 }}
                         className="bg-white"
                       >
-                        <div className="p-3.5 flex flex-col gap-3">
+                        <div className="p-3 flex flex-col gap-2.5">
                           {/* Item Info Row */}
-                          <div className="flex gap-3.5 items-start">
+                          <div className="flex gap-3 items-start">
                             {item.photoUrl ? (
                               <img
                                 src={item.photoUrl}
                                 alt=""
-                                className="w-[72px] h-[72px] rounded-md object-cover border border-gray-100 shrink-0 bg-gray-50"
+                                className="w-[60px] h-[60px] rounded-md object-cover border border-gray-100 shrink-0 bg-gray-50"
                               />
                             ) : (
                               <div
-                                className={`w-[72px] h-[72px] rounded-md flex items-center justify-center shrink-0 border border-gray-100 p-0 overflow-hidden ${catVisual.style.bg}`}
+                                className={`w-[60px] h-[60px] rounded-md flex items-center justify-center shrink-0 border border-gray-100 p-0 overflow-hidden ${catVisual.style.bg}`}
                               >
                                 <img
                                   src={catVisual.imagePath}
@@ -333,7 +333,7 @@ export function MobileCartView({
                               </div>
                             )}
 
-                            <div className="flex-1 min-w-0 py-1">
+                            <div className="flex-1 min-w-0 py-0.5">
                               {/* Title and Quantity Row */}
                               <div className="flex items-start justify-between gap-3 mb-0.5">
                                 <h4 className="font-normal text-gray-900 text-[15.5px] leading-snug">
@@ -373,17 +373,17 @@ export function MobileCartView({
                           </div>
 
                           {/* Actions Row */}
-                          <div className="flex items-center justify-between mt-2">
-                            <div className="flex items-center gap-3.5">
+                          <div className="flex items-center justify-between mt-1">
+                            <div className="flex items-center gap-3">
                               <button
                                 onClick={() => onEdit && onEdit(item)}
-                                className="text-[14px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-[#e27f2c] transition-colors"
+                                className="text-[13.5px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-[#e27f2c] transition-colors"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => removeFromBatch(item.id)}
-                                className="text-[14px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-red-600 hover:decoration-red-300 transition-colors"
+                                className="text-[13.5px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-red-600 hover:decoration-red-300 transition-colors"
                               >
                                 Remove
                               </button>
@@ -391,29 +391,29 @@ export function MobileCartView({
 
                             {/* Stepper */}
                             {item.intakeMode !== 'weight' ? (
-                              <div className="flex items-center rounded-full border border-[#e27f2c] h-[34px] bg-white overflow-hidden">
+                              <div className="flex items-center rounded-full border border-[#e27f2c] h-[30px] bg-white overflow-hidden">
                                 <button
                                   type="button"
                                   onClick={() => updateItemQty(item.id, -1)}
-                                  className="h-full w-10 flex items-center justify-center text-[#e27f2c] active:bg-[#fff7f2] transition-colors"
+                                  className="h-full w-9 flex items-center justify-center text-[#e27f2c] active:bg-[#fff7f2] transition-colors"
                                   aria-label="Decrease quantity"
                                 >
-                                  <Minus className="h-4 w-4" strokeWidth={2} />
+                                  <Minus className="h-3.5 w-3.5" strokeWidth={2} />
                                 </button>
-                                <span className="w-8 text-center text-[14px] font-medium text-[#e27f2c]">
+                                <span className="w-7 text-center text-[13.5px] font-medium text-[#e27f2c]">
                                   {item.quantity}
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => updateItemQty(item.id, 1)}
-                                  className="h-full w-10 flex items-center justify-center text-[#e27f2c] active:bg-[#fff7f2] transition-colors"
+                                  className="h-full w-9 flex items-center justify-center text-[#e27f2c] active:bg-[#fff7f2] transition-colors"
                                   aria-label="Increase quantity"
                                 >
-                                  <Plus className="h-4 w-4" strokeWidth={2} />
+                                  <Plus className="h-3.5 w-3.5" strokeWidth={2} />
                                 </button>
                               </div>
                             ) : (
-                              <div className="h-[34px] flex items-center px-2">
+                              <div className="h-[30px] flex items-center px-2">
                                 <span className="text-[13px] font-medium text-gray-500 italic">
                                   Use Edit to change weight
                                 </span>
