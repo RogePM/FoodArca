@@ -10,13 +10,11 @@ import {
   Loader2,
   CheckCircle2,
   Scan,
-  ScanBarcode,
-  Search,
-  ChevronRight,
-  Keyboard,
+  ChevronLeft,
 } from 'lucide-react';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { getCategoryVisual, formatDate } from '@/components/pages/inventory/inventory-utils';
+import { AddFlowBottomBar } from './add-flow-bottom-bar';
 
 export function MobileCartView({
   cartItems = [],
@@ -29,7 +27,7 @@ export function MobileCartView({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showAddActionSheet, setShowAddActionSheet] = useState(false);
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
   const [isSubmittingCart, setIsSubmittingCart] = useState(false);
   const [cartSuccess, setCartSuccess] = useState('');
   const [cartError, setCartError] = useState('');
@@ -254,18 +252,30 @@ export function MobileCartView({
           <div className="flex flex-col">
             {/* ── RECEIPT-STYLE HEADER ── */}
             <div className="bg-white shrink-0 relative z-20 border-b border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.03)] mb-3">
-              <div className="px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3.5 flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-[12px] text-gray-500 font-medium mb-0.5">Total Quantity</span>
-                  <span className="text-[18px] text-[#1a1f36] font-bold tracking-tight leading-none">
-                    {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
-                  </span>
+              <div className="px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Back to dashboard — confirm first, batch stays staged in sessionStorage */}
+                  <button
+                    type="button"
+                    onClick={() => setShowBackConfirm(true)}
+                    className="h-9 w-9 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 border border-gray-200/60 text-[#1a1f36] flex items-center justify-center active:scale-95 transition-all"
+                    aria-label="Back to dashboard"
+                  >
+                    <ChevronLeft className="w-5 h-5" strokeWidth={2.4} />
+                  </button>
+
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[12px] text-gray-500 font-medium mb-0.5">Total Quantity</span>
+                    <span className="text-[18px] text-[#1a1f36] font-bold tracking-tight leading-none">
+                      {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
                 </div>
-                
+
                 <button
                   disabled={isSubmittingCart}
                   onClick={() => setShowSubmitConfirm(true)}
-                  className="h-[42px] px-5 rounded-full bg-[#e27f2c] text-white text-[14.5px] font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="h-[42px] px-5 rounded-full bg-[#e27f2c] text-white text-[14.5px] font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
                 >
                   {isSubmittingCart ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -274,7 +284,7 @@ export function MobileCartView({
                       <CheckCircle2 className="w-4 h-4" /> Added!
                     </>
                   ) : (
-                    'Add Items'
+                    'Add to Inventory'
                   )}
                 </button>
               </div>
@@ -419,16 +429,6 @@ export function MobileCartView({
               </div>
             </div>
 
-            {/* FLOATING ADD BUTTON */}
-            <button
-              type="button"
-              onClick={() => setShowAddActionSheet(true)}
-              className="fixed bottom-[calc(84px+env(safe-area-inset-bottom))] right-4 z-[90] w-[52px] h-[52px] bg-[#e27f2c] rounded-full shadow-[0_4px_16px_rgba(226,127,44,0.35)] flex items-center justify-center text-white hover:bg-[#cf6f20] active:scale-95 transition-transform cursor-pointer"
-              aria-label="Add items"
-            >
-              <Plus className="w-[22px] h-[22px]" strokeWidth={2.5} />
-            </button>
-
             <div className="flex justify-center pt-2 pb-6">
               <button
                 onClick={() => setShowClearConfirm(true)}
@@ -440,6 +440,25 @@ export function MobileCartView({
           </div>
         )}
       </div>
+
+      {/* PERSISTENT BOTTOM TAB BAR (populated cart) — mirrors the Scanner
+          screen's bar. Portaled to <body> so its z-index isn't capped by
+          this component's own z-50 stacking context, letting it render
+          above (and fully cover) the global bottom nav (z-[100]). */}
+      {mounted &&
+        cartItems.length > 0 &&
+        createPortal(
+          <AddFlowBottomBar
+            activeTab="CART"
+            cartCount={totalItemCount}
+            helperText="Add more items to this batch"
+            onScanner={() => onBack && onBack('CAMERA')}
+            onSearch={() => onBack && onBack('SEARCH')}
+            onManual={() => onBack && onBack('MANUAL_ENTRY')}
+            onCart={() => {}}
+          />,
+          document.body
+        )}
 
       {/* 1. CENTERED MODAL: CLEAR CART CONFIRMATION */}
       {mounted &&
@@ -503,71 +522,71 @@ export function MobileCartView({
           document.body
         )}
 
-      {/* 2. CENTERED MODAL: SUBMIT BATCH CONFIRMATION */}
+      {/* 2. SLIDE-UP SHEET: SUBMIT BATCH CONFIRMATION */}
       {mounted &&
-        showSubmitConfirm &&
         createPortal(
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3.5">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-              onClick={() => setShowSubmitConfirm(false)}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="relative w-full max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 z-10 flex flex-col items-center text-center"
-            >
-              {/* Close 'X' Button */}
-              <button
-                onClick={() => setShowSubmitConfirm(false)}
-                className="absolute top-3.5 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
-                aria-label="Close"
+          <AnimatePresence>
+            {showSubmitConfirm && (
+              <div
+                className="fixed inset-0 z-[99999] flex flex-col justify-end"
+                style={{ isolation: 'isolate' }}
               >
-                <X className="w-5 h-5" strokeWidth={2.5} />
-              </button>
-
-              <div className="w-12 h-12 rounded-full bg-[#fff0eb] flex items-center justify-center text-[#e27f2c] mb-3 mt-1">
-                <CheckCircle2 className="w-6 h-6" strokeWidth={2.5} />
-              </div>
-
-              <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
-                Confirm stock intake
-              </h3>
-              <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6">
-                You are adding{' '}
-                <span className="font-semibold text-[#1a1f36]">
-                  {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
-                </span>{' '}
-                to your live inventory.
-              </p>
-
-              <div className="flex gap-2.5 w-full">
-                <button
-                  type="button"
+                <motion.div
+                  key="submit-scrim"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 bg-black/40 backdrop-blur-sm"
                   onClick={() => setShowSubmitConfirm(false)}
-                  className="flex-1 h-[42px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14px] font-normal active:bg-gray-50 transition-colors"
+                />
+
+                <motion.div
+                  key="submit-sheet"
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                  className="relative bg-white rounded-t-[32px] p-6 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col items-center text-center max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSubmitConfirm(false);
-                    submitBatch();
-                  }}
-                  className="flex-1 h-[42px] rounded-xl bg-[#e27f2c] text-white text-[14px] font-semibold active:bg-[#cf6f20] transition-colors shadow-sm"
-                >
-                  Confirm add
-                </button>
+                  <div className="w-12 h-12 rounded-full bg-[#fff0eb] flex items-center justify-center text-[#e27f2c] mb-3">
+                    <CheckCircle2 className="w-6 h-6" strokeWidth={2.5} />
+                  </div>
+
+                  <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
+                    Confirm stock intake
+                  </h3>
+                  <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6 px-2">
+                    You are adding{' '}
+                    <span className="font-semibold text-[#1a1f36]">
+                      {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                    </span>{' '}
+                    to your live inventory.
+                  </p>
+
+                  <div className="flex flex-col gap-2.5 w-full">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSubmitConfirm(false);
+                        submitBatch();
+                      }}
+                      className="w-full h-[46px] rounded-xl bg-[#e27f2c] text-white text-[14.5px] font-semibold active:bg-[#cf6f20] transition-colors shadow-sm"
+                    >
+                      Confirm Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowSubmitConfirm(false)}
+                      className="w-full h-[46px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </div>,
+            )}
+          </AnimatePresence>,
           document.body
         )}
 
@@ -660,106 +679,71 @@ export function MobileCartView({
           document.body
         )}
 
-      {/* 4. IOS-STYLE BOTTOM ACTION SHEET: ADD ITEMS */}
+      {/* 5. SLIDE-UP SHEET: BACK TO DASHBOARD CONFIRMATION */}
       {mounted &&
-        showAddActionSheet &&
         createPortal(
-          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" style={{ isolation: 'isolate' }}>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-              onClick={() => setShowAddActionSheet(false)}
-            />
-
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-              className="relative bg-white rounded-t-[32px] p-5 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
-            >
-              {/* Grab Handle */}
-              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mt-1 mb-3.5 shrink-0" />
-
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4 px-1">
-                <h3 className="text-[17px] font-semibold text-[#1a1f36] tracking-tight">Add Items</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddActionSheet(false)}
-                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 border border-gray-200/60 text-[#1a1f36] flex items-center justify-center active:scale-95 transition-all"
-                  aria-label="Close"
-                >
-                  <X className="w-4 h-4" strokeWidth={2.2} />
-                </button>
-              </div>
-
-              {/* 3-Column Action Tile Grid */}
-              <div className="grid grid-cols-3 gap-2.5 mb-4">
-                {/* 1. Scan Barcode */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddActionSheet(false);
-                    onBack && onBack('CAMERA');
-                  }}
-                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-white border border-gray-300 shadow-sm hover:border-gray-400 active:scale-95 transition-all cursor-pointer text-center group h-[124px]"
-                >
-                  <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 group-active:scale-95 transition-transform">
-                    <Scan className="w-6 h-6" strokeWidth={2.2} />
-                  </div>
-                  <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
-                    Scan<br />Barcode
-                  </span>
-                </button>
-
-                {/* 2. Search Items */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddActionSheet(false);
-                    onBack && onBack('SEARCH');
-                  }}
-                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-white border border-gray-300 shadow-sm hover:border-gray-400 active:scale-95 transition-all cursor-pointer text-center group h-[124px]"
-                >
-                  <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 group-active:scale-95 transition-transform">
-                    <Search className="w-6 h-6" strokeWidth={2.2} />
-                  </div>
-                  <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
-                    Search<br />Items
-                  </span>
-                </button>
-
-                {/* 3. Manual Entry */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddActionSheet(false);
-                    onBack && onBack('MANUAL_ENTRY');
-                  }}
-                  className="flex flex-col items-center justify-center p-3 py-4 rounded-2xl bg-white border border-gray-300 shadow-sm hover:border-gray-400 active:scale-95 transition-all cursor-pointer text-center group h-[124px]"
-                >
-                  <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 group-active:scale-95 transition-transform">
-                    <Keyboard className="w-6 h-6" strokeWidth={2.2} />
-                  </div>
-                  <span className="text-[13px] font-semibold text-[#1a1f36] leading-tight">
-                    Manual<br />Entry
-                  </span>
-                </button>
-              </div>
-
-              {/* Cancel Button */}
-              <button
-                type="button"
-                onClick={() => setShowAddActionSheet(false)}
-                className="w-full h-[48px] rounded-full bg-gray-100 hover:bg-gray-200 border border-gray-200/80 text-[#1a1f36] text-[15px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center"
+          <AnimatePresence>
+            {showBackConfirm && (
+              <div
+                className="fixed inset-0 z-[99999] flex flex-col justify-end"
+                style={{ isolation: 'isolate' }}
               >
-                Cancel
-              </button>
-            </motion.div>
-          </div>,
+                <motion.div
+                  key="back-scrim"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                  onClick={() => setShowBackConfirm(false)}
+                />
+
+                <motion.div
+                  key="back-sheet"
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                  className="relative bg-white rounded-t-[32px] p-6 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col items-center text-center max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
+                >
+                  <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 mt-1">
+                    <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+                  </div>
+
+                  <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
+                    Leave this batch?
+                  </h3>
+                  <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6 px-2">
+                    You'll return to the dashboard. Your{' '}
+                    <span className="font-medium text-gray-700">
+                      {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                    </span>{' '}
+                    will stay saved here so you can pick up where you left off.
+                  </p>
+
+                  <div className="flex flex-col gap-2.5 w-full">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBackConfirm(false);
+                        onBack && onBack();
+                      }}
+                      className="w-full h-[46px] rounded-xl bg-[#e27f2c] text-white text-[14.5px] font-semibold active:bg-[#cf6f20] transition-colors shadow-sm"
+                    >
+                      Go to Dashboard
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowBackConfirm(false)}
+                      className="w-full h-[46px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
+                    >
+                      Stay Here
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
           document.body
         )}
     </motion.div>

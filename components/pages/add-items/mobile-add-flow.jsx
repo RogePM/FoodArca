@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { categories } from '@/lib/constants';
 import { RestockSheet } from '@/components/pages/add-items/restock-sheet';
-import { 
-  X, ShoppingBag, Plus, Minus, Calendar,
-  CheckCircle2, Package, Loader2, Keyboard, ChevronLeft, ChevronDown, Check,
-  Scan, Search
+import {
+  X, Plus, Minus, Calendar,
+  CheckCircle2, Package, Loader2, ChevronLeft, ChevronDown, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +34,7 @@ function MobileFieldLabel({ label, optional, children }) {
 
 import { MobileCartView } from './mobile-cart-view';
 import { MobileManualEntryView } from './mobile-manual-entry-view';
+import { AddFlowBottomBar } from './add-flow-bottom-bar';
 
 // Dynamically import the scanner overlay to avoid SSR issues
 const BarcodeScannerOverlay = dynamic(
@@ -71,6 +72,7 @@ function computePerUnitLbs(weightStr, unit) {
 
 export function MobileAddFlow({ onClose }) {
   const { pantryId } = usePantry();
+  const router = useRouter();
 
   // --- CART STATE ---
   const [cartItems, setCartItems] = useState(() => {
@@ -367,7 +369,11 @@ export function MobileAddFlow({ onClose }) {
           onBack={(viewName) => {
             // If called with no arguments (Back button), return to Dashboard
             if (!viewName || typeof viewName !== 'string') {
-              if (onClose) onClose();
+              if (onClose) {
+                onClose();
+              } else {
+                router.push('/dashboard');
+              }
               return;
             }
             if (viewName === 'SEARCH') {
@@ -469,63 +475,15 @@ export function MobileAddFlow({ onClose }) {
       </AnimatePresence>
 
       {/* 4. BOTTOM NAVIGATION BAR (Scanner, Search items, Manual entry, Cart) */}
-      <div className="absolute bottom-0 inset-x-0 bg-white z-40 pointer-events-auto shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
-        {/* Helper Text Subheader */}
-        <div className="border-b border-gray-100 py-3.5 px-6 text-center">
-          <p className="text-[14px] font-medium text-[#1a1f36]">
-            Scan a barcode to add an item to inventory
-          </p>
-        </div>
-        
-        {/* Bottom Tabs */}
-        <div className="flex items-center justify-between px-1 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)]">
-          {/* Scanner Tab (Active) */}
-          <button 
-            type="button"
-            className="flex flex-col items-center justify-center py-2 px-1 flex-1"
-          >
-            <Scan className="w-6 h-6 text-[#e27f2c] mb-1.5" strokeWidth={2.2} />
-            <span className="text-[11px] font-semibold text-[#e27f2c]">Scanner</span>
-          </button>
-
-          {/* Search Items Tab */}
-          <button 
-            type="button"
-            onClick={() => setIsGridSheetOpen(true)}
-            className="flex flex-col items-center justify-center py-2 px-1 flex-1 active:opacity-70 transition-opacity"
-          >
-            <Search className="w-6 h-6 text-[#1a1f36] mb-1.5" strokeWidth={2.2} />
-            <span className="text-[11px] font-medium text-[#1a1f36]">Search items</span>
-          </button>
-
-          {/* Manual Entry Tab */}
-          <button 
-            type="button"
-            onClick={handleManualEntry}
-            className="flex flex-col items-center justify-center py-2 px-1 flex-1 active:opacity-70 transition-opacity"
-          >
-            <Keyboard className="w-6 h-6 text-[#1a1f36] mb-1.5" strokeWidth={2.2} />
-            <span className="text-[11px] font-medium text-[#1a1f36]">Manual entry</span>
-          </button>
-
-          {/* Cart Tab */}
-          <button 
-            type="button"
-            onClick={() => setActiveView('CART')}
-            className="flex flex-col items-center justify-center py-2 px-1 flex-1 active:opacity-70 transition-opacity"
-          >
-            <div className="relative">
-              <ShoppingBag className="w-6 h-6 text-[#1a1f36] mb-1.5" strokeWidth={2.2} />
-              {cartItems.length > 0 && (
-                <div className="absolute -top-1.5 -right-2 bg-[#FF3B30] text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                  {cartItems.length}
-                </div>
-              )}
-            </div>
-            <span className="text-[11px] font-medium text-[#1a1f36]">Cart</span>
-          </button>
-        </div>
-      </div>
+      <AddFlowBottomBar
+        activeTab="SCANNER"
+        cartCount={cartItems.length}
+        helperText="Scan a barcode to add an item to inventory"
+        onScanner={() => {}}
+        onSearch={() => setIsGridSheetOpen(true)}
+        onManual={handleManualEntry}
+        onCart={() => setActiveView('CART')}
+      />
 
       {/* RESTOCK / SEARCH ITEMS SHEET */}
       <RestockSheet 

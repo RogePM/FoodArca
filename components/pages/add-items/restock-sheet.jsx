@@ -650,73 +650,91 @@ export function RestockSheet({ isOpen, onClose, onRestockItem }) {
                       </div>
                     )}
 
-                    {/* Quantity stepper */}
-                    <div className="mt-8 w-full">
-                      <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-2 block text-center">
-                        How many to add?
-                      </span>
-                      <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200/80 h-[48px] max-w-[200px] mx-auto min-w-0">
-                        <button type="button" onClick={() => setRestockQty(Math.max(1, restockQty - 1))} disabled={restockQty <= 1}
-                          className="h-full w-11 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-l-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <Minus className="w-4 h-4" strokeWidth={2.5} />
-                        </button>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={restockQty}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/[^0-9]/g, '');
-                            const num = parseInt(val, 10);
-                            if (!isNaN(num) && num >= 1) setRestockQty(num);
-                            else if (val === '') setRestockQty(1);
-                          }}
-                          className="w-0 flex-1 min-w-0 text-center text-[18px] font-black text-[#1a1f36] bg-transparent outline-none h-full [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
-                        />
-                        <button type="button" onClick={() => setRestockQty(restockQty + 1)}
-                          className="h-full w-11 shrink-0 flex items-center justify-center text-[#d97757] active:bg-gray-100 rounded-r-xl transition-colors"
-                        >
-                          <Plus className="w-4 h-4" strokeWidth={2.5} />
-                        </button>
+                    <div className="mt-7 w-full space-y-3.5">
+                      {/* Quantity stepper */}
+                      <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
+                        <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-3 block text-center">
+                          How many to add?
+                        </span>
+                        <div className="flex items-center bg-white rounded-xl border border-gray-200 h-[48px] max-w-[200px] mx-auto min-w-0 shadow-sm">
+                          <button type="button" onClick={() => setRestockQty(Math.max(1, restockQty - 1))} disabled={restockQty <= 1}
+                            className="h-full w-11 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-l-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Minus className="w-4 h-4" strokeWidth={2.5} />
+                          </button>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={restockQty}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              const num = parseInt(val, 10);
+                              if (!isNaN(num) && num >= 1) setRestockQty(num);
+                              else if (val === '') setRestockQty(1);
+                            }}
+                            className="w-0 flex-1 min-w-0 text-center text-[18px] font-black text-[#1a1f36] bg-transparent outline-none h-full [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+                          />
+                          <button type="button" onClick={() => setRestockQty(restockQty + 1)}
+                            className="h-full w-11 shrink-0 flex items-center justify-center text-[#d97757] active:bg-gray-100 rounded-r-xl transition-colors"
+                          >
+                            <Plus className="w-4 h-4" strokeWidth={2.5} />
+                          </button>
+                        </div>
+                        {selectedItem.unit && selectedItem.unit !== 'units' && (
+                          <p className="text-[12px] text-[#a3acb9] text-center mt-2">
+                            {restockQty} {restockQty === 1 ? selectedItem.unit.replace(/s$/, '') : selectedItem.unit}
+                          </p>
+                        )}
                       </div>
-                      {selectedItem.unit && selectedItem.unit !== 'units' && (
-                        <p className="text-[12px] text-[#a3acb9] text-center mt-1.5">
-                          {restockQty} {restockQty === 1 ? selectedItem.unit.replace(/s$/, '') : selectedItem.unit}
-                        </p>
+
+                      {/* Expiration date — only editable for new batches */}
+                      {isNewBatch && (
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
+                          <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-2 block">
+                            Expiration Date
+                            <span className="text-[10px] font-semibold text-[#a3acb9] ml-1.5 normal-case">Optional</span>
+                          </span>
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#a3acb9] pointer-events-none z-10" />
+                            <input
+                              type="date"
+                              value={restockExpDate}
+                              onChange={(e) => setRestockExpDate(e.target.value)}
+                              className="w-full h-[48px] pl-9 pr-9 rounded-xl border border-gray-200 bg-white text-transparent caret-transparent outline-none focus:border-[#d97757] transition-colors appearance-none box-border shadow-sm"
+                              style={{ colorScheme: 'light' }}
+                            />
+                            <span className={`absolute left-9 right-9 top-1/2 -translate-y-1/2 truncate pointer-events-none text-[15px] ${restockExpDate ? 'font-semibold text-[#1a1f36]' : 'font-medium text-[#a3acb9]'}`}>
+                              {restockExpDate ? formatExpDateDisplay(restockExpDate) : 'No date set'}
+                            </span>
+                            {restockExpDate && (
+                              <button type="button" onClick={() => setRestockExpDate('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 active:bg-gray-300 transition-colors z-10">
+                                <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       )}
+
+                      {/* Summary — new stock level preview */}
+                      <div className="rounded-2xl bg-[#fff3ea] border border-[#f0c9a8]/70 p-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-white/80 border border-[#f0c9a8]/60 flex items-center justify-center shrink-0">
+                            <Layers className="w-4 h-4 text-[#d97757]" strokeWidth={2.2} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-[#a56a44] uppercase tracking-wider">New stock level</p>
+                            <p className="text-[13px] font-medium text-[#8792a2] truncate">
+                              {selectedItem.totalQuantity || 0} → <span className="font-bold text-[#1a1f36]">{(selectedItem.totalQuantity || 0) + restockQty}</span> {selectedItem.unit || 'units'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[15px] font-black text-[#d97757] shrink-0">+{restockQty}</span>
+                      </div>
                     </div>
 
-                    {/* Expiration date — only editable for new batches */}
-                    {isNewBatch && (
-                      <div className="mt-6 w-full">
-                        <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">
-                          Expiration Date
-                          <span className="text-[10px] font-semibold text-[#a3acb9] ml-1.5 normal-case">Optional</span>
-                        </span>
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#a3acb9] pointer-events-none z-10" />
-                          <input
-                            type="date"
-                            value={restockExpDate}
-                            onChange={(e) => setRestockExpDate(e.target.value)}
-                            className="w-full h-[48px] pl-9 pr-9 rounded-xl border border-gray-200/80 bg-gray-50 text-transparent caret-transparent outline-none focus:border-[#d97757] focus:bg-white transition-colors appearance-none box-border"
-                            style={{ colorScheme: 'light' }}
-                          />
-                          <span className={`absolute left-9 right-9 top-1/2 -translate-y-1/2 truncate pointer-events-none text-[15px] ${restockExpDate ? 'font-semibold text-[#1a1f36]' : 'font-medium text-[#a3acb9]'}`}>
-                            {restockExpDate ? formatExpDateDisplay(restockExpDate) : 'No date set'}
-                          </span>
-                          {restockExpDate && (
-                            <button type="button" onClick={() => setRestockExpDate('')}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 active:bg-gray-300 transition-colors z-10">
-                              <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Spacer */}
-                    <div className="flex-1" />
+                    <div className="flex-1 min-h-[12px]" />
 
                     {/* Confirm button */}
                     <button type="button" onClick={handleConfirmRestock} disabled={isSubmitting}
