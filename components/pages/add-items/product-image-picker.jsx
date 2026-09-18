@@ -434,9 +434,8 @@ export function ProductImagePicker({
               {/* 3-4 Fetched Image Options Grid */}
               {!isLoading && visibleImages.length > 0 && (
                 <div className={`grid gap-2 ${
-                  visibleImages.length === 1 ? "grid-cols-1 max-w-[160px] mx-auto" :
-                  visibleImages.length === 2 ? "grid-cols-2 max-w-[280px] mx-auto" :
-                  visibleImages.length === 3 ? "grid-cols-3" : "grid-cols-4"
+                  visibleImages.length === 1 ? "grid-cols-1 max-w-[170px] mx-auto" :
+                  "grid-cols-2 max-w-[240px] mx-auto"
                 }`}>
                   {visibleImages.slice(0, 4).map((url, idx) => {
                     const isSelected = photoUrl === url;
@@ -458,7 +457,7 @@ export function ProductImagePicker({
                           src={url}
                           alt={`Product photo option ${idx + 1} for ${formName.trim() || "item"}`}
                           referrerPolicy="no-referrer"
-                          className="w-full h-full object-contain p-1.5 transition-transform group-hover:scale-105"
+                          className="w-full h-full object-contain p-1 transition-transform group-hover:scale-105"
                           onError={() => handleImageError(url)}
                           loading="lazy"
                         />
