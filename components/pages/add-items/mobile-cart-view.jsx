@@ -117,31 +117,31 @@ export function MobileCartView({
       <div className="flex-1 overflow-y-auto w-full pb-[calc(110px+env(safe-area-inset-bottom))]">
         {cartItems.length === 0 ? (
           /* EMPTY STATE: REMOVE-PAGE STYLE ACTION CARDS */
-          <>
+          <div className="flex flex-col h-full min-h-[100dvh] px-4 pt-safe">
             {/* ─── HEADER BLOCK ─── */}
-            <div className="px-4 pt-safe mt-4">
-              <div className="mb-1">
-                <span className="text-[12px] text-gray-500 font-bold uppercase tracking-wider">Inbound Staging</span>
+            <div className="mt-[clamp(8px,2.2dvh,16px)] shrink-0">
+              <div className="mb-0.5">
+                <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Inbound Staging</span>
               </div>
 
-              <h1 className="text-[28px] font-semibold text-[#1a1f36] tracking-tight leading-tight mt-0.5">
+              <h1 className="text-[clamp(19px,4dvh,26px)] font-semibold text-[#1a1f36] tracking-tight leading-tight mt-0.5">
                 Add Items
               </h1>
 
-              <p className="text-[14px] text-gray-500 mt-1.5 flex items-center">
+              <p className="text-[13px] text-gray-500 mt-1 flex items-center">
                 To:<span className="font-medium text-gray-700 ml-1.5">{pantryDetails?.name || 'Food Arca'}</span>
               </p>
             </div>
 
             {/* ─── CARD 1: SCAN TO ADD ─── */}
-            <div className="px-4 mt-4">
-              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
+            <div className="mt-[clamp(10px,2dvh,16px)]">
+              <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(10px,1.8dvh,14px)]">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col pr-4">
-                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                    <h2 className="text-[clamp(16px,2.6dvh,19.5px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
                       Scan to Add
                     </h2>
-                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
+                    <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">
                       Skip manual entry.{' '}
                       <button
                         onClick={() => setShowHowItWorks(true)}
@@ -152,7 +152,7 @@ export function MobileCartView({
                     </p>
                   </div>
 
-                  <div className="w-[76px] h-[76px] shrink-0 relative">
+                  <div className="w-[clamp(56px,9dvh,72px)] h-[clamp(56px,9dvh,72px)] shrink-0 relative">
                     <img
                       src="/assets/images/add-scan-amber.jpg?v=4"
                       alt="Scan to Add"
@@ -161,13 +161,13 @@ export function MobileCartView({
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-1.5 flex items-center justify-between gap-3 -mx-1.5">
-                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-[clamp(6px,1.3dvh,10px)] mt-[clamp(6px,1.2dvh,10px)] flex items-center justify-between gap-3 -mx-1.5">
+                  <span className="text-[12.5px] text-gray-700 font-medium tracking-tight leading-tight">
                     Uses your device camera
                   </span>
                   <button
                     onClick={() => onBack && onBack('CAMERA')}
-                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                    className="h-[clamp(30px,4.2dvh,36px)] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
                   >
                     Open Scanner
                   </button>
@@ -176,19 +176,19 @@ export function MobileCartView({
             </div>
 
             {/* ─── CARD 2: SEARCH TO RESTOCK ─── */}
-            <div className="px-4 mt-4">
-              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
+            <div className="mt-[clamp(8px,1.6dvh,14px)]">
+              <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(10px,1.8dvh,14px)]">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col pr-4">
-                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                    <h2 className="text-[clamp(16px,2.6dvh,19.5px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
                       Search to Restock
                     </h2>
-                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
+                    <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">
                       Add stock to existing items.
                     </p>
                   </div>
 
-                  <div className="w-[76px] h-[76px] shrink-0 relative">
+                  <div className="w-[clamp(56px,9dvh,72px)] h-[clamp(56px,9dvh,72px)] shrink-0 relative">
                     <img
                       src="/assets/images/add-restock-amber.jpg?v=2"
                       alt="Search to Restock"
@@ -197,14 +197,14 @@ export function MobileCartView({
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-1.5 flex items-center justify-between gap-3 -mx-1.5">
-                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-[clamp(6px,1.3dvh,10px)] mt-[clamp(6px,1.2dvh,10px)] flex items-center justify-between gap-3 -mx-1.5">
+                  <span className="text-[12.5px] text-gray-700 font-medium tracking-tight leading-tight">
                     Existing inventory items
                   </span>
                   <button
                     type="button"
                     onClick={() => onBack && onBack('SEARCH')}
-                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                    className="h-[clamp(30px,4.2dvh,36px)] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
                   >
                     Find Items
                   </button>
@@ -213,19 +213,19 @@ export function MobileCartView({
             </div>
 
             {/* ─── CARD 3: MANUAL ENTRY ─── */}
-            <div className="px-4 mt-4 mb-6">
-              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
+            <div className="mt-[clamp(8px,1.6dvh,14px)] mb-[clamp(10px,2dvh,20px)]">
+              <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(10px,1.8dvh,14px)]">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col pr-4">
-                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                    <h2 className="text-[clamp(16px,2.6dvh,19.5px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
                       Manual Entry
                     </h2>
-                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
+                    <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">
                       Create items without barcodes.
                     </p>
                   </div>
 
-                  <div className="w-[76px] h-[76px] shrink-0 relative">
+                  <div className="w-[clamp(56px,9dvh,72px)] h-[clamp(56px,9dvh,72px)] shrink-0 relative">
                     <img
                       src="/assets/images/add-manual-amber.jpg?v=2"
                       alt="Manual Entry"
@@ -234,21 +234,21 @@ export function MobileCartView({
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-1.5 flex items-center justify-between gap-3 -mx-1.5">
-                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
+                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-[clamp(6px,1.3dvh,10px)] mt-[clamp(6px,1.2dvh,10px)] flex items-center justify-between gap-3 -mx-1.5">
+                  <span className="text-[12.5px] text-gray-700 font-medium tracking-tight leading-tight">
                     Custom item form
                   </span>
                   <button
                     type="button"
                     onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                    className="h-[clamp(30px,4.2dvh,36px)] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
                   >
                     New Item
                   </button>
                 </div>
               </div>
             </div>
-          </>
+          </div>
         ) : (
           /* FILLED CART ITEMS LIST */
           <div className="flex flex-col">
