@@ -112,7 +112,7 @@ export function MobileCartView({
       className="absolute inset-0 z-50 bg-[#fbf9f6] flex flex-col"
     >
       {/* ─── SCROLLABLE CONTENT (HEADER + CARDS ALL SCROLL TOGETHER) ─── */}
-      <div className="flex-1 overflow-y-auto w-full pb-[calc(110px+env(safe-area-inset-bottom))]">
+      <div className="flex-1 overflow-y-auto w-full pb-[calc(clamp(72px,13dvh,104px)+env(safe-area-inset-bottom))]">
         {cartItems.length === 0 ? (
           /* EMPTY STATE: REMOVE-PAGE STYLE ACTION CARDS */
           <div className="flex flex-col h-full min-h-[100dvh] px-4 pt-safe">
@@ -434,7 +434,7 @@ export function MobileCartView({
                 onClick={() => setShowClearConfirm(true)}
                 className="text-[14px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-red-600 hover:decoration-red-300 transition-colors"
               >
-                Clear inbound batch
+                Clear Cart
               </button>
             </div>
           </div>
@@ -451,7 +451,6 @@ export function MobileCartView({
           <AddFlowBottomBar
             activeTab="CART"
             cartCount={totalItemCount}
-            helperText="Add more items to this batch"
             onScanner={() => onBack && onBack('CAMERA')}
             onSearch={() => onBack && onBack('SEARCH')}
             onManual={() => onBack && onBack('MANUAL_ENTRY')}

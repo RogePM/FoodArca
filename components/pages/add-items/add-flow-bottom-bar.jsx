@@ -35,12 +35,12 @@ export function AddFlowBottomBar({
       className={`fixed bottom-0 inset-x-0 bg-white z-[110] pointer-events-auto shadow-[0_-10px_20px_rgba(0,0,0,0.05)] ${className}`}
     >
       {helperText && (
-        <div className="border-b border-gray-100 py-3.5 px-6 text-center">
-          <p className="text-[14px] font-medium text-[#1a1f36]">{helperText}</p>
+        <div className="border-b border-gray-100 py-[clamp(6px,1.2dvh,14px)] px-6 text-center">
+          <p className="text-[clamp(12px,1.8dvh,14px)] font-medium text-[#1a1f36]">{helperText}</p>
         </div>
       )}
 
-      <div className="flex items-center justify-between px-1 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)]">
+      <div className="flex items-center justify-between px-1 pt-[clamp(4px,0.8dvh,8px)] pb-[calc(env(safe-area-inset-bottom)+clamp(4px,1dvh,8px))]">
         {TABS.map(({ key, label, icon: Icon }) => {
           const active = key === activeTab;
           return (
@@ -48,11 +48,11 @@ export function AddFlowBottomBar({
               key={key}
               type="button"
               onClick={handlers[key]}
-              className="flex flex-col items-center justify-center py-2 px-1 flex-1 active:opacity-70 transition-opacity"
+              className="flex flex-col items-center justify-center py-[clamp(4px,0.8dvh,8px)] px-1 flex-1 active:opacity-70 transition-opacity"
             >
               <div className="relative">
                 <Icon
-                  className={`w-6 h-6 mb-1.5 ${active ? 'text-[#e27f2c]' : 'text-[#1a1f36]'}`}
+                  className={`w-[clamp(18px,3dvh,24px)] h-[clamp(18px,3dvh,24px)] mb-[clamp(2px,0.6dvh,6px)] ${active ? 'text-[#e27f2c]' : 'text-[#1a1f36]'}`}
                   strokeWidth={2.2}
                 />
                 {key === 'CART' && cartCount > 0 && (
@@ -62,7 +62,7 @@ export function AddFlowBottomBar({
                 )}
               </div>
               <span
-                className={`text-[11px] ${active ? 'font-semibold text-[#e27f2c]' : 'font-medium text-[#1a1f36]'}`}
+                className={`text-[clamp(9px,1.6dvh,11px)] leading-tight ${active ? 'font-semibold text-[#e27f2c]' : 'font-medium text-[#1a1f36]'}`}
               >
                 {label}
               </span>
