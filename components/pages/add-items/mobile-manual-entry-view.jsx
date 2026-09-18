@@ -588,7 +588,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                   }
                 }}
                 className={`flex-1 h-9 rounded-lg text-[13.5px] font-semibold transition-colors ${
-                  intakeMode === "count" ? "bg-[#fff3ea] text-[#e27f2c]" : "text-gray-500"
+                  intakeMode === "count" ? "bg-[#fff3ea] text-[#b85f1a]" : "text-gray-500"
                 }`}
               >
                 Count items
@@ -602,7 +602,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                   }
                 }}
                 className={`flex-1 h-9 rounded-lg text-[13.5px] font-semibold transition-colors ${
-                  intakeMode === "weight" ? "bg-[#fff3ea] text-[#e27f2c]" : "text-gray-500"
+                  intakeMode === "weight" ? "bg-[#fff3ea] text-[#b85f1a]" : "text-gray-500"
                 }`}
               >
                 Total weight
@@ -642,12 +642,12 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                         </div>
                       </div>
 
-                      <div className="w-[130px] shrink-0">
+                      <div className="w-[112px] shrink-0">
                         <div className="relative h-[48px]">
                           <select
                             value={formUnit}
                             onChange={(e) => setFormUnit(e.target.value)}
-                            className="h-full w-full pl-4 pr-10 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all"
+                            className="h-full w-full pl-3.5 pr-9 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all"
                           >
                             {UNIT_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>
@@ -690,12 +690,12 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                           </button>
                         )}
                       </div>
-                      <div className="w-[100px] shrink-0">
+                      <div className="w-[112px] shrink-0">
                         <div className="relative h-[48px]">
                           <select
                             value={formWeightUnit}
                             onChange={(e) => setFormWeightUnit(e.target.value)}
-                            className="h-full w-full pl-3 pr-8 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all"
+                            className="h-full w-full pl-3.5 pr-9 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all"
                           >
                             {WEIGHT_UNIT_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>
@@ -703,7 +703,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                               </option>
                             ))}
                           </select>
-                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                             <ChevronDown className="w-4 h-4 text-[#8792a2]" strokeWidth={2.5} />
                           </div>
                         </div>

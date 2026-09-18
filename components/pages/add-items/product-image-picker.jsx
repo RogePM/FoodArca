@@ -433,10 +433,10 @@ export function ProductImagePicker({
 
               {/* 3-4 Fetched Image Options Grid */}
               {!isLoading && visibleImages.length > 0 && (
-                <div className={`grid gap-2 ${
-                  visibleImages.length === 1 ? "grid-cols-1 max-w-[170px] mx-auto" :
-                  "grid-cols-2 max-w-[240px] mx-auto"
-                }`}>
+                <div
+                  className="grid gap-2"
+                  style={{ gridTemplateColumns: "repeat(auto-fit, minmax(72px, 1fr))" }}
+                >
                   {visibleImages.slice(0, 4).map((url, idx) => {
                     const isSelected = photoUrl === url;
                     return (
