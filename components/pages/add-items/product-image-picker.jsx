@@ -85,6 +85,12 @@ export function ProductImagePicker({
           category: formCategory || "",
           t: Date.now().toString()
         });
+        if (force) {
+          params.set("refresh", "1");
+          if (images.length > 0) {
+            params.set("exclude", images.join(","));
+          }
+        }
 
         const res = await fetch(`/api/foods/image-search?${params.toString()}`);
         if (!res.ok) {
@@ -108,7 +114,7 @@ export function ProductImagePicker({
         setIsLoading(false);
       }
     },
-    [formName, formCategory, lastSearchedQuery, images.length]
+    [formName, formCategory, lastSearchedQuery, images]
   );
 
   const isSearchDisabled = !formName.trim() || formName.trim().length < 2 || !formCategory;
@@ -177,7 +183,6 @@ export function ProductImagePicker({
                       src={photoUrl}
                       alt={`Product image preview for ${formName.trim() || "selected item"}`}
                       referrerPolicy="no-referrer"
-                      crossOrigin="anonymous"
                       className="w-full h-full object-contain p-1"
                       onError={() => handleImageError(photoUrl)}
                     />
@@ -453,7 +458,6 @@ export function ProductImagePicker({
                           src={url}
                           alt={`Product photo option ${idx + 1} for ${formName.trim() || "item"}`}
                           referrerPolicy="no-referrer"
-                          crossOrigin="anonymous"
                           className="w-full h-full object-contain p-1.5 transition-transform group-hover:scale-105"
                           onError={() => handleImageError(url)}
                           loading="lazy"

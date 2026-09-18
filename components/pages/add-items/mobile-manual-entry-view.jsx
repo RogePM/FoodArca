@@ -16,7 +16,7 @@ import {
   ArrowRight,
   Trash2,
 } from "lucide-react";
-import { categories } from "@/lib/constants";
+import { categories, getCategoryVisual } from "@/lib/constants";
 import { ProductImagePicker, ProductImagePickerSkeleton } from "./product-image-picker";
 
 function formatExpDateDisplay(dateStr) {
@@ -42,14 +42,14 @@ function getCategoryMeta(catName) {
   return { name: "Other", value: "other" };
 }
 
-function CleanField({ label, required, optional, hint, children }) {
+function CleanField({ label, required, optional, hint, quiet, children }) {
   return (
     <div className="space-y-1 w-full">
       <div className="flex items-center justify-between ml-0.5">
-        <label className="text-[13px] font-semibold text-gray-700">
+        <label className={`text-[13px] ${quiet ? "font-medium text-gray-500" : "font-semibold text-gray-700"}`}>
           {label} {required && <span className="text-[#e27f2c]">*</span>}
         </label>
-        {optional && (
+        {optional && !quiet && (
           <span className="text-[11.5px] font-medium text-[#a3acb9] tracking-wide">
             Optional
           </span>
@@ -63,6 +63,19 @@ function CleanField({ label, required, optional, hint, children }) {
   );
 }
 
+function MoreDetailsToggle({ open, onToggle, showLabel, hideLabel }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex items-center gap-1.5 text-[13px] font-semibold text-[#e27f2c] ml-0.5"
+    >
+      <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} strokeWidth={2.5} />
+      {open ? hideLabel : showLabel}
+    </button>
+  );
+}
+
 const UNIT_OPTIONS = [
   { value: "units", label: "Units" },
   { value: "cans", label: "Cans" },
@@ -71,6 +84,28 @@ const UNIT_OPTIONS = [
   { value: "packets", label: "Bags" },
   { value: "cases", label: "Cases" },
 ];
+
+const UNIT_SINGULAR = {
+  units: "unit",
+  cans: "can",
+  boxes: "box",
+  bottles: "bottle",
+  packets: "bag",
+  cases: "case",
+};
+
+// Weight units convert to lbs directly; volume units (fl_oz/ml/l/gal) have no
+// reliable weight without a per-product density, so they're stored as-is and
+// contribute 0 toward totalWeightLbs.
+function computePerUnitLbs(weightStr, unit) {
+  const val = parseFloat(weightStr);
+  if (!val || val <= 0) return 0;
+  if (unit === "lbs") return val;
+  if (unit === "oz") return val / 16;
+  if (unit === "g") return val / 453.592;
+  if (unit === "kg") return val * 2.20462;
+  return 0;
+}
 
 const WEIGHT_UNIT_OPTIONS = [
   { value: "lbs", label: "lbs" },
@@ -103,6 +138,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   const [formName, setFormName] = useState(initialItem?.name || "");
   const [formCategory, setFormCategory] = useState(initialItem?.category || "");
   const [formPhotoUrl, setFormPhotoUrl] = useState(initialItem?.photoUrl || initialItem?.photo_url || null);
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
 
   // Sync state if initialItem prop changes while mounted (e.g. switching items to edit or new scan)
   useEffect(() => {
@@ -128,9 +164,10 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   }, [initialItem]);
 
 
-  // Autocomplete state
+  // Autocomplete state — visibility is derived from isTyping + suggestions.length
+  // (not tracked separately) so the dropdown's open/closed state can never
+  // fall out of sync with its content and flicker.
   const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
 
   const [dictionary, setDictionary] = useState([]);
@@ -170,7 +207,6 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
       .slice(0, 5); // Max 5 suggestions
 
     setSuggestions(filtered);
-    setShowSuggestions(filtered.length > 0);
   }, [formName, isTyping, dictionary, isDictionaryLoaded]);
 
   // Step 2: Quantify
@@ -217,23 +253,30 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   const [formSource, setFormSource] = useState(initialItem?.sourceType || "not_specified");
   const [donorName, setDonorName] = useState(initialItem?.donorName || "");
 
+  // Secondary fields stay tucked away unless already filled in (editing) or the user asks for them
+  const [showMoreStep2, setShowMoreStep2] = useState(!!initialItem?.packSize);
+  const [showMoreStep3, setShowMoreStep3] = useState(
+    !!(initialItem?.storageLocation || (initialItem?.sourceType && initialItem.sourceType !== "not_specified") || initialItem?.donorName)
+  );
+
   const handleSave = () => {
     if (!formName.trim() || !formCategory) return;
 
-    let finalQty, finalUnit, perUnitLbs;
+    let finalQty, finalUnit, perUnitLbs, totalLbs;
 
     if (intakeMode === "weight") {
+      // Bulk/loose donation — no individual count, the entered value IS the total.
       finalQty = parseFloat(formWeight) || 0;
       finalUnit = formWeightUnit;
-      // Convert weight to lbs for tracking
-      if (formWeightUnit === "oz") perUnitLbs = finalQty / 16;
-      else if (formWeightUnit === "g") perUnitLbs = finalQty / 453.592;
-      else if (formWeightUnit === "kg") perUnitLbs = finalQty * 2.20462;
-      else perUnitLbs = finalQty; // lbs
+      perUnitLbs = computePerUnitLbs(formWeight, formWeightUnit);
+      totalLbs = perUnitLbs;
     } else {
+      // Counted items — quantity is always required; size-per-unit is optional
+      // and only contributes to totalWeightLbs when the volunteer filled it in.
       finalQty = parseFloat(formQty) || 1;
       finalUnit = formUnit;
-      perUnitLbs = 0;
+      perUnitLbs = computePerUnitLbs(formWeight, formWeightUnit);
+      totalLbs = perUnitLbs * finalQty;
     }
 
     if (finalQty <= 0) return;
@@ -250,7 +293,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
       unit: finalUnit,
       intakeMode,
       weightPerUnit: perUnitLbs > 0 ? perUnitLbs.toFixed(2) : "0",
-      totalWeightLbs: Number((perUnitLbs > 0 ? perUnitLbs : 0).toFixed(2)),
+      totalWeightLbs: Number((totalLbs > 0 ? totalLbs : 0).toFixed(2)),
       expirationDate: expirationDate || null,
       expirationPrecision: expirationDate ? "day" : "none",
       sourceType: formSource,
@@ -300,7 +343,10 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   };
 
   const inputClass =
-    "w-full h-[46px] px-3.5 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
+    "w-full h-[48px] px-3.5 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
+
+  const quietInputClass =
+    "w-full h-[48px] px-3.5 rounded-xl border border-gray-100 bg-gray-50 text-[15px] font-medium text-[#1a1f36] outline-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 focus:bg-white transition-all placeholder:text-[#a3acb9] placeholder:font-normal";
 
   return (
     <motion.div
@@ -352,7 +398,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="space-y-4"
+            className="space-y-5"
           >
             <div className="mt-0.5">
               <h1 className="text-[22px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
@@ -362,7 +408,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 {isEditing ? "Update the product details below." : "Enter the product name and category."}
               </p>
               
-              {displayBarcode && !initialItem?.isInternal && (
+              {!isEditing && displayBarcode && !initialItem?.isInternal && (
                 <div className="inline-flex items-center gap-1.5 mt-2 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                   <span className="text-[11px] font-bold text-gray-600 uppercase tracking-widest">{displayBarcode}</span>
@@ -384,7 +430,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
               </div>
             )}
 
-            <div className="space-y-3.5">
+            <div className="space-y-4">
               <CleanField label="Item name" required>
                 <div className="relative">
                   <input
@@ -396,14 +442,14 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                       setIsTyping(true);
                     }}
                     onFocus={() => {
-                      if (suggestions.length > 0) setShowSuggestions(true);
+                      if (formName.trim().length >= 2) setIsTyping(true);
                     }}
                     onBlur={() => {
-                      setTimeout(() => setShowSuggestions(false), 200);
+                      setTimeout(() => setIsTyping(false), 200);
                     }}
                     placeholder="e.g. Campbell's Tomato Soup"
                     className={`${inputClass} pr-12`}
-                    autoFocus
+                    autoFocus={!isEditing}
                   />
                   {formName.length > 0 && (
                     <button
@@ -422,7 +468,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                   )}
 
                   <AnimatePresence>
-                    {showSuggestions && suggestions.length > 0 && (
+                    {isTyping && suggestions.length > 0 && (
                       <motion.div
                         initial={{ opacity: 0, y: -5 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -433,13 +479,12 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                           <button
                             key={sugg.id || sugg.name}
                             type="button"
-                            className="w-full px-5 py-4 text-left border-b border-gray-100 last:border-0 hover:bg-gray-50 active:bg-gray-100 flex items-center gap-4 transition-colors"
+                            className="w-full px-3.5 py-2.5 text-left border-b border-gray-100 last:border-0 hover:bg-gray-50 active:bg-gray-100 flex items-center gap-3 transition-colors"
                             onClick={() => {
                               setFormName(sugg.name);
                               if (sugg.category) setFormCategory(sugg.category);
                               setFormPhotoUrl(sugg.photoUrl || sugg.photo_url || null);
                               setIsTyping(false);
-                              setShowSuggestions(false);
                             }}
                           >
                             {sugg.photoUrl ? (
@@ -447,19 +492,18 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                                 src={sugg.photoUrl}
                                 alt=""
                                 referrerPolicy="no-referrer"
-                                crossOrigin="anonymous"
-                                className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0"
+                                className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
                               />
                             ) : (
-                              <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-200 shrink-0 flex items-center justify-center">
-                                <Search className="w-5 h-5 text-gray-400" />
+                              <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 shrink-0 flex items-center justify-center">
+                                <Search className="w-4 h-4 text-gray-400" />
                               </div>
                             )}
                             <div className="min-w-0 flex-1">
-                              <p className="text-[16px] font-bold text-[#1a1f36] truncate">
+                              <p className="text-[14.5px] font-semibold text-[#1a1f36] truncate">
                                 {sugg.name}
                               </p>
-                              <p className="text-[14px] text-[#697386] truncate font-medium mt-0.5">
+                              <p className="text-[12.5px] text-[#697386] truncate font-medium mt-0.5">
                                 {sugg.brand ||
                                   getCategoryMeta(sugg.category).name ||
                                   "Unknown"}
@@ -474,23 +518,74 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
               </CleanField>
 
               <CleanField label="Category" required>
-                <div className="relative">
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className={`${inputClass} appearance-none pr-12 ${!formCategory ? 'text-[#a3acb9]' : 'text-[#1a1f36]'}`}
-                  >
-                    <option value="" disabled>Select a category...</option>
-                    {categories.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
-                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setCategoryPickerOpen((v) => !v)}
+                  className={`${inputClass} flex items-center gap-2.5 text-left ${!formCategory ? 'text-[#a3acb9]' : 'text-[#1a1f36]'}`}
+                >
+                  {formCategory ? (
+                    <>
+                      <div className={`w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0 ${getCategoryVisual(formCategory).style.bg}`}>
+                        <img
+                          src={getCategoryVisual(formCategory).imagePath}
+                          alt=""
+                          className="w-full h-full object-contain mix-blend-multiply"
+                          style={{ transform: `scale(${getCategoryVisual(formCategory).imageScale})` }}
+                        />
+                      </div>
+                      <span className="flex-1 truncate">{getCategoryVisual(formCategory).name}</span>
+                    </>
+                  ) : (
+                    <span className="flex-1">Select a category...</span>
+                  )}
+                  <ChevronDown
+                    className={`w-5 h-5 text-[#8792a2] shrink-0 transition-transform ${categoryPickerOpen ? "rotate-180" : ""}`}
+                    strokeWidth={2.5}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {categoryPickerOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="grid grid-cols-3 gap-2 pt-2.5">
+                        {categories.map((c) => {
+                          const isActive = formCategory === c.value;
+                          return (
+                            <button
+                              key={c.value}
+                              type="button"
+                              onClick={() => {
+                                setFormCategory(c.value);
+                                setCategoryPickerOpen(false);
+                              }}
+                              className={`flex flex-col items-center gap-2 py-4 px-1.5 rounded-xl border transition-colors ${
+                                isActive ? "border-[#e27f2c] bg-[#fff3ea]" : "border-gray-200 bg-white active:bg-gray-50"
+                              }`}
+                            >
+                              <div className={`w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center ${c.style.bg}`}>
+                                <img
+                                  src={c.imagePath}
+                                  alt=""
+                                  className="w-full h-full object-contain mix-blend-multiply"
+                                  style={{ transform: `scale(${c.imageScale ?? 1.5})` }}
+                                />
+                              </div>
+                              <span className={`text-[12.5px] font-semibold text-center leading-tight ${isActive ? "text-[#e27f2c]" : "text-gray-600"}`}>
+                                {c.name}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </CleanField>
 
               <CleanField label="Product photo" optional>
@@ -512,164 +607,233 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="space-y-8"
+            className="space-y-5"
           >
-            <div className="mt-2">
-              <h1 className="text-[28px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
+            <div className="mt-0.5">
+              <h1 className="text-[22px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
                 How much is there?
               </h1>
-              <p className="text-[15px] text-[#697386] mt-1">
+              <p className="text-[13.5px] text-[#697386] mt-0.5">
                 {intakeMode === "count"
-                  ? "Count the number of items."
-                  : "Enter the total weight of this item."}
+                  ? "Count the items and, if you know it, the size of one."
+                  : "For loose or bulk donations with no individual count."}
               </p>
             </div>
 
-            {/* Count / Weight Toggle */}
-            <div className="flex bg-gray-100 rounded-full p-1 gap-1">
+            <div className="flex gap-2 p-1 rounded-xl border border-gray-200">
               <button
                 type="button"
-                onClick={() => setIntakeMode("count")}
-                className={`flex-1 h-[40px] rounded-full text-[14px] font-semibold transition-all ${
-                  intakeMode === "count"
-                    ? "bg-white text-[#1a1f36] shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                onClick={() => {
+                  if (intakeMode !== "count") {
+                    setFormWeight("");
+                    setIntakeMode("count");
+                  }
+                }}
+                className={`flex-1 h-9 rounded-lg text-[13.5px] font-semibold transition-colors ${
+                  intakeMode === "count" ? "bg-[#fff3ea] text-[#e27f2c]" : "text-gray-500"
                 }`}
               >
-                Count
+                Count items
               </button>
               <button
                 type="button"
-                onClick={() => setIntakeMode("weight")}
-                className={`flex-1 h-[40px] rounded-full text-[14px] font-semibold transition-all ${
-                  intakeMode === "weight"
-                    ? "bg-white text-[#1a1f36] shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                onClick={() => {
+                  if (intakeMode !== "weight") {
+                    setFormWeight("");
+                    setIntakeMode("weight");
+                  }
+                }}
+                className={`flex-1 h-9 rounded-lg text-[13.5px] font-semibold transition-colors ${
+                  intakeMode === "weight" ? "bg-[#fff3ea] text-[#e27f2c]" : "text-gray-500"
                 }`}
               >
-                Weight
+                Total weight
               </button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4 pt-1">
               {intakeMode === "count" ? (
-                /* ── COUNT MODE ── */
-                <CleanField label="Quantity" required>
-                  <div className="flex gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center bg-white rounded-xl border border-gray-200 h-[52px] min-w-0 focus-within:border-[#e27f2c] focus-within:ring-4 focus-within:ring-[#e27f2c]/10 transition-all overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setFormQty(String(Math.max(1, (parseInt(formQty, 10) || 1) - 1)))}
-                          className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-r border-gray-200 transition-colors"
-                        >
-                          <Minus className="w-5 h-5" strokeWidth={2.5} />
-                        </button>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={formQty}
-                          onKeyDown={handleKeyDown}
-                          onChange={(e) => setFormQty(e.target.value.replace(/[^0-9]/g, ""))}
-                          className="w-0 flex-1 min-w-0 text-center text-[20px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setFormQty(String((parseInt(formQty, 10) || 1) + 1))}
-                          className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-l border-gray-200 transition-colors"
-                        >
-                          <Plus className="w-5 h-5" strokeWidth={2.5} />
-                        </button>
+                /* ── COUNTED ITEMS (default) — matches the Known-Item quick sheet ── */
+                <div className="space-y-7">
+                  <CleanField label="How many?" required>
+                    <div className="flex gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center bg-white rounded-xl border border-gray-200 h-[48px] min-w-0 focus-within:border-[#e27f2c] focus-within:ring-4 focus-within:ring-[#e27f2c]/10 transition-all overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setFormQty(String(Math.max(1, (parseInt(formQty, 10) || 1) - 1)))}
+                            className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-r border-gray-200 transition-colors"
+                          >
+                            <Minus className="w-5 h-5" strokeWidth={2.5} />
+                          </button>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formQty}
+                            onKeyDown={handleKeyDown}
+                            onChange={(e) => setFormQty(e.target.value.replace(/[^0-9]/g, ""))}
+                            className="w-0 flex-1 min-w-0 text-center text-[20px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setFormQty(String((parseInt(formQty, 10) || 1) + 1))}
+                            className="h-full w-14 shrink-0 flex items-center justify-center text-[#1a1f36] bg-gray-50 active:bg-gray-100 border-l border-gray-200 transition-colors"
+                          >
+                            <Plus className="w-5 h-5" strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="w-[130px] shrink-0">
+                        <div className="relative h-[48px]">
+                          <select
+                            value={formUnit}
+                            onChange={(e) => setFormUnit(e.target.value)}
+                            className="h-full w-full pl-4 pr-10 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all"
+                          >
+                            {UNIT_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-1">
+                            <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  </CleanField>
 
-                    <div className="w-[130px] shrink-0">
-                      <div className="relative h-[52px]">
+                  <CleanField
+                    label={`How big is 1 ${UNIT_SINGULAR[formUnit] || "unit"}?`}
+                    optional
+                    hint="Leave blank if unsure"
+                  >
+                    <div className="flex gap-3">
+                      <div className="flex-1 min-w-0 relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formWeight}
+                          onKeyDown={handleKeyDown}
+                          onChange={(e) => setFormWeight(e.target.value.replace(/[^0-9.]/g, ""))}
+                          placeholder="e.g. 500 mL, 12 oz"
+                          className={`${inputClass} pr-9`}
+                        />
+                        {formWeight && (
+                          <button
+                            type="button"
+                            onClick={() => setFormWeight("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 active:bg-gray-300 transition-colors"
+                            aria-label="Clear size"
+                          >
+                            <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="w-[100px] shrink-0">
+                        <div className="relative h-[48px]">
+                          <select
+                            value={formWeightUnit}
+                            onChange={(e) => setFormWeightUnit(e.target.value)}
+                            className="h-full w-full pl-3 pr-8 rounded-xl border border-gray-200 bg-white text-[15px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all"
+                          >
+                            {WEIGHT_UNIT_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <ChevronDown className="w-4 h-4 text-[#8792a2]" strokeWidth={2.5} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CleanField>
+
+                  <div className="space-y-3">
+                    <MoreDetailsToggle
+                      open={showMoreStep2}
+                      onToggle={() => setShowMoreStep2((v) => !v)}
+                      showLabel="Add pack size"
+                      hideLabel="Hide pack size"
+                    />
+
+                    {showMoreStep2 && (
+                      <CleanField label="Items per pack" quiet>
+                        <div className="relative">
+                          <select
+                            value={packSizeMode}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPackSizeMode(val);
+                              if (val === "none") setPackSize("");
+                              else if (val !== "custom") setPackSize(val);
+                            }}
+                            className={`${quietInputClass} appearance-none pr-12`}
+                          >
+                            {PACK_SIZE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-gray-50 pl-2">
+                            <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
+                          </div>
+                        </div>
+                        {packSizeMode === "custom" && (
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={packSize}
+                            onKeyDown={handleKeyDown}
+                            onChange={(e) => setPackSize(e.target.value.replace(/[^0-9]/g, ""))}
+                            placeholder="e.g. 15"
+                            className={`${quietInputClass} mt-3`}
+                          />
+                        )}
+                      </CleanField>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* ── BULK / LOOSE WEIGHT (secondary path) — no per-unit count ── */
+                <>
+                  <CleanField label="Total weight" required hint="Enter the total weight of this donation">
+                    <div className="flex rounded-xl focus-within:ring-4 focus-within:ring-[#e27f2c]/10 transition-all overflow-hidden border border-gray-200 focus-within:border-[#e27f2c] h-[48px]">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={formWeight}
+                        onKeyDown={handleKeyDown}
+                        onChange={(e) => setFormWeight(e.target.value.replace(/[^0-9.]/g, ""))}
+                        placeholder="e.g. 25"
+                        className="w-full h-full px-4 border-r border-gray-200 bg-white text-[20px] font-bold text-[#1a1f36] outline-none relative z-10 placeholder:text-[#a3acb9] placeholder:font-normal placeholder:text-[16px]"
+                        autoFocus
+                      />
+                      <div className="relative bg-gray-50 shrink-0 w-[100px]">
                         <select
-                          value={formUnit}
-                          onChange={(e) => setFormUnit(e.target.value)}
-                          className="h-full w-full pl-4 pr-10 rounded-xl border border-gray-200 bg-white text-[16px] font-medium text-[#1a1f36] outline-none appearance-none focus:border-[#e27f2c] focus:ring-4 focus:ring-[#e27f2c]/10 transition-all"
+                          value={formWeightUnit}
+                          onChange={(e) => setFormWeightUnit(e.target.value)}
+                          className="h-full w-full pl-4 pr-10 bg-transparent text-[16px] font-medium text-[#1a1f36] outline-none appearance-none"
                         >
-                          {UNIT_OPTIONS.map((opt) => (
+                          {WEIGHT_UNIT_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
                               {opt.label}
                             </option>
                           ))}
                         </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-1">
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                           <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
                         </div>
                       </div>
                     </div>
-                  </div>
-                </CleanField>
-              ) : (
-                /* ── WEIGHT MODE ── */
-                <CleanField label="Weight" required hint="Enter the total weight of this item">
-                  <div className="flex rounded-xl focus-within:ring-4 focus-within:ring-[#e27f2c]/10 transition-all overflow-hidden border border-gray-200 focus-within:border-[#e27f2c] h-[52px]">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={formWeight}
-                      onKeyDown={handleKeyDown}
-                      onChange={(e) => setFormWeight(e.target.value)}
-                      placeholder="e.g. 25"
-                      className="w-full h-full px-4 border-r border-gray-200 bg-white text-[20px] font-bold text-[#1a1f36] outline-none relative z-10 placeholder:text-[#a3acb9] placeholder:font-normal placeholder:text-[16px]"
-                      autoFocus
-                    />
-                    <div className="relative bg-gray-50 shrink-0 w-[100px]">
-                      <select
-                        value={formWeightUnit}
-                        onChange={(e) => setFormWeightUnit(e.target.value)}
-                        className="h-full w-full pl-4 pr-10 bg-transparent text-[16px] font-medium text-[#1a1f36] outline-none appearance-none"
-                      >
-                        {WEIGHT_UNIT_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
-                      </div>
-                    </div>
-                  </div>
-                </CleanField>
+                  </CleanField>
+                </>
               )}
-
-              <CleanField label="Items per pack" optional hint="How many come in one case or bag?">
-                <div className="relative">
-                  <select
-                    value={packSizeMode}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setPackSizeMode(val);
-                      if (val === "none") setPackSize("");
-                      else if (val !== "custom") setPackSize(val);
-                    }}
-                    className={`${inputClass} appearance-none pr-12`}
-                  >
-                    {PACK_SIZE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-2">
-                    <ChevronDown className="w-6 h-6 text-[#8792a2]" strokeWidth={2.5} />
-                  </div>
-                </div>
-                {packSizeMode === "custom" && (
-                  <input
-                    type="number"
-                    value={packSize}
-                    onKeyDown={handleKeyDown}
-                    onChange={(e) => setPackSize(e.target.value)}
-                    placeholder="e.g. 15"
-                    className={`${inputClass} mt-3`}
-                  />
-                )}
-              </CleanField>
             </div>
           </motion.div>
         )}
@@ -679,18 +843,18 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="space-y-8"
+            className="space-y-5"
           >
-            <div className="mt-2">
-              <h1 className="text-[28px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
+            <div className="mt-0.5">
+              <h1 className="text-[22px] font-semibold text-[#1a1f36] leading-tight tracking-tight">
                 Any extra details?
               </h1>
-              <p className="text-[15px] text-[#697386] mt-1">
+              <p className="text-[13.5px] text-[#697386] mt-0.5">
                 Add expiration and sourcing info.
               </p>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               <CleanField label="Expiration date" optional>
                 <div className="relative">
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#a3acb9] pointer-events-none z-10" />
@@ -719,48 +883,59 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 </div>
               </CleanField>
 
-              <CleanField label="Storage location" optional>
-                <input
-                  type="text"
-                  value={formStorageLocation}
-                  onKeyDown={handleKeyDown}
-                  onChange={(e) => setFormStorageLocation(e.target.value)}
-                  placeholder="e.g. Shelf A, Freezer, Back Room"
-                  className={inputClass}
-                />
-              </CleanField>
+              <MoreDetailsToggle
+                open={showMoreStep3}
+                onToggle={() => setShowMoreStep3((v) => !v)}
+                showLabel="Add storage, source & donor info"
+                hideLabel="Hide storage, source & donor info"
+              />
 
-              <div className="grid grid-cols-2 gap-3">
-                <CleanField label="Source type">
-                  <div className="relative">
-                    <select
-                      value={formSource}
-                      onChange={(e) => setFormSource(e.target.value)}
-                      className={`${inputClass} appearance-none pr-10`}
-                    >
-                      {SOURCE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-white pl-1">
-                      <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
-                    </div>
+              {showMoreStep3 && (
+                <>
+                  <CleanField label="Storage location" quiet>
+                    <input
+                      type="text"
+                      value={formStorageLocation}
+                      onKeyDown={handleKeyDown}
+                      onChange={(e) => setFormStorageLocation(e.target.value)}
+                      placeholder="e.g. Shelf A, Freezer, Back Room"
+                      className={quietInputClass}
+                    />
+                  </CleanField>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <CleanField label="Source type" quiet>
+                      <div className="relative">
+                        <select
+                          value={formSource}
+                          onChange={(e) => setFormSource(e.target.value)}
+                          className={`${quietInputClass} appearance-none pr-10`}
+                        >
+                          {SOURCE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-gray-50 pl-1">
+                          <ChevronDown className="w-5 h-5 text-[#8792a2]" strokeWidth={2.5} />
+                        </div>
+                      </div>
+                    </CleanField>
+
+                    <CleanField label="Donor name" quiet>
+                      <input
+                        type="text"
+                        value={donorName}
+                        onKeyDown={handleKeyDown}
+                        onChange={(e) => setDonorName(e.target.value)}
+                        placeholder="e.g. Target"
+                        className={quietInputClass}
+                      />
+                    </CleanField>
                   </div>
-                </CleanField>
-
-                <CleanField label="Donor name" optional>
-                  <input
-                    type="text"
-                    value={donorName}
-                    onKeyDown={handleKeyDown}
-                    onChange={(e) => setDonorName(e.target.value)}
-                    placeholder="e.g. Target"
-                    className={inputClass}
-                  />
-                </CleanField>
-              </div>
+                </>
+              )}
             </div>
           </motion.div>
         )}

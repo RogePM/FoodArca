@@ -683,15 +683,25 @@ export function MobileAddFlow({ onClose }) {
                   <span className="text-[10px] font-semibold text-[#a3acb9] uppercase tracking-wide">Optional</span>
                 </div>
                 <div className="flex gap-3 min-w-0">
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 relative">
                     <input
                       type="text"
                       inputMode="decimal"
                       value={formWeight}
                       onChange={e => setFormWeight(e.target.value.replace(/[^0-9.]/g, ''))}
                       placeholder="e.g. 500"
-                      className="w-full h-[48px] px-3.5 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors"
+                      className="w-full h-[48px] pl-3.5 pr-9 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors"
                     />
+                    {formWeight && (
+                      <button
+                        type="button"
+                        onClick={() => setFormWeight('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 active:bg-gray-300 transition-colors"
+                        aria-label="Clear size"
+                      >
+                        <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                      </button>
+                    )}
                   </div>
                   <div className="w-[112px] shrink-0">
                   <DropdownMenu>

@@ -19,7 +19,7 @@ function SearchResultThumb({ item }) {
           src={item.photoUrl}
           alt=""
           onError={() => setImgError(true)}
-          className="w-full h-full object-contain rounded-md"
+          className="w-full h-full object-cover rounded-md"
         />
       ) : (
         <img src={catVisual.imagePath} alt="" className="w-7 h-7 opacity-75 mix-blend-multiply" />
@@ -94,6 +94,11 @@ export function MobileInventorySearch({
     if (onQueryChange) onQueryChange(val);
   };
 
+  const closeOverlay = () => {
+    if (forceOpen && onClose) onClose();
+    else setIsSearchOverlayOpen(false);
+  };
+
   const handleSelect = (item) => {
     if (onItemSelect) {
         onItemSelect(item);
@@ -145,11 +150,8 @@ export function MobileInventorySearch({
       {isSearchOverlayOpen && (
         <div className="fixed inset-0 z-50 bg-white flex flex-col md:hidden animate-in fade-in duration-200">
           <div className="flex items-center gap-2 p-4 border-b border-gray-100">
-            <button 
-              onClick={() => {
-                if (forceOpen && onClose) onClose();
-                else setIsSearchOverlayOpen(false);
-              }}
+            <button
+              onClick={closeOverlay}
               className="p-2 -ml-2 text-gray-500 hover:text-gray-700 rounded-full"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -159,9 +161,19 @@ export function MobileInventorySearch({
               <input
                 autoFocus
                 placeholder="Search inventory..."
+                enterKeyHint="search"
                 className="w-full pl-9 pr-12 h-10 bg-gray-100 border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#e27f2c]/30 font-medium text-base placeholder:text-gray-400"
                 value={searchQuery}
                 onChange={(e) => handleQueryChange(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter/Go on the mobile keyboard "submits" the search — closes the
+                  // overlay so the full results render in the underlying grid (already
+                  // filtered live via onQueryChange) instead of just the quick-list here.
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (searchQuery) closeOverlay();
+                  }
+                }}
               />
               {searchQuery ? (
                 <button

@@ -83,16 +83,14 @@ function ProductTile({ item, handleSelect }) {
         className={`w-full aspect-square flex items-center justify-center relative overflow-hidden rounded-md mb-2 border border-gray-100 ${catVisual.style.bg}`}
       >
         {showPhoto ? (
-          <div className="w-full h-full flex items-center justify-center p-3">
-            <img
-              src={item.photoUrl}
-              alt={item.name}
-              loading="lazy"
-              decoding="async"
-              onError={() => setImgError(true)}
-              className="w-full h-full object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-200"
-            />
-          </div>
+          <img
+            src={item.photoUrl}
+            alt={item.name}
+            loading="lazy"
+            decoding="async"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center p-4">
             <img
@@ -105,16 +103,16 @@ function ProductTile({ item, handleSelect }) {
           </div>
         )}
 
-        {/* Multi-Batch Count Overlay Badge (Top-Right) */}
+        {/* Multi-Batch Count Overlay Badge (Top-Right) — dark scrim so it reads on light/white photos too */}
         {batchCount > 1 && (
-          <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-md text-[#1a1f36] text-[10px] font-medium px-1.5 py-0.5 rounded shadow-sm border border-gray-100 flex items-center gap-1">
-            <Layers className="w-3 h-3 text-[#1a1f36]" />
+          <div className="absolute top-2 right-2 bg-black/45 backdrop-blur-[3px] text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+            <Layers className="w-3 h-3 text-white" />
             <span>{batchCount}</span>
           </div>
         )}
 
-        {/* Edit Affordance (Bottom-Right) — signals the tile is tappable-to-edit */}
-        <div className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-white/95 backdrop-blur-md border border-gray-100 shadow-sm flex items-center justify-center text-gray-500 group-hover:text-[#d97757] group-hover:bg-white transition-colors">
+        {/* Edit Affordance (Bottom-Right) — dark scrim keeps it visible over any photo (white/light images included) */}
+        <div className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/45 backdrop-blur-[3px] flex items-center justify-center text-white shadow-sm group-hover:bg-[#d97757] transition-colors">
           <Pencil className="w-3.5 h-3.5" strokeWidth={2.25} />
         </div>
       </div>

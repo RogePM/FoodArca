@@ -184,8 +184,14 @@ export async function PUT(req, { params }) {
     const updateData = {};
     if (data.quantity !== undefined) updateData.quantity = formatQty(data.quantity);
     if (data.expirationDate !== undefined) {
-      const d = new Date(data.expirationDate);
-      if (!isNaN(d.getTime())) updateData.expiration_date = d.toISOString().split('T')[0];
+      if (data.expirationDate === null || data.expirationDate === '') {
+        // Explicitly "no expiration date" — must stay null, not fall through to
+        // new Date(null) which resolves to the 1970-01-01 epoch and looks like a real date.
+        updateData.expiration_date = null;
+      } else {
+        const d = new Date(data.expirationDate);
+        if (!isNaN(d.getTime())) updateData.expiration_date = d.toISOString().split('T')[0];
+      }
     }
     if (data.sourceType !== undefined) updateData.source_type = data.sourceType;
     if (data.storageLocation !== undefined) updateData.storage_location = data.storageLocation;

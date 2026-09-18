@@ -366,7 +366,7 @@ export function InventoryView() {
       </div>
 
       {/* 3. NON-STICKY PILLS */}
-      <div className="bg-[#d97757] md:bg-white px-4 md:px-6 pt-1 pb-3 overflow-hidden shrink-0">
+      <div className="bg-[#d97757] md:bg-white px-4 md:px-6 pt-1 pb-3 overflow-hidden shrink-0 relative">
         <div className="flex gap-2 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {filterPillList.map((pill, index) => {
             const isActive = activeFilter === pill.id;
@@ -384,10 +384,8 @@ export function InventoryView() {
                   onClick={() => setActiveFilter(pill.id)}
                   className={`px-3.5 py-[7px] rounded-full text-[13px] tracking-tight whitespace-nowrap shrink-0 transition-all ${
                     isActive
-                      ? 'bg-white text-[#d97757] md:bg-[#d97757] md:text-white font-bold shadow-sm'
-                      : pill.isCategory 
-                        ? 'bg-transparent border border-dashed border-white/40 text-white/90 md:bg-transparent md:border-dashed md:border-gray-300 md:text-[#4f566b] hover:bg-white/10 md:hover:bg-gray-50 font-semibold'
-                        : 'bg-transparent border border-white/50 text-white md:bg-transparent md:border-solid md:border-gray-200 md:text-[#4f566b] hover:bg-white/10 md:hover:bg-gray-50 font-semibold'
+                      ? 'bg-white border border-white text-[#d97757] md:bg-[#d97757] md:border-[#d97757] md:text-white font-semibold'
+                      : 'bg-transparent border border-solid border-white/50 text-white md:bg-transparent md:border-gray-200 md:text-[#4f566b] hover:bg-white/10 md:hover:bg-gray-50 font-semibold'
                   }`}
                 >
                   {pill.name}
@@ -403,6 +401,12 @@ export function InventoryView() {
             );
           })}
         </div>
+
+        {/* Right-edge fade — hints that the pill row scrolls past the screen edge */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1 right-4 md:right-6 bottom-3 w-10 bg-gradient-to-l from-[#d97757] md:from-white to-transparent"
+        />
       </div>
 
       {/* --- CONTENT AREA --- */}

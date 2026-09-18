@@ -154,16 +154,24 @@ function isValidImageUrl(url) {
 }
 
 /**
- * Scrape image URLs from Bing Images
+ * Scrape image URLs from Bing Images with SafeSearch actually enforced.
+ *
+ * Bing's SafeSearch is controlled by BOTH the `adlt` query param and the
+ * SRCHHPGUSR cookie — the query param alone is sometimes ignored, so both
+ * are set here to strict. `qft=+filterui:photo-photo` also excludes
+ * clipart/line-art/icon results, which is most of what was showing up as
+ * "irrelevant" — a low-effort clipart guardrail replacement, not a fix for
+ * bad guardrails alone.
  */
-async function scrapeBingImages(contextualQuery) {
+async function scrapeBingImages(contextualQuery, startOffset = 1) {
   try {
-    const url = `https://www.bing.com/images/search?q=${encodeURIComponent(contextualQuery)}&first=1&form=HDRSC3`;
+    const url = `https://www.bing.com/images/search?q=${encodeURIComponent(contextualQuery)}&first=${startOffset}&form=HDRSC3&adlt=strict&qft=+filterui:photo-photo`;
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Cookie': 'SRCHHPGUSR=ADLT=STRICT; SRCHD=AF=NOFORM',
       },
       signal: AbortSignal.timeout(6000),
     });
@@ -174,14 +182,14 @@ async function scrapeBingImages(contextualQuery) {
     const urls = [];
     const seen = new Set();
     const regex = /murl&quot;:&quot;(.*?)&quot;/g;
-    
+
     let match;
     while ((match = regex.exec(html)) !== null) {
       let candidate = match[1];
       if (isValidImageUrl(candidate) && !seen.has(candidate)) {
         seen.add(candidate);
         urls.push(candidate);
-        if (urls.length >= 4) break;
+        if (urls.length >= 8) break;
       }
     }
 
@@ -291,6 +299,13 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q') || searchParams.get('query') || searchParams.get('name') || '';
     const category = searchParams.get('category') || '';
+    // "Refresh" needs to actually skip the cache and pull a different page of
+    // results, and "exclude" (URLs the user has already been shown) needs to be
+    // filtered out — otherwise refresh just re-serves the same cached images.
+    const refresh = searchParams.get('refresh') === '1' || searchParams.get('refresh') === 'true';
+    const excludeSet = new Set(
+      (searchParams.get('exclude') || '').split(',').map((s) => s.trim()).filter(Boolean)
+    );
 
     const cleanName = query.trim();
     if (!cleanName || cleanName.length < 2) {
@@ -300,10 +315,10 @@ export async function GET(request) {
       }, { status: 200 });
     }
 
-    // Check cache
+    // Check cache (skipped entirely on refresh)
     const cacheKey = `${cleanName.toLowerCase()}|${category.toLowerCase()}`;
     const cached = cache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    if (!refresh && cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return NextResponse.json({
         images: cached.images,
         query: cleanName,
@@ -316,6 +331,15 @@ export async function GET(request) {
         }
       });
     }
+
+    // Rotate through different result pages on refresh so repeated refreshes
+    // don't keep asking Bing the exact same question and getting the exact
+    // same top results back.
+    const OFFSETS = [1, 9, 17, 25];
+    const prevOffsetIdx = OFFSETS.indexOf(cached?.lastOffset ?? 1);
+    const nextOffset = refresh
+      ? OFFSETS[(prevOffsetIdx + 1) % OFFSETS.length]
+      : 1;
 
     // Build contextually biased and safe query
     const { safeQuery, isValid, blocked } = buildSafeSearchQuery(cleanName, category);
@@ -339,32 +363,33 @@ export async function GET(request) {
     }
 
     // Primary: Bing Images with strict safe search
-    let images = await scrapeBingImages(safeQuery);
+    let rawPool = await scrapeBingImages(safeQuery, nextOffset);
     let source = 'bing';
 
-    // Fallback 1: If contextual query returns fewer than 3 images, try a broader web search
-    if (images.length < 3) {
-      const broaderImages = await scrapeBingImages(`${cleanName} grocery ${TECH_EXCLUSIONS}`);
+    // Fallback 1: If the contextual query (with category keywords appended) is too
+    // narrow to return enough results, retry with just the product name itself —
+    // "grocery" was too vague and pulled in generic, unrelated grocery photos.
+    if (rawPool.filter((u) => !excludeSet.has(u)).length < 3) {
+      const broaderImages = await scrapeBingImages(`${cleanName} ${TECH_EXCLUSIONS}`, nextOffset);
       if (broaderImages.length > 0) {
-        const combined = new Set([...images, ...broaderImages]);
-        images = Array.from(combined).slice(0, 4);
+        rawPool = Array.from(new Set([...rawPool, ...broaderImages]));
       }
     }
 
-    // Fallback 2: If still fewer than 3 images, query Wikimedia Commons
-    if (images.length < 3) {
+    // Fallback 2: If still fewer than 3 unseen images, query Wikimedia Commons
+    if (rawPool.filter((u) => !excludeSet.has(u)).length < 3) {
       const wikiImages = await fetchWikimediaImages(cleanName, category);
       if (wikiImages.length > 0) {
-        const prevCount = images.length;
-        const combined = new Set([...images, ...wikiImages]);
-        images = Array.from(combined).slice(0, 4);
-        if (prevCount === 0 && images.length === wikiImages.length) {
-          source = 'wikimedia';
-        } else {
-          source = 'combined';
-        }
+        const prevCount = rawPool.length;
+        rawPool = Array.from(new Set([...rawPool, ...wikiImages]));
+        source = prevCount === 0 ? 'wikimedia' : 'combined';
       }
     }
+
+    // Prefer images the user hasn't already been shown; only fall back to
+    // showing repeats if excluding them would leave nothing at all.
+    const unseen = rawPool.filter((u) => !excludeSet.has(u));
+    const images = unseen.length > 0 ? unseen : rawPool;
 
     // Limit to 3-4 images as per requirements
     const finalImages = images.slice(0, 4);
@@ -374,6 +399,7 @@ export async function GET(request) {
       cache.set(cacheKey, {
         images: finalImages,
         source,
+        lastOffset: nextOffset,
         timestamp: Date.now(),
       });
     }
