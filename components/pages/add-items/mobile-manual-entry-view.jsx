@@ -937,27 +937,27 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed left-0 right-0 bottom-0 z-[10001] bg-white rounded-t-3xl shadow-[0_-8px_40px_rgba(0,0,0,0.15)] flex flex-col"
-              style={{ height: "82dvh" }}
+              style={{ maxHeight: "88dvh" }}
             >
-              <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+              <div className="pt-2 pb-0.5 flex justify-center shrink-0">
                 <div className="w-10 h-1.5 rounded-full bg-gray-300" />
               </div>
 
-              <div className="px-5 pt-1 pb-3 flex items-center justify-between shrink-0 border-b border-gray-100">
-                <h2 className="text-[17px] font-semibold text-[#1a1f36]">
+              <div className="px-5 pt-1 pb-2 flex items-center justify-between shrink-0 border-b border-gray-100">
+                <h2 className="text-[16px] font-semibold text-[#1a1f36]">
                   Select a category
                 </h2>
                 <button
                   type="button"
                   onClick={() => setCategoryPickerOpen(false)}
-                  className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-500 active:bg-gray-200 transition-colors"
+                  className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-500 active:bg-gray-200 transition-colors"
                 >
                   <X className="w-4 h-4" strokeWidth={2.5} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
-                <div className="grid grid-cols-3 gap-3">
+              <div className="flex-1 overflow-y-auto px-5 py-3 pb-[calc(14px+env(safe-area-inset-bottom))]">
+                <div className="grid grid-cols-3 gap-2.5">
                   {categories.map((c) => {
                     const isActive = formCategory === c.value;
                     return (
@@ -968,7 +968,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                           setFormCategory(c.value);
                           setCategoryPickerOpen(false);
                         }}
-                        className={`flex flex-col items-center gap-2 py-4 px-1.5 rounded-xl border transition-colors ${
+                        className={`flex flex-col items-center gap-2 py-3 px-1.5 rounded-xl border transition-colors ${
                           isActive ? "border-[#e27f2c] bg-[#fff3ea]" : "border-gray-200 bg-white active:bg-gray-50"
                         }`}
                       >
