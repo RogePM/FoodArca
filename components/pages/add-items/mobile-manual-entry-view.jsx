@@ -409,26 +409,14 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
               </p>
               
               {!isEditing && displayBarcode && !initialItem?.isInternal && (
-                <div className="inline-flex items-center gap-1.5 mt-2 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                  <span className="text-[11px] font-bold text-gray-600 uppercase tracking-widest">{displayBarcode}</span>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#e27f2c] shrink-0" />
+                  <p className="text-[12px] text-[#c06245] font-medium leading-snug">
+                    Barcode not found — add the details below to save it for next time.
+                  </p>
                 </div>
               )}
             </div>
-
-            {!isEditing && displayBarcode && !initialItem?.isInternal && (
-              <div className="bg-orange-50 border-l-4 border-[#e27f2c] p-3 rounded-r-xl flex gap-2.5 items-start">
-                <AlertCircle className="w-4 h-4 text-[#e27f2c] shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-[#c06245] font-bold text-[13.5px]">
-                    Barcode not found
-                  </p>
-                  <p className="text-[#c06245]/85 text-[12.5px] mt-0.5 leading-snug font-medium">
-                    This item isn't in our database yet. Fill in the details below and it will be saved for future scans!
-                  </p>
-                </div>
-              </div>
-            )}
 
             <div className="space-y-4">
               <CleanField label="Item name" required>
