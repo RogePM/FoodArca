@@ -184,7 +184,7 @@ export function MobileGridView({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(118px,1fr))] gap-x-3 gap-y-1">
       {inventory.map((item) => {
         const itemKey =
           item.catalogItemId ||

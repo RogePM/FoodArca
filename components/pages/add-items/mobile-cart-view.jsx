@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   Scan,
   ChevronLeft,
+  Search,
+  Keyboard,
+  ChevronRight,
 } from 'lucide-react';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { getCategoryVisual, formatDate } from '@/components/pages/inventory/inventory-utils';
@@ -131,119 +134,88 @@ export function MobileCartView({
               </p>
             </div>
 
-            {/* ─── CARD 1: SCAN TO ADD ─── */}
-            <div className="mt-[clamp(10px,2dvh,16px)]">
-              <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(10px,1.8dvh,14px)]">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col pr-4">
-                    <h2 className="text-[clamp(16px,2.6dvh,19.5px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
-                      Scan to Add
-                    </h2>
-                    <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">
-                      Skip manual entry.{' '}
-                      <button
-                        onClick={() => setShowHowItWorks(true)}
-                        className="underline underline-offset-2 decoration-gray-400 text-[#1a1f36] font-normal"
-                      >
-                        How it works
-                      </button>
-                    </p>
+            {/* ─── CONTENT: HERO CARD + SECONDARY OPTIONS ─── */}
+            <div className="mt-[clamp(16px,4dvh,32px)]">
+              {/* ─── CARD 1: SCAN TO ADD (HERO) ─── */}
+              <div>
+                <div className="border border-gray-200 rounded-[20px] bg-white p-[clamp(16px,3dvh,22px)] shadow-[0_4px_18px_rgba(0,0,0,0.04)]">
+                  <div className="flex items-start justify-between">
+                    <div className="flex flex-col pr-4">
+                      <h2 className="text-[clamp(19px,3.4dvh,23px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
+                        Scan to Add
+                      </h2>
+                      <p className="text-[13.5px] text-gray-500 mt-1.5 leading-relaxed">
+                        Skip manual entry.{' '}
+                        <button
+                          onClick={() => setShowHowItWorks(true)}
+                          className="underline underline-offset-2 decoration-gray-400 text-[#1a1f36] font-normal"
+                        >
+                          How it works
+                        </button>
+                      </p>
+                    </div>
+
+                    <div className="w-[clamp(78px,13dvh,104px)] h-[clamp(78px,13dvh,104px)] shrink-0 relative">
+                      <img
+                        src="/assets/images/add-scan-amber.jpg?v=4"
+                        alt="Scan to Add"
+                        className="w-full h-full object-contain mix-blend-multiply"
+                      />
+                    </div>
                   </div>
 
-                  <div className="w-[clamp(56px,9dvh,72px)] h-[clamp(56px,9dvh,72px)] shrink-0 relative">
-                    <img
-                      src="/assets/images/add-scan-amber.jpg?v=4"
-                      alt="Scan to Add"
-                      className="w-full h-full object-contain mix-blend-multiply"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-[clamp(6px,1.3dvh,10px)] mt-[clamp(6px,1.2dvh,10px)] flex items-center justify-between gap-3 -mx-1.5">
-                  <span className="text-[12.5px] text-gray-700 font-medium tracking-tight leading-tight">
-                    Uses your device camera
-                  </span>
                   <button
                     onClick={() => onBack && onBack('CAMERA')}
-                    className="h-[clamp(30px,4.2dvh,36px)] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
+                    className="w-full h-[clamp(46px,6.5dvh,52px)] mt-[clamp(14px,2.4dvh,20px)] rounded-full bg-[#e27f2c] text-white text-[15px] font-semibold transition-colors hover:bg-[#cf6f20] active:scale-[0.98] shadow-sm flex items-center justify-center gap-2"
                   >
+                    <Scan className="w-[18px] h-[18px]" strokeWidth={2.4} />
                     Open Scanner
                   </button>
+                  <p className="text-center text-[11.5px] text-gray-500 mt-2">
+                    Uses your device camera
+                  </p>
                 </div>
               </div>
-            </div>
 
-            {/* ─── CARD 2: SEARCH TO RESTOCK ─── */}
-            <div className="mt-[clamp(8px,1.6dvh,14px)]">
-              <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(10px,1.8dvh,14px)]">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col pr-4">
-                    <h2 className="text-[clamp(16px,2.6dvh,19.5px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
-                      Search to Restock
-                    </h2>
-                    <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">
-                      Add stock to existing items.
-                    </p>
+              {/* ─── SECONDARY OPTIONS: SEARCH TO RESTOCK + MANUAL ENTRY (COMPACT ROW) ─── */}
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => onBack && onBack('SEARCH')}
+                  className="border border-gray-200 rounded-[20px] bg-white p-3 flex flex-col items-start text-left active:scale-[0.98] active:bg-gray-50 transition-all"
+                >
+                  <div className="w-full flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center">
+                      <Search className="w-4 h-4 text-[#1a1f36]" strokeWidth={2.2} />
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5} />
                   </div>
-
-                  <div className="w-[clamp(56px,9dvh,72px)] h-[clamp(56px,9dvh,72px)] shrink-0 relative">
-                    <img
-                      src="/assets/images/add-restock-amber.jpg?v=2"
-                      alt="Search to Restock"
-                      className="w-full h-full object-contain mix-blend-multiply"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-[clamp(6px,1.3dvh,10px)] mt-[clamp(6px,1.2dvh,10px)] flex items-center justify-between gap-3 -mx-1.5">
-                  <span className="text-[12.5px] text-gray-700 font-medium tracking-tight leading-tight">
-                    Existing inventory items
+                  <span className="text-[13.5px] font-semibold text-[#1a1f36] tracking-tight leading-snug mt-2">
+                    Search to Restock
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onBack && onBack('SEARCH')}
-                    className="h-[clamp(30px,4.2dvh,36px)] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
-                  >
-                    Find Items
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* ─── CARD 3: MANUAL ENTRY ─── */}
-            <div className="mt-[clamp(8px,1.6dvh,14px)] mb-[clamp(10px,2dvh,20px)]">
-              <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(10px,1.8dvh,14px)]">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col pr-4">
-                    <h2 className="text-[clamp(16px,2.6dvh,19.5px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
-                      Manual Entry
-                    </h2>
-                    <p className="text-[13px] text-gray-500 mt-1.5 leading-relaxed">
-                      Create items without barcodes.
-                    </p>
-                  </div>
-
-                  <div className="w-[clamp(56px,9dvh,72px)] h-[clamp(56px,9dvh,72px)] shrink-0 relative">
-                    <img
-                      src="/assets/images/add-manual-amber.jpg?v=2"
-                      alt="Manual Entry"
-                      className="w-full h-full object-contain mix-blend-multiply"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-[clamp(6px,1.3dvh,10px)] mt-[clamp(6px,1.2dvh,10px)] flex items-center justify-between gap-3 -mx-1.5">
-                  <span className="text-[12.5px] text-gray-700 font-medium tracking-tight leading-tight">
-                    Custom item form
+                  <span className="text-[11.5px] text-gray-600 mt-0.5 leading-snug">
+                    Existing items
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                    className="h-[clamp(30px,4.2dvh,36px)] px-4 shrink-0 rounded-full bg-[#e27f2c] text-white text-[13px] font-medium transition-colors hover:bg-[#cf6f20] active:scale-95 shadow-sm"
-                  >
-                    New Item
-                  </button>
-                </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onBack && onBack('MANUAL_ENTRY')}
+                  className="border border-gray-200 rounded-[20px] bg-white p-3 flex flex-col items-start text-left active:scale-[0.98] active:bg-gray-50 transition-all"
+                >
+                  <div className="w-full flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center">
+                      <Keyboard className="w-4 h-4 text-[#1a1f36]" strokeWidth={2.2} />
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5} />
+                  </div>
+                  <span className="text-[13.5px] font-semibold text-[#1a1f36] tracking-tight leading-snug mt-2">
+                    Manual Entry
+                  </span>
+                  <span className="text-[11.5px] text-gray-600 mt-0.5 leading-snug">
+                    No barcode needed
+                  </span>
+                </button>
               </div>
             </div>
           </div>

@@ -437,13 +437,13 @@ export function MobileAddFlow({ onClose }) {
 
       {/* 2. TOP CONTROLS */}
       <div className="absolute top-0 inset-x-0 p-4 pt-safe z-40 flex justify-between items-start pointer-events-none">
-        <Button 
-          variant="secondary" 
+        <Button
+          variant="secondary"
           onClick={() => setActiveView('CART')}
-          className="h-12 w-12 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 shadow-lg pointer-events-auto"
+          className="h-14 w-14 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg pointer-events-auto"
           aria-label="Back to Cart"
         >
-          <ChevronLeft className="h-7 w-7" strokeWidth={2.5} />
+          <ChevronLeft className="h-12 w-12 text-white" strokeWidth={3} />
         </Button>
       </div>
 
@@ -483,6 +483,7 @@ export function MobileAddFlow({ onClose }) {
         onSearch={() => setIsGridSheetOpen(true)}
         onManual={handleManualEntry}
         onCart={() => setActiveView('CART')}
+        hideCart
       />
 
       {/* RESTOCK / SEARCH ITEMS SHEET */}

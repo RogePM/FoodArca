@@ -21,6 +21,7 @@ export function AddFlowBottomBar({
   onSearch,
   onManual,
   onCart,
+  hideCart = false,
   className = '',
 }) {
   const handlers = {
@@ -29,6 +30,8 @@ export function AddFlowBottomBar({
     MANUAL: onManual,
     CART: onCart,
   };
+
+  const tabs = hideCart ? TABS.filter((tab) => tab.key !== 'CART') : TABS;
 
   return (
     <div
@@ -41,7 +44,7 @@ export function AddFlowBottomBar({
       )}
 
       <div className="flex items-center justify-between px-1 pt-[clamp(4px,0.8dvh,8px)] pb-[calc(env(safe-area-inset-bottom)+clamp(4px,1dvh,8px))]">
-        {TABS.map(({ key, label, icon: Icon }) => {
+        {tabs.map(({ key, label, icon: Icon }) => {
           const active = key === activeTab;
           return (
             <button
