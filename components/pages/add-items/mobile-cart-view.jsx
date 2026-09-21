@@ -226,22 +226,17 @@ export function MobileCartView({
             <div className="bg-white shrink-0 relative z-20 border-b border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.03)] mb-3">
               <div className="px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3.5 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  {/* Back to dashboard — confirm first, batch stays staged in sessionStorage */}
+                  {/* Exit to dashboard — confirm first, batch stays staged in sessionStorage.
+                      Uses an X (not a chevron) so it isn't mistaken for "back to scanner". */}
                   <button
                     type="button"
                     onClick={() => setShowBackConfirm(true)}
-                    className="h-9 w-9 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 border border-gray-200/60 text-[#1a1f36] flex items-center justify-center active:scale-95 transition-all"
-                    aria-label="Back to dashboard"
+                    className="flex items-center gap-1.5 h-9 px-3.5 shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 border border-gray-200/60 text-[#1a1f36] active:scale-95 transition-all"
+                    aria-label="Exit to dashboard"
                   >
-                    <ChevronLeft className="w-5 h-5" strokeWidth={2.4} />
+                    <X className="w-4 h-4" strokeWidth={2.6} />
+                    <span className="text-[13.5px] font-semibold tracking-tight">Exit</span>
                   </button>
-
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[12px] text-gray-500 font-medium mb-0.5">Total Quantity</span>
-                    <span className="text-[18px] text-[#1a1f36] font-bold tracking-tight leading-none">
-                      {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
-                    </span>
-                  </div>
                 </div>
 
                 <button
@@ -265,8 +260,11 @@ export function MobileCartView({
             {/* Secondary actions moved to FAB */}
 
             <div className="mx-4 mb-6 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
-              <div className="mx-4 py-2.5 border-b border-gray-300 flex items-center bg-white">
+              <div className="mx-4 py-2.5 border-b border-gray-300 flex items-center justify-between bg-white">
                 <span className="text-[16px] text-[#1a1f36] font-medium tracking-tight">Added items</span>
+                <span className="text-[13px] text-gray-500 font-medium">
+                  {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                </span>
               </div>
               <div className="flex flex-col bg-white">
                 <AnimatePresence initial={false}>
@@ -427,69 +425,73 @@ export function MobileCartView({
             onSearch={() => onBack && onBack('SEARCH')}
             onManual={() => onBack && onBack('MANUAL_ENTRY')}
             onCart={() => {}}
+            hideCart
           />,
           document.body
         )}
 
-      {/* 1. CENTERED MODAL: CLEAR CART CONFIRMATION */}
+      {/* 1. SLIDE-UP SHEET: CLEAR CART CONFIRMATION */}
       {mounted &&
-        showClearConfirm &&
         createPortal(
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3.5">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-              onClick={() => setShowClearConfirm(false)}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="relative w-full max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 z-10 flex flex-col items-center text-center"
-            >
-              {/* Close 'X' Button */}
-              <button
-                onClick={() => setShowClearConfirm(false)}
-                className="absolute top-3.5 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
-                aria-label="Close"
+          <AnimatePresence>
+            {showClearConfirm && (
+              <div
+                className="fixed inset-0 z-[99999] flex flex-col justify-end"
+                style={{ isolation: 'isolate' }}
               >
-                <X className="w-5 h-5" strokeWidth={2.5} />
-              </button>
-
-              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-3 mt-1">
-                <X className="w-6 h-6" strokeWidth={2.5} />
-              </div>
-
-              <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
-                Empty your batch?
-              </h3>
-              <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6">
-                This will remove all {totalItemCount}{' '}
-                {totalItemCount === 1 ? 'item' : 'items'} from your staged batch.
-              </p>
-
-              <div className="flex gap-2.5 w-full">
-                <button
-                  type="button"
+                <motion.div
+                  key="clear-scrim"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 bg-black/40 backdrop-blur-sm"
                   onClick={() => setShowClearConfirm(false)}
-                  className="flex-1 h-[42px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14px] font-normal active:bg-gray-50 transition-colors"
+                />
+
+                <motion.div
+                  key="clear-sheet"
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                  className="relative bg-white rounded-t-[32px] p-6 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col items-center text-center max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={clearBatch}
-                  className="flex-1 h-[42px] rounded-xl bg-red-600 text-white text-[14px] font-semibold active:bg-red-700 transition-colors shadow-sm"
-                >
-                  Clear all
-                </button>
+                  <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-3 mt-1">
+                    <X className="w-6 h-6" strokeWidth={2.5} />
+                  </div>
+
+                  <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
+                    Empty your batch?
+                  </h3>
+                  <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6 px-2">
+                    This will remove all{' '}
+                    <span className="font-medium text-gray-700">
+                      {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
+                    </span>{' '}
+                    from your staged batch.
+                  </p>
+
+                  <div className="flex flex-col gap-2.5 w-full">
+                    <button
+                      type="button"
+                      onClick={clearBatch}
+                      className="w-full h-[46px] rounded-xl bg-red-600 text-white text-[14.5px] font-semibold active:bg-red-700 transition-colors shadow-sm"
+                    >
+                      Clear all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowClearConfirm(false)}
+                      className="w-full h-[46px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </div>,
+            )}
+          </AnimatePresence>,
           document.body
         )}
 
@@ -678,7 +680,7 @@ export function MobileCartView({
                   className="relative bg-white rounded-t-[32px] p-6 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col items-center text-center max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
                 >
                   <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 mt-1">
-                    <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+                    <X className="w-6 h-6" strokeWidth={2.5} />
                   </div>
 
                   <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">

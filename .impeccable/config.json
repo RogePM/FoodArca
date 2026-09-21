@@ -1,0 +1,18 @@
+{
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "components/pages/add-items/product-image-picker.jsx"
+        ],
+        "createdAt": "2026-09-21T21:20:18.411Z",
+        "reason": "false positive: remove-photo icon button sits on white card background, not a colored surface"
+      }
+    ]
+  }
+}

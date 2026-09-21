@@ -450,22 +450,25 @@ export function MobileAddFlow({ onClose }) {
       {/* 3. CENTER SUCCESS FLASH (Loader Removed for Continuous Flow) */}
       <AnimatePresence>
         {toastMessage && (
-          <motion.div 
+          <motion.div
             key="toast"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.97 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 340 }}
             className="absolute inset-x-0 bottom-[calc(105px+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 pointer-events-auto"
           >
-            <button 
+            <button
               onClick={() => setActiveView('CART')}
-              className="bg-[#2a2f45] text-white rounded-2xl px-5 py-3.5 shadow-xl border border-gray-700 w-full max-w-sm flex items-center justify-between active:scale-95 transition-transform"
+              className="bg-white rounded-[20px] pl-3.5 pr-2 py-2 shadow-xl border border-gray-100 w-full max-w-sm flex items-center justify-between active:scale-[0.98] transition-transform"
             >
-              <div className="flex items-center gap-3 overflow-hidden">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                <span className="font-semibold text-[14px] truncate">Added {toastMessage.title}</span>
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                <div className="w-8 h-8 rounded-full bg-[#fff0eb] flex items-center justify-center text-[#e27f2c] shrink-0">
+                  <CheckCircle2 className="w-4.5 h-4.5" strokeWidth={2.4} />
+                </div>
+                <span className="font-semibold text-[14px] text-[#1a1f36] truncate">Added {toastMessage.title}</span>
               </div>
-              <div className="flex items-center gap-2 pl-3 border-l border-gray-600 ml-3 shrink-0">
-                <span className="text-[13px] font-bold text-gray-300">Open Cart</span>
-                <span className="bg-[#e27f2c] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+              <div className="flex items-center gap-1.5 pl-3 ml-2 shrink-0 border-l border-gray-100">
+                <span className="text-[13px] font-semibold text-[#e27f2c]">Open Cart</span>
+                <span className="bg-[#e27f2c] text-white text-[11px] font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
                   {toastMessage.count}
                 </span>
               </div>

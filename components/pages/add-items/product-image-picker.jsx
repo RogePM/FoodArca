@@ -195,7 +195,7 @@ export function ProductImagePicker({
                         <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100 text-amber-700">
                           <AlertCircle className="w-2.5 h-2.5" strokeWidth={3} />
                         </span>
-                        <p className="text-[13.5px] font-semibold text-amber-900 truncate">
+                        <p className="text-[13.5px] font-semibold text-amber-900">
                           Image preview failed
                         </p>
                       </>
@@ -204,13 +204,13 @@ export function ProductImagePicker({
                         <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-green-100 text-green-700">
                           <Check className="w-2.5 h-2.5" strokeWidth={3} />
                         </span>
-                        <p className="text-[13.5px] font-semibold text-[#1a1f36] truncate">
+                        <p className="text-[13.5px] font-semibold text-[#1a1f36]">
                           Photo attached
                         </p>
                       </>
                     )}
                   </div>
-                  <p className="text-[11.5px] text-[#697386] truncate mt-0.5">
+                  <p className="text-[11.5px] text-[#697386] mt-0.5 leading-snug">
                     {failedUrls.has(photoUrl)
                       ? "External link unreachable. Tap Change to pick another."
                       : "Product image selected"}

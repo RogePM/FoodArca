@@ -111,14 +111,13 @@ function ProductTile({ item, handleSelect }) {
           </div>
         )}
 
-        {/* Edit Affordance (Bottom-Right) — dark scrim keeps it visible over any photo (white/light images included) */}
-        <div className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/45 backdrop-blur-[3px] flex items-center justify-center text-white shadow-sm group-hover:bg-[#d97757] transition-colors">
-          <Pencil className="w-3.5 h-3.5" strokeWidth={2.25} />
-        </div>
       </div>
 
-      {/* 2. Product Name — 2 lines so similar products (sizes/flavors) stay distinguishable */}
-      <h4 className="text-[14px] font-medium text-[#1a1f36] leading-snug line-clamp-2 min-h-[2.5em] mb-1 px-0.5 tracking-tight">
+      {/* 2. Product Name — single line to keep the card compact; full name still readable via title tooltip */}
+      <h4
+        title={item.name}
+        className="text-[14px] font-medium text-[#1a1f36] leading-snug truncate mb-1 px-0.5 tracking-tight"
+      >
         {item.name}
       </h4>
 
@@ -135,18 +134,24 @@ function ProductTile({ item, handleSelect }) {
           </span>
         </div>
 
-        {/* Expiration Date */}
-        {displayDate ? (
-          <div className={`font-medium ${
-            isExpired ? 'text-red-600' : isExpiring ? 'text-amber-600' : 'text-gray-500'
-          }`}>
-            Exp: {formatDate(displayDate)}
-          </div>
-        ) : (
-          <div className="text-gray-400">
-            No exp date
-          </div>
-        )}
+        {/* Expiration Date + Edit Affordance */}
+        <div className="flex items-center justify-between gap-1.5">
+          {displayDate ? (
+            <div className={`font-medium ${
+              isExpired ? 'text-red-600' : isExpiring ? 'text-amber-600' : 'text-gray-500'
+            }`}>
+              Exp: {formatDate(displayDate)}
+            </div>
+          ) : (
+            <div className="text-gray-400">
+              No exp date
+            </div>
+          )}
+          <Pencil
+            className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#d97757] transition-colors shrink-0"
+            strokeWidth={2}
+          />
+        </div>
       </div>
     </div>
   );
