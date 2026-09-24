@@ -25,19 +25,13 @@ export function InventoryBatchSelectionSheet({
   item,
   onSelectBatch,
 }) {
-  // Batches are already sorted FEFO by groupInventoryBatches
+  // Batches are already sorted FEFO and stripped of zero-quantity remnants by
+  // groupInventoryBatches, so every batch-count consumer (this sheet, grid
+  // badges, the desktop table) agrees on the same list.
   const batches = useMemo(() => {
     if (!item?.batches || !Array.isArray(item.batches)) return [];
     return item.batches;
   }, [item]);
-
-  // Hide zero-quantity remnants (e.g. fully-used merged batches) from the picker —
-  // they have nothing to select and only add confusing empty rows. Fall back to the
-  // unfiltered list if that would leave nothing to show.
-  const visibleBatches = useMemo(() => {
-    const withStock = batches.filter((b) => parseFloat(b.quantity) > 0);
-    return withStock.length > 0 ? withStock : batches;
-  }, [batches]);
 
   // Lock background body scroll when open
   useEffect(() => {
@@ -95,13 +89,13 @@ export function InventoryBatchSelectionSheet({
                 </h2>
                 <span className="bg-orange-50 text-[#d97757] text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-orange-100 flex items-center gap-1">
                   <Layers className="w-3 h-3 text-[#d97757]" />
-                  {visibleBatches.length} Batches
+                  {batches.length} Batches
                 </span>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 active:bg-gray-200 transition-colors"
+                className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 active:bg-gray-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#d97757]/40"
                 aria-label="Close"
               >
                 <X className="w-4 h-4" strokeWidth={1.75} />
@@ -144,27 +138,56 @@ export function InventoryBatchSelectionSheet({
             </div>
 
             {/* Logical Batches List */}
-            <div className="flex-1 overflow-y-auto px-6 py-3 space-y-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-              {visibleBatches.map((batch, idx) => {
+            <motion.div
+              className="flex-1 overflow-y-auto px-6 py-3 space-y-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                visible: { transition: { staggerChildren: 0.035, delayChildren: 0.05 } },
+              }}
+            >
+              {batches.map((batch, idx) => {
                 const statusStyles = getUrgentStatusStyles(batch);
                 const formattedExp = formatDate(batch.expirationDate);
                 const mergedCount = batch.rawBatchIds?.length || 1;
+                const quantityColor = statusStyles.isLowStock
+                  ? 'text-amber-600'
+                  : 'text-gray-900';
 
                 return (
-                  <div
+                  <motion.div
                     key={batch.id || `batch-${idx}`}
+                    variants={{
+                      hidden: { opacity: 0, y: 8 },
+                      visible: { opacity: 1, y: 0 },
+                    }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       if (onSelectBatch) onSelectBatch(batch);
                       if (onClose) onClose();
                     }}
-                    className="bg-white border border-gray-200 hover:border-gray-300 active:bg-gray-50 rounded-2xl p-4 transition-all shadow-sm flex items-center justify-between gap-3 cursor-pointer group"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (onSelectBatch) onSelectBatch(batch);
+                        if (onClose) onClose();
+                      }
+                    }}
+                    className="bg-white border border-gray-200 hover:border-gray-300 active:bg-gray-50 active:scale-[0.98] rounded-2xl p-4 transition-all shadow-sm flex items-center justify-between gap-3 cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-[#d97757]/40 focus-visible:border-[#d97757]/40"
                   >
                     {/* Batch Details */}
                     <div className="flex flex-col min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[15px] font-bold text-gray-900 tabular-nums">
+                        <span className={`text-[15px] font-bold tabular-nums ${quantityColor}`}>
                           {batch.quantity} <span className="font-medium text-gray-500 text-[13px]">{item.unit || 'units'}</span>
                         </span>
+                        {statusStyles.isLowStock && (
+                          <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider border border-amber-100">
+                            Low
+                          </span>
+                        )}
                         {mergedCount > 1 && (
                           <span className="text-[10px] bg-gray-100 text-gray-500 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
                             {mergedCount} merged
@@ -191,10 +214,10 @@ export function InventoryBatchSelectionSheet({
                     <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 text-gray-400 group-hover:bg-[#d97757] group-hover:text-white transition-colors shrink-0">
                       <Pencil className="w-4 h-4" strokeWidth={2.5} />
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           </motion.div>
         </div>
       )}

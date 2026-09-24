@@ -385,13 +385,23 @@ export const groupInventoryBatches = (rawInventory = []) => {
       b.quantity = Math.round((b.quantity + Number.EPSILON) * 1000) / 1000;
     });
 
+    // Drop fully-used/zero-quantity logical batches (e.g. remnants left behind
+    // by a checkout or edit that emptied a batch without deleting its row) —
+    // there's nothing to select or display for them. Every downstream
+    // consumer (batch-count badges, the batch picker, the desktop table) reads
+    // this same `batches` array, so filtering once here keeps them all in
+    // agreement instead of each view guessing independently. Fall back to the
+    // unfiltered list if that would leave nothing at all.
+    const displayBatches = sortedLogicalBatches.filter((b) => b.quantity > 0);
+    const finalBatches =
+      displayBatches.length > 0 ? displayBatches : sortedLogicalBatches;
+
     const roundedTotal =
       Math.round((product.totalQuantity + Number.EPSILON) * 1000) / 1000;
 
     // Primary expiration date is the earliest non-null expiration date, or null if all lack dates
     const primaryBatch =
-      sortedLogicalBatches.find((b) => b.expirationDate) ||
-      sortedLogicalBatches[0];
+      finalBatches.find((b) => b.expirationDate) || finalBatches[0];
     const oldestExpirationDate = primaryBatch
       ? primaryBatch.expirationDate
       : null;
@@ -402,8 +412,8 @@ export const groupInventoryBatches = (rawInventory = []) => {
       quantity: roundedTotal,
       expirationDate: oldestExpirationDate,
       oldestExpirationDate,
-      batches: sortedLogicalBatches,
-      logicalBatchCount: sortedLogicalBatches.length,
+      batches: finalBatches,
+      logicalBatchCount: finalBatches.length,
       mainItem: {
         ...product,
         totalQuantity: roundedTotal,

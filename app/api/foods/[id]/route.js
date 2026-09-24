@@ -278,6 +278,32 @@ export async function DELETE(req, { params }) {
 
     if (batch) {
       catalogItemId = batch.catalog_item_id;
+
+      // This id points at one batch among possibly several for the same catalog
+      // item (e.g. two donations of the same product with different expiration
+      // dates). Only remove that single batch row — deleting the whole catalog
+      // item here would wipe out every other batch too.
+      const { count: siblingCount } = await auth.supabase
+        .from('inventory_batches')
+        .select('id', { count: 'exact', head: true })
+        .eq('catalog_item_id', catalogItemId)
+        .eq('location_id', locationId);
+
+      if (siblingCount > 1) {
+        const { data: deletedRows, error: delErr } = await auth.supabase
+          .from('inventory_batches')
+          .delete()
+          .eq('id', id)
+          .select('id');
+        if (delErr) throw delErr;
+        // A delete RLS can block the row silently (0 rows affected, no error) —
+        // surface that as a real failure instead of reporting success.
+        if (!deletedRows || deletedRows.length === 0) {
+          throw new Error('Batch could not be deleted (permission denied)');
+        }
+
+        return NextResponse.json({ message: 'Batch deleted successfully' });
+      }
     }
 
     const { error: rpcErr } = await auth.supabase.rpc('delete_catalog_item_safe', {

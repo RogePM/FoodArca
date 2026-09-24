@@ -652,6 +652,7 @@ const PACK_SIZE_OPTIONS = [
 
 export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, pantryId }) {
   const isEditing = !!initialItem?.id;
+  const isBatchDelete = Boolean(initialItem?.hasSiblingBatches);
   const displayBarcode = initialItem?.barcode || "";
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -661,30 +662,6 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   const [formCategory, setFormCategory] = useState(initialItem?.category || "");
   const [formPhotoUrl, setFormPhotoUrl] = useState(initialItem?.photoUrl || initialItem?.photo_url || null);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
-
-  // Sync state if initialItem prop changes while mounted (e.g. switching items to edit or new scan)
-  useEffect(() => {
-    if (initialItem) {
-      setFormName(initialItem.name || "");
-      setFormCategory(initialItem.category || "");
-      setFormPhotoUrl(initialItem.photoUrl || initialItem.photo_url || null);
-      if (initialItem.intakeMode) setIntakeMode(initialItem.intakeMode);
-      
-      if (initialItem.intakeMode === "weight") {
-        if (initialItem.quantity) setFormWeight(String(initialItem.quantity));
-        if (initialItem.unit) setFormWeightUnit(initialItem.unit);
-      } else {
-        if (initialItem.quantity) setFormQty(String(initialItem.quantity));
-        if (initialItem.unit) setFormUnit(initialItem.unit);
-      }
-      
-      if (initialItem.expirationDate) setExpirationDate(initialItem.expirationDate);
-      if (initialItem.sourceType) setFormSource(initialItem.sourceType);
-      if (initialItem.storageLocation) setFormStorageLocation(initialItem.storageLocation);
-      if (initialItem.donorName) setDonorName(initialItem.donorName);
-    }
-  }, [initialItem]);
-
 
   // Autocomplete state — visibility is derived from isTyping + suggestions.length
   // (not tracked separately) so the dropdown's open/closed state can never
@@ -768,6 +745,29 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
   const [expirationDate, setExpirationDate] = useState(initialItem?.expirationDate || "");
   const [formSource, setFormSource] = useState(initialItem?.sourceType || "not_specified");
   const [donorName, setDonorName] = useState(initialItem?.donorName || "");
+
+  // Sync state if initialItem prop changes while mounted (e.g. switching items to edit or new scan)
+  useEffect(() => {
+    if (initialItem) {
+      setFormName(initialItem.name || "");
+      setFormCategory(initialItem.category || "");
+      setFormPhotoUrl(initialItem.photoUrl || initialItem.photo_url || null);
+      if (initialItem.intakeMode) setIntakeMode(initialItem.intakeMode);
+
+      if (initialItem.intakeMode === "weight") {
+        if (initialItem.quantity) setFormWeight(String(initialItem.quantity));
+        if (initialItem.unit) setFormWeightUnit(initialItem.unit);
+      } else {
+        if (initialItem.quantity) setFormQty(String(initialItem.quantity));
+        if (initialItem.unit) setFormUnit(initialItem.unit);
+      }
+
+      if (initialItem.expirationDate) setExpirationDate(initialItem.expirationDate);
+      if (initialItem.sourceType) setFormSource(initialItem.sourceType);
+      if (initialItem.storageLocation) setFormStorageLocation(initialItem.storageLocation);
+      if (initialItem.donorName) setDonorName(initialItem.donorName);
+    }
+  }, [initialItem]);
 
   // Secondary fields stay tucked away unless already filled in (editing) or the user asks for them
   const [showMoreStep2, setShowMoreStep2] = useState(!!initialItem?.packSize);
@@ -974,7 +974,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
           {isEditing && onDelete && (
             <button
               onClick={() => setPendingSheet("delete")}
-              aria-label="Delete item"
+              aria-label={isBatchDelete ? "Delete batch" : "Delete item"}
               className="flex items-center justify-center w-11 h-11 rounded-full bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 active:bg-red-200 transition-colors shadow-sm"
             >
               <Trash2 className="w-4 h-4" strokeWidth={2.5} />
@@ -1434,11 +1434,17 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 <div className="w-10 h-1.5 rounded-full bg-gray-300" />
               </div>
               <h2 id="confirm-sheet-title" className="text-[17px] font-semibold text-[#1a1f36] mb-1.5">
-                {pendingSheet === "delete" ? `Delete "${formName.trim() || "this item"}"?` : "Discard your changes?"}
+                {pendingSheet === "delete"
+                  ? isBatchDelete
+                    ? `Delete this batch of "${formName.trim() || "this item"}"?`
+                    : `Delete "${formName.trim() || "this item"}"?`
+                  : "Discard your changes?"}
               </h2>
               <p className="text-[13.5px] text-gray-500 mb-5">
                 {pendingSheet === "delete"
-                  ? "This removes it from inventory for every device connected to this pantry. This can't be undone."
+                  ? isBatchDelete
+                    ? "This removes just this batch for every device connected to this pantry. The item's other batches stay. This can't be undone."
+                    : "This removes it from inventory for every device connected to this pantry. This can't be undone."
                   : "You've made changes to this item that haven't been saved yet."}
               </p>
               <div className="space-y-2.5">
@@ -1458,14 +1464,14 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                       : "bg-[#e27f2c] hover:bg-[#cf6f20] text-white"
                   }`}
                 >
-                  {pendingSheet === "delete" ? "Delete item" : "Discard changes"}
+                  {pendingSheet === "delete" ? (isBatchDelete ? "Delete batch" : "Delete item") : "Discard changes"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setPendingSheet(null)}
                   className="w-full h-12 rounded-xl font-bold text-[15px] bg-gray-100 text-gray-700 active:bg-gray-200 transition-all"
                 >
-                  {pendingSheet === "delete" ? "Keep item" : "Keep editing"}
+                  {pendingSheet === "delete" ? (isBatchDelete ? "Keep batch" : "Keep item") : "Keep editing"}
                 </button>
               </div>
             </motion.div>

@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "tailwind-init": "echo 'Tailwind CSS v4 is configured via @import in globals.css'"
   },
   "dependencies": {
@@ -41,6 +41,8 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.6",
     "postcss": "^8.4.49"
   }
 }

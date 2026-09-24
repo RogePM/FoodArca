@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, X, ScanBarcode, ArrowLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 import { usePantry } from '@/components/providers/PantryProvider';
-import { getCategoryVisual } from '@/components/pages/inventory/inventory-utils';
+import { getCategoryVisual, groupInventoryBatches } from '@/components/pages/inventory/inventory-utils';
 
 function SearchResultThumb({ item }) {
   const [imgError, setImgError] = useState(false);
@@ -29,28 +28,30 @@ function SearchResultThumb({ item }) {
 }
 
 export function MobileInventorySearch({
-  initialQuery = '', 
-  onQueryChange, 
-  inventoryData = null, 
-  autoFocus = false,
+  initialQuery = '',
+  onQueryChange,
+  inventoryData = null,
   onItemSelect,
+  onSubmit,
   forceOpen = false,
   onClose,
   onOpenScanner
 }) {
-  const router = useRouter();
   const { pantryId } = usePantry();
   
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  // Mirrors initialQuery so an external change can be detected and applied
+  // during render, without the extra render an effect-based sync would cost.
+  const [prevInitialQuery, setPrevInitialQuery] = useState(initialQuery);
   const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(forceOpen);
   const [showScanner, setShowScanner] = useState(false);
   const [localInventory, setLocalInventory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Sync external query changes
-  useEffect(() => {
+  if (initialQuery !== prevInitialQuery) {
+    setPrevInitialQuery(initialQuery);
     setSearchQuery(initialQuery);
-  }, [initialQuery]);
+  }
 
   // If inventoryData is not provided, fetch it when the overlay opens
   useEffect(() => {
@@ -76,7 +77,13 @@ export function MobileInventorySearch({
     }
   }, [isSearchOverlayOpen, inventoryData, pantryId, localInventory.length]);
 
-  const activeInventory = inventoryData || localInventory;
+  // When we're fetching our own data (no inventoryData prop, e.g. on the Settings page),
+  // group raw batch records into one card per item — same shape the Inventory page passes in.
+  const groupedLocalInventory = React.useMemo(
+    () => groupInventoryBatches(localInventory),
+    [localInventory]
+  );
+  const activeInventory = inventoryData || groupedLocalInventory;
 
   // Filter inventory
   const filteredInventory = React.useMemo(() => {
@@ -171,7 +178,10 @@ export function MobileInventorySearch({
                   // filtered live via onQueryChange) instead of just the quick-list here.
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (searchQuery) closeOverlay();
+                    if (searchQuery) {
+                      if (onSubmit) onSubmit(searchQuery);
+                      closeOverlay();
+                    }
                   }
                 }}
               />
@@ -223,7 +233,7 @@ export function MobileInventorySearch({
                  </div>
                ) : (
                  <div className="text-center py-12">
-                   <p className="text-gray-500 font-normal text-[14px]">No results found for "{searchQuery}"</p>
+                   <p className="text-gray-500 font-normal text-[14px]">No results found for &quot;{searchQuery}&quot;</p>
                  </div>
                )
              ) : (

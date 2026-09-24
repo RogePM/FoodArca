@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Search,
   Plus,
@@ -59,9 +59,26 @@ function matchesCategoryFilter(productCategory, selectedCategoryValue) {
 
 export function InventoryView() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { pantryId, lastInventoryUpdate } = usePantry();
 
-  const [searchQuery, setSearchQuery] = useState('');
+  // The URL is the single source of truth for search/pinned-item state, so a link from
+  // elsewhere (e.g. the Settings search bar) or the browser back button always reflects
+  // correctly, even when Next.js reuses an already-mounted InventoryView.
+  const searchQuery = searchParams.get('q') || '';
+  const pinnedItemId = searchParams.get('itemId') || null;
+
+  const updateSearchParams = (updates) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
   const [inventory, setInventory] = useState([]);
   const [activeFilter, setActiveFilter] = useState('ALL'); // ALL, EXPIRING, EXPIRED, LOW, NO_DATE, or category value
   const [sortConfig, setSortConfig] = useState({
@@ -86,7 +103,7 @@ export function InventoryView() {
     }
   }, []);
 
-  const fetchInventory = async (isBackground = false) => {
+  const fetchInventory = useCallback(async (isBackground = false) => {
     if (!pantryId) return;
     if (!isBackground) setIsLoading(true);
     else setIsRefetching(true);
@@ -110,7 +127,7 @@ export function InventoryView() {
       setIsLoading(false);
       setIsRefetching(false);
     }
-  };
+  }, [pantryId, sortConfig]);
 
   const hasFetchedInitial = React.useRef(false);
 
@@ -120,7 +137,7 @@ export function InventoryView() {
       hasFetchedInitial.current = true;
       fetchInventory(!isInitial);
     }
-  }, [pantryId, sortConfig, lastInventoryUpdate]);
+  }, [pantryId, sortConfig, lastInventoryUpdate, fetchInventory]);
 
   // Group raw inventory into logical catalog items first
   const allBatchedInventory = useMemo(() => {
@@ -170,6 +187,25 @@ export function InventoryView() {
 
   // Filter and sort items based on search query, filter pill, and sort config
   const batchedInventory = useMemo(() => {
+    // A specific item was chosen from the search suggestions — show just that item.
+    // The id we're matching against may have come from a differently-grouped fetch
+    // (e.g. the Settings page's own inventory fetch), so match against every id this
+    // grouped item could plausibly be known by, including its underlying raw batches.
+    if (pinnedItemId) {
+      const target = String(pinnedItemId);
+      return allBatchedInventory.filter((i) => {
+        if (String(i.id) === target) return true;
+        if (i.catalogItemId && String(i.catalogItemId) === target) return true;
+        if (i._id && String(i._id) === target) return true;
+        if (Array.isArray(i.rawBatches)) {
+          return i.rawBatches.some(
+            (rb) => String(rb.id) === target || String(rb._id) === target
+          );
+        }
+        return false;
+      });
+    }
+
     let result = allBatchedInventory;
 
     // Search query match across item name, barcode, and category
@@ -222,7 +258,7 @@ export function InventoryView() {
     });
 
     return result;
-  }, [allBatchedInventory, searchQuery, activeFilter, sortConfig]);
+  }, [allBatchedInventory, searchQuery, activeFilter, sortConfig, pinnedItemId]);
 
   // Backward compatibility processedInventory
   const processedInventory = batchedInventory;
@@ -248,9 +284,22 @@ export function InventoryView() {
     }
   };
 
+  // User typed/cleared/scanned into the search box — drop any pinned single-item view
+  const handleSearchQueryChange = (val) => {
+    updateSearchParams({ q: val || null, itemId: null });
+  };
+
+  // User tapped a suggestion in the search dropdown — show it in the grid, not the edit form
+  const handleSearchItemSelect = (item) => {
+    const id = item?.catalogItemId || item?.id || item?._id;
+    updateSearchParams({ q: item?.name || null, itemId: id || null });
+    setActiveFilter('ALL');
+  };
+
   const handleSelectBatch = (batch) => {
+    const hasSiblingBatches = (batchSheetItem?.batches?.length || 1) > 1;
     setBatchSheetItem(null);
-    handleModify(batch);
+    handleModify({ ...batch, hasSiblingBatches });
   };
 
   const handleMobileSave = async (payload) => {
@@ -276,15 +325,20 @@ export function InventoryView() {
   const handleMobileDelete = async (item) => {
     if (!item?.id) return;
     try {
-      await fetch(`/api/foods/${item.id}`, {
+      const res = await fetch(`/api/foods/${item.id}`, {
         method: 'DELETE',
         headers: { 'x-pantry-id': pantryId }
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || 'Delete failed');
+      }
       setIsSheetOpen(false);
       setSelectedItem(null);
       fetchInventory(true);
     } catch (err) {
       console.error(err);
+      alert(err.message || 'Could not delete this item. Please try again.');
     }
   };
 
@@ -329,9 +383,9 @@ export function InventoryView() {
         {/* MOBILE REUSABLE SEARCH BAR */}
         <MobileInventorySearch
           initialQuery={searchQuery}
-          onQueryChange={setSearchQuery}
-          inventoryData={batchedInventory}
-          onItemSelect={handleSelectItem}
+          onQueryChange={handleSearchQueryChange}
+          inventoryData={allBatchedInventory}
+          onItemSelect={handleSearchItemSelect}
         />
 
         {/* DESKTOP REAL SEARCH BAR */}
@@ -341,12 +395,12 @@ export function InventoryView() {
             placeholder="Search by name or barcode..."
             className="pl-11 pr-[52px] h-11 bg-white border-gray-200 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] rounded-2xl focus:ring-2 focus:ring-[#d97757]/30 transition-all font-medium text-base placeholder:text-gray-400"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchQueryChange(e.target.value)}
           />
           {searchQuery ? (
             <button
               type="button"
-              onClick={() => setSearchQuery('')}
+              onClick={() => handleSearchQueryChange('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 rounded-full"
               aria-label="Clear search"
             >
@@ -381,7 +435,7 @@ export function InventoryView() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setActiveFilter(pill.id)}
+                  onClick={() => { setActiveFilter(pill.id); updateSearchParams({ itemId: null }); }}
                   className={`px-3.5 py-[7px] rounded-full text-[13px] tracking-tight whitespace-nowrap shrink-0 transition-all ${
                     isActive
                       ? 'bg-white border border-white text-[#d97757] md:bg-[#d97757] md:border-[#d97757] md:text-white font-semibold'
@@ -590,7 +644,7 @@ export function InventoryView() {
       {showScanner && (
         <BarcodeScannerOverlay
           onScan={(code) => {
-            setSearchQuery(code);
+            handleSearchQueryChange(code);
             setShowScanner(false);
           }}
           onClose={() => setShowScanner(false)}
