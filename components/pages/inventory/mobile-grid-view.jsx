@@ -116,13 +116,13 @@ function ProductTile({ item, handleSelect }) {
       {/* 2. Product Name — single line to keep the card compact; full name still readable via title tooltip */}
       <h4
         title={item.name}
-        className="text-[clamp(12px,3.4vw,14px)] font-medium text-[#1a1f36] leading-snug truncate mb-1 px-0.5 tracking-tight"
+        className="text-[13px] font-medium text-[#1a1f36] leading-snug truncate mb-1 px-0.5 tracking-tight"
       >
         {item.name}
       </h4>
 
       {/* 3. Metadata Cluster */}
-      <div className="flex flex-col gap-1 text-[clamp(11px,3vw,13px)] font-normal text-gray-500 px-0.5 mb-1 mt-auto">
+      <div className="flex flex-col gap-1 text-[12px] font-normal text-gray-500 px-0.5 mb-1 mt-auto">
         {/* Category & Stock */}
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-gray-600 truncate min-w-0">
@@ -189,7 +189,7 @@ export function MobileGridView({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-x-[3vw] gap-y-1">
+    <div className="grid grid-cols-[repeat(auto-fill,173px)] gap-x-3 gap-y-1">
       {inventory.map((item) => {
         const itemKey =
           item.catalogItemId ||
