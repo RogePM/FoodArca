@@ -198,7 +198,7 @@ export function MobileCartView({
       <div className="flex-1 overflow-y-auto w-full pb-[calc(clamp(72px,13dvh,104px)+env(safe-area-inset-bottom))]">
         {cartItems.length === 0 ? (
           /* EMPTY STATE: REMOVE-PAGE STYLE ACTION CARDS */
-          <div className="flex flex-col h-full min-h-[100dvh]">
+          <div className="flex flex-col min-h-full">
             {/* ─── STICKY SEARCH HEADER ─── same sticky-orange-bar treatment as
                 Settings' mobile header, giving this screen the "top" identity
                 that was missing once the title was removed. Also a real,
@@ -255,43 +255,47 @@ export function MobileCartView({
               </div>
 
               {/* ─── SECONDARY OPTIONS: SEARCH TO RESTOCK + MANUAL ENTRY (COMPACT ROW) ─── */}
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="mt-6 grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => onBack && onBack('SEARCH')}
-                  className="border border-gray-200 rounded-2xl bg-white p-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start text-left active:scale-95 active:bg-gray-50 transition-all duration-200"
+                  className="border border-gray-200 rounded-2xl bg-white p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start justify-between text-left active:scale-95 active:bg-gray-50 transition-all duration-200 min-h-[132px]"
                 >
                   <div className="w-full flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center">
+                    <div className="w-11 h-11 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center">
                       <Search className="w-5 h-5 text-[#1a1f36]" strokeWidth={2.2} />
                     </div>
                     <ChevronRight className="w-[18px] h-[18px] text-gray-400" strokeWidth={2.5} />
                   </div>
-                  <span className="text-[14px] font-medium text-[#1a1f36] leading-snug mt-2">
-                    Search to Restock
-                  </span>
-                  <span className="text-[12px] text-gray-500 mt-0.5 leading-snug">
-                    Existing items
-                  </span>
+                  <div className="mt-3">
+                    <span className="text-[14px] font-medium text-[#1a1f36] leading-snug block">
+                      Search to Restock
+                    </span>
+                    <span className="text-[12px] text-gray-500 mt-0.5 leading-snug block">
+                      Existing items
+                    </span>
+                  </div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                  className="border border-gray-200 rounded-2xl bg-white p-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start text-left active:scale-95 active:bg-gray-50 transition-all duration-200"
+                  className="border border-gray-200 rounded-2xl bg-white p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start justify-between text-left active:scale-95 active:bg-gray-50 transition-all duration-200 min-h-[132px]"
                 >
                   <div className="w-full flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center">
+                    <div className="w-11 h-11 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center">
                       <Keyboard className="w-5 h-5 text-[#1a1f36]" strokeWidth={2.2} />
                     </div>
                     <ChevronRight className="w-[18px] h-[18px] text-gray-400" strokeWidth={2.5} />
                   </div>
-                  <span className="text-[14px] font-medium text-[#1a1f36] leading-snug mt-2">
-                    Manual Entry
-                  </span>
-                  <span className="text-[12px] text-gray-500 mt-0.5 leading-snug">
-                    No barcode needed
-                  </span>
+                  <div className="mt-3">
+                    <span className="text-[14px] font-medium text-[#1a1f36] leading-snug block">
+                      Manual Entry
+                    </span>
+                    <span className="text-[12px] text-gray-500 mt-0.5 leading-snug block">
+                      No barcode needed
+                    </span>
+                  </div>
                 </button>
               </div>
 
