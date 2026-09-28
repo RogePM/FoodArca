@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { getCategoryVisual, formatDate } from '@/components/pages/inventory/inventory-utils';
+import { MobileInventorySearch } from '@/components/ui/mobile-inventory-search';
 import { AddFlowBottomBar } from './add-flow-bottom-bar';
 
 export function MobileCartView({
@@ -26,6 +28,7 @@ export function MobileCartView({
   onEdit,
 }) {
   const { pantryDetails } = usePantry();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
@@ -34,10 +37,87 @@ export function MobileCartView({
   const [isSubmittingCart, setIsSubmittingCart] = useState(false);
   const [cartSuccess, setCartSuccess] = useState('');
   const [cartError, setCartError] = useState('');
+  const [recentItems, setRecentItems] = useState([]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Recently-added quick-tap strip on the empty state — real data pulled from
+  // the activity_logs audit trail (the same source the Activity Log/Recent
+  // Changes screens use), filtered down to "added" events and deduped so a
+  // volunteer sees each item once, most recent first. The activity log itself
+  // doesn't carry a product photo, so it's cross-referenced against the item
+  // dictionary (keyed by name) to attach a real photoUrl where one exists.
+  useEffect(() => {
+    if (!pantryDetails?.id) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [recentRes, dictRes] = await Promise.all([
+          fetch('/api/foods/changes/recent', {
+            headers: { 'x-pantry-id': pantryDetails.id },
+            cache: 'no-store',
+          }),
+          fetch('/api/foods/dictionary', {
+            headers: { 'x-pantry-id': pantryDetails.id },
+            cache: 'no-store',
+          }),
+        ]);
+        if (!recentRes.ok) return;
+        const logs = await recentRes.json();
+        if (cancelled || !Array.isArray(logs)) return;
+
+        const dictByName = new Map();
+        if (dictRes.ok) {
+          const { dictionary } = await dictRes.json();
+          for (const entry of dictionary || []) {
+            if (entry.name) dictByName.set(entry.name.toLowerCase().trim(), entry);
+          }
+        }
+
+        const seen = new Set();
+        const added = [];
+        for (const log of logs) {
+          if (log.rawActionType !== 'scan_in') continue;
+          if (!log.itemName || log.itemName === 'Unknown Item') continue;
+          if (seen.has(log.itemId)) continue;
+          seen.add(log.itemId);
+          const dictMatch = dictByName.get(log.itemName.toLowerCase().trim());
+          added.push({ ...log, photoUrl: dictMatch?.photoUrl || null });
+          if (added.length >= 8) break;
+        }
+        setRecentItems(added);
+      } catch (_) {}
+    })();
+
+    return () => { cancelled = true; };
+  }, [pantryDetails?.id]);
+
+  // One tap re-adds a recent item straight into the batch at qty 1 — the
+  // volunteer can fine-tune quantity/expiration with the existing Edit
+  // action once it lands in the (now non-empty) cart list below.
+  const quickAddRecentItem = (log) => {
+    const catVisual = getCategoryVisual(log.category);
+    const newItem = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      barcode: '',
+      name: log.itemName,
+      category: catVisual.value,
+      categoryName: catVisual.name,
+      quantity: '1',
+      unit: 'units',
+      weightPerUnit: '0',
+      totalWeightLbs: 0,
+      intakeMode: 'count',
+      expirationDate: null,
+      expirationPrecision: 'none',
+      sourceType: 'donation',
+      photoUrl: log.photoUrl || null,
+    };
+    setCartItems((prev) => [newItem, ...prev]);
+  };
 
   const clearBatch = () => {
     setCartItems([]);
@@ -112,47 +192,47 @@ export function MobileCartView({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="absolute inset-0 z-50 bg-[#fbf9f6] flex flex-col"
+      className="absolute inset-0 z-50 bg-white flex flex-col"
     >
       {/* ─── SCROLLABLE CONTENT (HEADER + CARDS ALL SCROLL TOGETHER) ─── */}
       <div className="flex-1 overflow-y-auto w-full pb-[calc(clamp(72px,13dvh,104px)+env(safe-area-inset-bottom))]">
         {cartItems.length === 0 ? (
           /* EMPTY STATE: REMOVE-PAGE STYLE ACTION CARDS */
-          <div className="flex flex-col h-full min-h-[100dvh] px-4 pt-safe">
-            {/* ─── HEADER BLOCK ─── */}
-            <div className="mt-[clamp(8px,2.2dvh,16px)] shrink-0">
-              <div className="mb-0.5">
-                <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Inbound Staging</span>
-              </div>
-
-              <h1 className="text-[clamp(19px,4dvh,26px)] font-semibold text-[#1a1f36] tracking-tight leading-tight mt-0.5">
-                Add Items
-              </h1>
-
-              <p className="text-[13px] text-gray-500 mt-1 flex items-center">
-                To:<span className="font-medium text-gray-700 ml-1.5">{pantryDetails?.name || 'Food Arca'}</span>
-              </p>
+          <div className="flex flex-col h-full min-h-[100dvh]">
+            {/* ─── STICKY SEARCH HEADER ─── same sticky-orange-bar treatment as
+                Settings' mobile header, giving this screen the "top" identity
+                that was missing once the title was removed. Also a real,
+                useful entry point (jump straight to an inventory item) rather
+                than a decorative bar. */}
+            <div className="z-20 sticky top-0 bg-[#e27f2c] px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-2 shadow-[0_1px_0_0_#e27f2c] shrink-0">
+              <MobileInventorySearch
+                onSubmit={(query) => router.push(`/dashboard/inventory?q=${encodeURIComponent(query)}`)}
+                onItemSelect={(item) =>
+                  router.push(
+                    `/dashboard/inventory?itemId=${encodeURIComponent(item.catalogItemId || item.id || item._id)}&q=${encodeURIComponent(item.name || '')}`
+                  )
+                }
+              />
             </div>
 
-            {/* ─── CONTENT: HERO CARD + SECONDARY OPTIONS ─── */}
-            <div className="mt-[clamp(16px,4dvh,32px)]">
-              {/* ─── CARD 1: SCAN TO ADD (HERO) ─── */}
+            <div className="px-4 mt-6">
+              {/* ─── CARD: SCAN TO ADD (HERO) ─── */}
               <div>
-                <div className="border border-gray-200 rounded-[20px] bg-white p-[clamp(16px,3dvh,22px)] shadow-[0_4px_18px_rgba(0,0,0,0.04)]">
+                <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(16px,3dvh,22px)] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
                   <div className="flex items-start justify-between">
                     <div className="flex flex-col pr-4">
                       <h2 className="text-[clamp(19px,3.4dvh,23px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
                         Scan to Add
                       </h2>
                       <p className="text-[13.5px] text-gray-500 mt-1.5 leading-relaxed">
-                        Skip manual entry.{' '}
-                        <button
-                          onClick={() => setShowHowItWorks(true)}
-                          className="underline underline-offset-2 decoration-gray-400 text-[#1a1f36] font-normal"
-                        >
-                          How it works
-                        </button>
+                        Skip manual entry.
                       </p>
+                      <button
+                        onClick={() => setShowHowItWorks(true)}
+                        className="text-[13.5px] underline underline-offset-2 decoration-gray-400 text-[#1a1f36] font-normal mt-1.5 w-fit"
+                      >
+                        How it works
+                      </button>
                     </div>
 
                     <div className="w-[clamp(78px,13dvh,104px)] h-[clamp(78px,13dvh,104px)] shrink-0 relative">
@@ -166,34 +246,31 @@ export function MobileCartView({
 
                   <button
                     onClick={() => onBack && onBack('CAMERA')}
-                    className="w-full h-[clamp(46px,6.5dvh,52px)] mt-[clamp(14px,2.4dvh,20px)] rounded-full bg-[#e27f2c] text-white text-[15px] font-semibold transition-colors hover:bg-[#cf6f20] active:scale-[0.98] shadow-sm flex items-center justify-center gap-2"
+                    className="w-full h-[clamp(46px,6.5dvh,52px)] mt-[clamp(16px,2.8dvh,22px)] rounded-full bg-[#e27f2c] text-white text-[15px] font-semibold transition-all duration-200 hover:bg-[#cf6f20] active:scale-95 shadow-sm flex items-center justify-center gap-2"
                   >
                     <Scan className="w-[18px] h-[18px]" strokeWidth={2.4} />
                     Open Scanner
                   </button>
-                  <p className="text-center text-[11.5px] text-gray-500 mt-2">
-                    Uses your device camera
-                  </p>
                 </div>
               </div>
 
               {/* ─── SECONDARY OPTIONS: SEARCH TO RESTOCK + MANUAL ENTRY (COMPACT ROW) ─── */}
-              <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <div className="mt-3 grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => onBack && onBack('SEARCH')}
-                  className="border border-gray-200 rounded-[20px] bg-white p-3 flex flex-col items-start text-left active:scale-[0.98] active:bg-gray-50 transition-all"
+                  className="border border-gray-200 rounded-2xl bg-white p-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start text-left active:scale-95 active:bg-gray-50 transition-all duration-200"
                 >
                   <div className="w-full flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center">
-                      <Search className="w-4 h-4 text-[#1a1f36]" strokeWidth={2.2} />
+                    <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center">
+                      <Search className="w-5 h-5 text-[#1a1f36]" strokeWidth={2.2} />
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5} />
+                    <ChevronRight className="w-[18px] h-[18px] text-gray-400" strokeWidth={2.5} />
                   </div>
-                  <span className="text-[13.5px] font-semibold text-[#1a1f36] tracking-tight leading-snug mt-2">
+                  <span className="text-[14px] font-medium text-[#1a1f36] leading-snug mt-2">
                     Search to Restock
                   </span>
-                  <span className="text-[11.5px] text-gray-600 mt-0.5 leading-snug">
+                  <span className="text-[12px] text-gray-500 mt-0.5 leading-snug">
                     Existing items
                   </span>
                 </button>
@@ -201,22 +278,87 @@ export function MobileCartView({
                 <button
                   type="button"
                   onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                  className="border border-gray-200 rounded-[20px] bg-white p-3 flex flex-col items-start text-left active:scale-[0.98] active:bg-gray-50 transition-all"
+                  className="border border-gray-200 rounded-2xl bg-white p-3 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start text-left active:scale-95 active:bg-gray-50 transition-all duration-200"
                 >
                   <div className="w-full flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center">
-                      <Keyboard className="w-4 h-4 text-[#1a1f36]" strokeWidth={2.2} />
+                    <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center">
+                      <Keyboard className="w-5 h-5 text-[#1a1f36]" strokeWidth={2.2} />
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5} />
+                    <ChevronRight className="w-[18px] h-[18px] text-gray-400" strokeWidth={2.5} />
                   </div>
-                  <span className="text-[13.5px] font-semibold text-[#1a1f36] tracking-tight leading-snug mt-2">
+                  <span className="text-[14px] font-medium text-[#1a1f36] leading-snug mt-2">
                     Manual Entry
                   </span>
-                  <span className="text-[11.5px] text-gray-600 mt-0.5 leading-snug">
+                  <span className="text-[12px] text-gray-500 mt-0.5 leading-snug">
                     No barcode needed
                   </span>
                 </button>
               </div>
+
+              {/* ─── RECENTLY ADDED: ONE-TAP RE-ADD (real activity_logs data) ───
+                  Same card as Settings' "More Tools & Preferences": title
+                  inside the card, inset hover rows, plain trailing chevron —
+                  quieter than a boxed action button. Deliberately distanced
+                  from the primary Scan action above so it reads as a nice-to-
+                  have shortcut, not a co-equal focus. Capped short, with a
+                  "View all" row into the full Inventory page for the rest. */}
+              {recentItems.length > 0 && (
+                <div className="mt-10 bg-white border border-gray-300/70 rounded-2xl p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-[16px] font-medium text-gray-900 tracking-tight">
+                      Recently Added
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/dashboard/inventory')}
+                      className="flex items-center gap-0.5 text-[12.5px] font-medium text-gray-400 hover:text-gray-600 transition-colors -mr-1 px-1 py-0.5"
+                    >
+                      View all
+                      <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {recentItems.slice(0, 4).map((log) => {
+                      const catVisual = getCategoryVisual(log.category);
+                      return (
+                        <button
+                          key={log.itemId}
+                          type="button"
+                          onClick={() => quickAddRecentItem(log)}
+                          className="w-full flex items-center justify-between gap-3 py-3.5 -mx-2 px-2 rounded-xl hover:bg-gray-50/70 active:bg-gray-100 transition-colors text-left group"
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            {log.photoUrl ? (
+                              <img
+                                src={log.photoUrl}
+                                alt=""
+                                className="w-10 h-10 rounded-xl object-cover border border-gray-200/80 shrink-0 bg-gray-50"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200/80 flex items-center justify-center overflow-hidden shrink-0">
+                                <img
+                                  src={catVisual.imagePath}
+                                  alt=""
+                                  className="w-full h-full object-contain mix-blend-multiply scale-125"
+                                />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <h3 className="text-[14px] font-medium text-gray-900 leading-snug truncate group-hover:text-[#d97757] transition-colors">
+                                {log.itemName}
+                              </h3>
+                              <p className="text-[12px] text-gray-500 leading-snug mt-0.5">
+                                {catVisual.name}
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="h-[18px] w-[18px] text-gray-400 group-hover:text-gray-600 shrink-0 transition-colors" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ) : (

@@ -31,6 +31,21 @@ async function resolveLocationAndOrg(supabase, pantryId) {
     return { locationId: loc.id, orgId: loc.organization_id };
   }
 
+  // pantryId may be an organization id rather than a location id (as sent by
+  // some callers) — fall back to that org's first location, matching the
+  // resolution used by /api/foods/changes/recent.
+  const { data: firstLoc } = await supabase
+    .from('locations')
+    .select('id, organization_id')
+    .eq('organization_id', pantryId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (firstLoc) {
+    return { locationId: firstLoc.id, orgId: firstLoc.organization_id };
+  }
+
   return null;
 }
 
