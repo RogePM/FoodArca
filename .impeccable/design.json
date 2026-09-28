@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-28T22:00:00Z",
+  "title": "Design System: Food Arca",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#1a1f36", "tonalRamp": ["#0a0c15", "#12152a", "#1a1f36", "#2b3252", "#454e78", "#6b76a3", "#9aa3c9", "#d3d7e8"] },
+      "ink-muted": { "role": "neutral", "displayName": "Ink Muted", "canonical": "#697386", "tonalRamp": ["#2a2e38", "#3f4550", "#54596a", "#697386", "#838da0", "#a3aabc", "#c3c9d6", "#e3e6ec"] },
+      "neutral-900": { "role": "neutral", "displayName": "Gray 900", "canonical": "#111827" },
+      "neutral-500": { "role": "neutral", "displayName": "Gray 500", "canonical": "#6b7280" },
+      "neutral-400": { "role": "neutral", "displayName": "Gray 400", "canonical": "#9ca3af" },
+      "neutral-200": { "role": "neutral", "displayName": "Gray 200", "canonical": "#e5e7eb" },
+      "neutral-100": { "role": "neutral", "displayName": "Gray 100", "canonical": "#f3f4f6" },
+      "surface": { "role": "background", "displayName": "Surface White", "canonical": "#ffffff" },
+      "brand-add": { "role": "primary", "displayName": "Add-Flow Orange", "canonical": "#e27f2c", "tonalRamp": ["#4a2a0e", "#6e3f15", "#93531c", "#b76824", "#e27f2c", "#e99a5c", "#f0b88c", "#f8d9bd"] },
+      "brand-settings": { "role": "primary", "displayName": "Settings Terracotta", "canonical": "#d97757", "tonalRamp": ["#48271c", "#6d3b2a", "#914f38", "#b66348", "#d97757", "#e39a80", "#edbdaa", "#f6ded4"] },
+      "destructive": { "role": "danger", "displayName": "Destructive Red", "canonical": "#dc2626" },
+      "destructive-bg": { "role": "danger-bg", "displayName": "Destructive Red Tint", "canonical": "#fef2f2" }
+    },
+    "typographyMeta": {
+      "heading": { "displayName": "Heading", "purpose": "One per hero card (e.g. \"Scan to Add\"); never a page-level title." },
+      "section-title": { "displayName": "Section Title", "purpose": "Label inside a bordered list card (e.g. \"Recently Added\")." },
+      "row-title": { "displayName": "Row Title", "purpose": "Primary text of a list row or grid tile." },
+      "body": { "displayName": "Body", "purpose": "One-sentence supporting copy under a heading." },
+      "caption": { "displayName": "Caption", "purpose": "Secondary line under a row title." }
+    },
+    "shadows": [
+      { "name": "card-lift", "value": "0 2px 8px -4px rgba(0,0,0,0.05)", "purpose": "The single elevation token — every card, tile, and CTA button, no variation." },
+      { "name": "header-seam", "value": "0 1px 0 0 var(--accent)", "purpose": "1px hairline under a sticky header; deliberately not a blurred shadow." }
+    ],
+    "motion": [
+      { "name": "press-scale", "value": "transform 0.2s ease; active:scale(0.95)", "purpose": "Tap feedback on every interactive card/tile/button." },
+      { "name": "sheet-spring", "value": "type: spring, damping: 28, stiffness: 320", "purpose": "Bottom confirmation sheets sliding up from y:100%." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "0px" },
+      { "name": "md", "value": "768px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one full-width pill CTA per screen (e.g. \"Open Scanner\").",
+      "html": "<button class=\"ds-btn-primary\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\"><path d=\"M7 4h-3v3M17 4h3v3M7 20h-3v-3M17 20h3v-3\" stroke-linecap=\"round\"/><line x1=\"12\" y1=\"7\" x2=\"12\" y2=\"17\" stroke-linecap=\"round\"/></svg>Open Scanner</button>",
+      "css": ".ds-btn-primary { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; height:52px; border:none; border-radius:9999px; background:#e27f2c; color:#ffffff; font-family:'Inter',sans-serif; font-size:15px; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:background 0.2s, transform 0.2s; } .ds-btn-primary:hover { background:#cf6f20; } .ds-btn-primary:active { transform:scale(0.95); } .ds-btn-primary .ds-icon { width:18px; height:18px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The single card recipe — 16px radius, 1px neutral border, the one soft lift shadow.",
+      "html": "<div class=\"ds-card\"><h2 class=\"ds-card-heading\">Scan to Add</h2><p class=\"ds-card-body\">Skip manual entry.</p></div>",
+      "css": ".ds-card { background:#ffffff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; box-shadow:0 2px 8px -4px rgba(0,0,0,0.05); } .ds-card-heading { font-family:'Inter',sans-serif; font-size:21px; font-weight:600; letter-spacing:-0.01em; color:#1a1f36; margin:0 0 6px 0; } .ds-card-body { font-family:'Inter',sans-serif; font-size:13.5px; color:#6b7280; line-height:1.6; margin:0; }"
+    },
+    {
+      "name": "List Row",
+      "kind": "custom",
+      "refersTo": "list-card-row",
+      "description": "A row inside the \"More Tools\"/\"Recently Added\" list-card pattern — icon-chip, title+caption, trailing chevron.",
+      "html": "<button class=\"ds-list-row\"><span class=\"ds-row-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\" stroke-linecap=\"round\"/></svg></span><span class=\"ds-row-text\"><span class=\"ds-row-title\">Search to Restock</span><span class=\"ds-row-caption\">Existing items</span></span><svg class=\"ds-row-chevron\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><polyline points=\"9 6 15 12 9 18\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button>",
+      "css": ".ds-list-row { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:14px 8px; margin:0 -8px; border:none; background:transparent; border-radius:12px; cursor:pointer; text-align:left; transition:background 0.15s; } .ds-list-row:hover { background:rgba(249,250,251,0.7); } .ds-list-row:focus-visible { outline:2px solid #e27f2c; outline-offset:2px; } .ds-row-icon { display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:#f3f4f6; border:1px solid rgba(229,231,235,0.8); color:#1a1f36; flex-shrink:0; } .ds-row-icon svg { width:18px; height:18px; } .ds-row-text { display:flex; flex-direction:column; min-width:0; } .ds-row-title { font-family:'Inter',sans-serif; font-size:14px; font-weight:500; color:#111827; line-height:1.375; } .ds-row-caption { font-family:'Inter',sans-serif; font-size:12px; color:#6b7280; margin-top:2px; } .ds-row-chevron { width:18px; height:18px; color:#9ca3af; flex-shrink:0; }"
+    },
+    {
+      "name": "Compact Option Tile",
+      "kind": "card",
+      "refersTo": "compact-option-tile",
+      "description": "A 2-up secondary-action grid tile, proportioned to match Settings' 3-column grid tiles rather than shrinking to its own text content.",
+      "html": "<button class=\"ds-option-tile\"><div class=\"ds-tile-top\"><span class=\"ds-row-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><line x1=\"8\" y1=\"9\" x2=\"16\" y2=\"9\"/></svg></span><svg class=\"ds-row-chevron\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><polyline points=\"9 6 15 12 9 18\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></div><div class=\"ds-tile-bottom\"><span class=\"ds-row-title\">Manual Entry</span><span class=\"ds-row-caption\">No barcode needed</span></div></button>",
+      "css": ".ds-option-tile { display:flex; flex-direction:column; justify-content:space-between; width:100%; min-height:132px; padding:16px; background:#ffffff; border:1px solid #e5e7eb; border-radius:16px; box-shadow:0 2px 8px -4px rgba(0,0,0,0.05); text-align:left; cursor:pointer; transition:transform 0.2s, background 0.2s; } .ds-option-tile:active { transform:scale(0.95); background:#fafafa; } .ds-tile-top { display:flex; align-items:center; justify-content:space-between; width:100%; }"
+    },
+    {
+      "name": "Sticky Search Header",
+      "kind": "nav",
+      "refersTo": "sticky-search-header",
+      "description": "The identity anchor for every mobile screen — a sticky, accent-colored bar holding the shared search field, in place of a page title.",
+      "html": "<div class=\"ds-sticky-header\"><div class=\"ds-search-pill\"><svg class=\"ds-search-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\" stroke-linecap=\"round\"/></svg><input class=\"ds-search-input\" placeholder=\"Search by name or barcode...\" /></div></div>",
+      "css": ".ds-sticky-header { position:sticky; top:0; z-index:20; background:#e27f2c; padding:12px 16px 8px; box-shadow:0 1px 0 0 #e27f2c; } .ds-search-pill { display:flex; align-items:center; gap:8px; width:100%; height:40px; padding:0 12px; background:#ffffff; border-radius:12px; } .ds-search-icon { width:18px; height:18px; color:#9ca3af; flex-shrink:0; } .ds-search-input { border:none; outline:none; font-family:'Inter',sans-serif; font-size:14px; color:#1a1f36; width:100%; background:transparent; } .ds-search-input::placeholder { color:#9ca3af; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Volunteer's Counter",
+    "overview": "Food Arca's dashboard is built for someone standing at a counter mid-shift, phone in one hand, a box of donations in the other. Every screen in this system reads like a clean, well-organized shelf: a small number of clearly-sized things, generous white space between groups, and photos doing the identification work that text would otherwise force someone to read under pressure. Nothing about it performs \"software\" — no dashboards-for-the-sake-of-dashboards, no dense data walls, no decorative flourishes. The system earns its calm by being genuinely restrained: one accent color, one shadow, one card radius, reused everywhere rather than reinvented per screen.\n\nThe two screens that define this system today are /dashboard/settings (the original polish benchmark) and /dashboard/add's empty-cart state (rebuilt this session to match it). Everything documented here was extracted from those two implementations, not invented in the abstract.",
+    "keyCharacteristics": [
+      "Photo-first recognition over text-first reading — a volunteer scans by image, not by label",
+      "One primary action per screen, unmistakably louder than everything else on it",
+      "Secondary/optional content is pushed away from the primary action with real vertical space, not just smaller type",
+      "A single soft shadow and a single card radius, reused without variation",
+      "No decorative chrome: no kickers, no gradients, no stat-filled empty states"
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Exactly one warm color plays \"the brand orange\" on any given screen — reserved for the single primary CTA, the sticky header, and the active bottom-nav state.", "section": "colors" },
+      { "name": "The Unconverged Orange Rule (open item)", "body": "The codebase currently has two live values both claiming to be that one accent: #e27f2c (Add/scan flow) and #d97757 (Settings). Until a harmonization pass picks one, match whichever value the screen you're extending already uses.", "section": "colors" },
+      { "name": "The One-Line Body Rule", "body": "Supporting copy under a heading is one sentence. A second sentence belongs in a modal instead.", "section": "typography" },
+      { "name": "No Kicker Rule", "body": "No uppercase eyebrow/label ever sits above a heading.", "section": "typography" },
+      { "name": "The No-Nested-dvh-Minimum Rule", "body": "Never set a min-height in viewport units (100dvh) on an element already inside a scrollable flex container — it causes real iOS Safari scroll-clipping bugs. Use min-h-full instead.", "section": "layout" },
+      { "name": "The One Shadow Rule", "body": "If a new component needs to feel lifted, it takes the exact Card Lift shadow value (0 2px 8px -4px rgba(0,0,0,0.05)). A second shadow recipe is a sign the component should probably just be a card.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do reuse the single Card Lift shadow and the single rounded-2xl card radius on every new card.",
+      "Do give every mobile screen a Sticky Search Header instead of a bold page title.",
+      "Do separate secondary/optional content from the primary action with a full section gap (24-40px), not just smaller type or a lighter color.",
+      "Do keep product/item photos in rounded-xl squares and system icons in rounded-full circles — the shape itself carries meaning.",
+      "Do use min-h-full, never a dvh-based min-height, on content nested inside an already-scrollable container."
+    ],
+    "donts": [
+      "Don't add an uppercase eyebrow/kicker label above any heading.",
+      "Don't add a caption restating what a CTA obviously does.",
+      "Don't style a \"view more\"/tertiary link as a full-width, accent-colored button — that treatment belongs to the one primary CTA per screen only.",
+      "Don't introduce a third brand-orange value.",
+      "Don't mix a decorative rainbow of category colors into system iconography that's meant to read as neutral chrome."
+    ]
+  }
+}

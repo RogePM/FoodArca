@@ -369,7 +369,7 @@ export function MobileCartView({
           /* FILLED CART ITEMS LIST */
           <div className="flex flex-col">
             {/* ── RECEIPT-STYLE HEADER ── */}
-            <div className="bg-white shrink-0 relative z-20 border-b border-gray-200 shadow-[0_2px_6px_rgba(0,0,0,0.03)] mb-3">
+            <div className="bg-white shrink-0 relative z-20 border-b border-gray-200 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] mb-3">
               <div className="px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3.5 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   {/* Exit to dashboard — confirm first, batch stays staged in sessionStorage.
@@ -405,19 +405,18 @@ export function MobileCartView({
 
             {/* Secondary actions moved to FAB */}
 
-            <div className="mx-4 mb-6 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
-              <div className="mx-4 py-2.5 border-b border-gray-300 flex items-center justify-between bg-white">
+            <div className="mx-4 mb-6 bg-white border border-gray-300/70 rounded-2xl overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
+              <div className="mx-4 py-2.5 border-b border-gray-100 flex items-center justify-between bg-white">
                 <span className="text-[16px] text-[#1a1f36] font-medium tracking-tight">Added items</span>
                 <span className="text-[13px] text-gray-500 font-medium">
                   {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
                 </span>
               </div>
-              <div className="flex flex-col bg-white">
+              <div className="flex flex-col bg-white divide-y divide-gray-100">
                 <AnimatePresence initial={false}>
                   {cartItems.map((item, index) => {
                     const catVisual = getCategoryVisual(item.category);
                     const expLabel = formatDate(item.expirationDate);
-                    const isLast = index === cartItems.length - 1;
 
                     return (
                       <motion.div
@@ -435,11 +434,11 @@ export function MobileCartView({
                               <img
                                 src={item.photoUrl}
                                 alt=""
-                                className="w-[60px] h-[60px] rounded-md object-cover border border-gray-100 shrink-0 bg-gray-50"
+                                className="w-[60px] h-[60px] rounded-xl object-cover border border-gray-100 shrink-0 bg-gray-50"
                               />
                             ) : (
                               <div
-                                className={`w-[60px] h-[60px] rounded-md flex items-center justify-center shrink-0 border border-gray-100 p-0 overflow-hidden ${catVisual.style.bg}`}
+                                className={`w-[60px] h-[60px] rounded-xl flex items-center justify-center shrink-0 border border-gray-100 p-0 overflow-hidden ${catVisual.style.bg}`}
                               >
                                 <img
                                   src={catVisual.imagePath}
@@ -455,11 +454,13 @@ export function MobileCartView({
                                 <h4 className="font-normal text-gray-900 text-[15.5px] leading-snug">
                                   {item.name}
                                 </h4>
-                                <div className="shrink-0 text-right mt-0.5">
-                                  <span className="text-[15.5px] font-semibold text-[#1a1f36] whitespace-nowrap block">
-                                    {item.quantity} {item.unit || (Number(item.quantity) === 1 ? 'unit' : 'units')}
-                                  </span>
-                                </div>
+                                {item.intakeMode === 'weight' && (
+                                  <div className="shrink-0 text-right mt-0.5">
+                                    <span className="text-[15.5px] font-semibold text-[#1a1f36] whitespace-nowrap block">
+                                      {item.quantity} {item.unit || (Number(item.quantity) === 1 ? 'unit' : 'units')}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Category, Exp, and Pack Size Row */}
@@ -537,7 +538,6 @@ export function MobileCartView({
                             )}
                           </div>
                         </div>
-                        {!isLast && <div className="mx-4 border-b border-gray-300" />}
                       </motion.div>
                     );
                   })}
@@ -608,28 +608,28 @@ export function MobileCartView({
                   </div>
 
                   <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
-                    Empty your batch?
+                    Clear your cart?
                   </h3>
                   <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6 px-2">
-                    This will remove all{' '}
+                    Your{' '}
                     <span className="font-medium text-gray-700">
                       {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
                     </span>{' '}
-                    from your staged batch.
+                    will be removed from your cart.
                   </p>
 
                   <div className="flex flex-col gap-2.5 w-full">
                     <button
                       type="button"
                       onClick={clearBatch}
-                      className="w-full h-[46px] rounded-xl bg-red-600 text-white text-[14.5px] font-semibold active:bg-red-700 transition-colors shadow-sm"
+                      className="w-full h-[46px] rounded-full bg-red-600 text-white text-[14.5px] font-semibold active:bg-red-700 transition-colors shadow-sm"
                     >
-                      Clear all
+                      Clear Cart
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowClearConfirm(false)}
-                      className="w-full h-[46px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
+                      className="w-full h-[46px] rounded-2xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
                     >
                       Cancel
                     </button>
@@ -673,14 +673,14 @@ export function MobileCartView({
                   </div>
 
                   <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
-                    Confirm stock intake
+                    Add to Inventory?
                   </h3>
                   <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6 px-2">
-                    You are adding{' '}
+                    Your{' '}
                     <span className="font-semibold text-[#1a1f36]">
                       {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
                     </span>{' '}
-                    to your live inventory.
+                    will be added to your inventory.
                   </p>
 
                   <div className="flex flex-col gap-2.5 w-full">
@@ -690,14 +690,14 @@ export function MobileCartView({
                         setShowSubmitConfirm(false);
                         submitBatch();
                       }}
-                      className="w-full h-[46px] rounded-xl bg-[#e27f2c] text-white text-[14.5px] font-semibold active:bg-[#cf6f20] transition-colors shadow-sm"
+                      className="w-full h-[46px] rounded-full bg-[#e27f2c] text-white text-[14.5px] font-semibold active:bg-[#cf6f20] transition-colors shadow-sm"
                     >
-                      Confirm Add
+                      Add to Inventory
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowSubmitConfirm(false)}
-                      className="w-full h-[46px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
+                      className="w-full h-[46px] rounded-2xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
                     >
                       Cancel
                     </button>
@@ -709,92 +709,101 @@ export function MobileCartView({
           document.body
         )}
 
-      {/* 3. CENTERED MODAL: HOW IT WORKS */}
+      {/* 3. SLIDE-UP SHEET: HOW IT WORKS */}
       {mounted &&
-        showHowItWorks &&
         createPortal(
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3.5">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-              onClick={() => setShowHowItWorks(false)}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="relative w-full max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 z-10 flex flex-col items-center"
-            >
-              {/* Close 'X' Button */}
-              <button
-                onClick={() => setShowHowItWorks(false)}
-                className="absolute top-3.5 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
-                aria-label="Close"
+          <AnimatePresence>
+            {showHowItWorks && (
+              <div
+                className="fixed inset-0 z-[99999] flex flex-col justify-end"
+                style={{ isolation: 'isolate' }}
               >
-                <X className="w-5 h-5" strokeWidth={2.5} />
-              </button>
+                <motion.div
+                  key="how-scrim"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                  onClick={() => setShowHowItWorks(false)}
+                />
 
-              <h2 className="text-[18px] font-semibold text-[#1a1f36] mb-5 text-center mt-1">
-                How to add items
-              </h2>
+                <motion.div
+                  key="how-sheet"
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                  className="relative bg-white rounded-t-[32px] p-6 pb-[calc(20px+env(safe-area-inset-bottom))] max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
+                >
+                  {/* Close 'X' Button */}
+                  <button
+                    onClick={() => setShowHowItWorks(false)}
+                    className="absolute top-3.5 right-4 p-1.5 text-[#e27f2c] hover:opacity-80 active:scale-95 transition-transform"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" strokeWidth={2.5} />
+                  </button>
 
-              <div className="w-full space-y-4 mb-6 px-1 text-left">
-                <div className="flex gap-3.5 items-start">
-                  <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#e27f2c] shrink-0">
-                    <Scan className="w-4.5 h-4.5" strokeWidth={2.2} />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
-                      1. Scan or search
-                    </p>
-                    <p className="text-gray-500 font-normal text-[13px] leading-snug">
-                      Tap the scanner button or search items from your inventory.
-                    </p>
-                  </div>
-                </div>
+                  <h2 className="text-[18px] font-semibold text-[#1a1f36] mb-5 mt-1">
+                    How to add items
+                  </h2>
 
-                <div className="flex gap-3.5 items-start">
-                  <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#e27f2c] shrink-0">
-                    <Plus className="w-4.5 h-4.5" strokeWidth={2.2} />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
-                      2. Set quantity & exp date
-                    </p>
-                    <p className="text-gray-500 font-normal text-[13px] leading-snug">
-                      Adjust counts and set optional expiration dates.
-                    </p>
-                  </div>
-                </div>
+                  <div className="w-full space-y-4 mb-6">
+                    <div className="flex gap-3.5 items-start">
+                      <div className="w-9 h-9 rounded-xl bg-[#fff0eb] flex items-center justify-center text-[#e27f2c] shrink-0">
+                        <Scan className="w-4.5 h-4.5" strokeWidth={2.2} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
+                          1. Scan or search
+                        </p>
+                        <p className="text-gray-500 font-normal text-[13px] leading-snug">
+                          Tap the scanner button or search items from your inventory.
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="flex gap-3.5 items-start">
-                  <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#e27f2c] shrink-0">
-                    <CheckCircle2 className="w-4.5 h-4.5" strokeWidth={2.2} />
+                    <div className="flex gap-3.5 items-start">
+                      <div className="w-9 h-9 rounded-xl bg-[#fff0eb] flex items-center justify-center text-[#e27f2c] shrink-0">
+                        <Plus className="w-4.5 h-4.5" strokeWidth={2.2} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
+                          2. Set quantity & exp date
+                        </p>
+                        <p className="text-gray-500 font-normal text-[13px] leading-snug">
+                          Adjust counts and set optional expiration dates.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3.5 items-start">
+                      <div className="w-9 h-9 rounded-xl bg-[#fff0eb] flex items-center justify-center text-[#e27f2c] shrink-0">
+                        <CheckCircle2 className="w-4.5 h-4.5" strokeWidth={2.2} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
+                          3. Stock your pantry
+                        </p>
+                        <p className="text-gray-500 font-normal text-[13px] leading-snug">
+                          Confirm your cart to instantly update stock levels.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-[#1a1f36] text-[14px] mb-0.5">
-                      3. Stock your pantry
-                    </p>
-                    <p className="text-gray-500 font-normal text-[13px] leading-snug">
-                      Confirm your inbound batch to instantly update stock levels.
-                    </p>
-                  </div>
-                </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowHowItWorks(false)}
+                    className="w-full h-[46px] bg-[#e27f2c] text-white text-[14.5px] font-semibold rounded-full active:bg-[#cf6f20] transition-colors shadow-sm"
+                  >
+                    Got it
+                  </button>
+                </motion.div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setShowHowItWorks(false)}
-                className="w-full h-[44px] bg-[#e27f2c] text-white text-[14px] font-semibold rounded-xl active:bg-[#d67828] transition-colors shadow-sm"
-              >
-                Got it
-              </button>
-            </motion.div>
-          </div>,
+            )}
+          </AnimatePresence>,
           document.body
         )}
 
@@ -825,19 +834,19 @@ export function MobileCartView({
                   transition={{ type: 'spring', damping: 28, stiffness: 320 }}
                   className="relative bg-white rounded-t-[32px] p-6 pb-[calc(20px+env(safe-area-inset-bottom))] flex flex-col items-center text-center max-w-lg mx-auto w-full shadow-2xl border-t border-gray-100 z-10"
                 >
-                  <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-[#e27f2c] mb-3 mt-1">
+                  <div className="w-12 h-12 rounded-full bg-[#fff0eb] flex items-center justify-center text-[#e27f2c] mb-3 mt-1">
                     <X className="w-6 h-6" strokeWidth={2.5} />
                   </div>
 
                   <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-1">
-                    Leave this batch?
+                    Leave your cart?
                   </h3>
                   <p className="text-[13.5px] font-normal text-gray-500 leading-relaxed mb-6 px-2">
-                    You'll return to the dashboard. Your{' '}
+                    Your{' '}
                     <span className="font-medium text-gray-700">
                       {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'}
                     </span>{' '}
-                    will stay saved here so you can pick up where you left off.
+                    will stay saved in your cart.
                   </p>
 
                   <div className="flex flex-col gap-2.5 w-full">
@@ -847,14 +856,14 @@ export function MobileCartView({
                         setShowBackConfirm(false);
                         onBack && onBack();
                       }}
-                      className="w-full h-[46px] rounded-xl bg-[#e27f2c] text-white text-[14.5px] font-semibold active:bg-[#cf6f20] transition-colors shadow-sm"
+                      className="w-full h-[46px] rounded-full bg-[#e27f2c] text-white text-[14.5px] font-semibold active:bg-[#cf6f20] transition-colors shadow-sm"
                     >
                       Go to Dashboard
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowBackConfirm(false)}
-                      className="w-full h-[46px] rounded-xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
+                      className="w-full h-[46px] rounded-2xl border border-gray-200 bg-white text-[#1a1f36] text-[14.5px] font-medium active:bg-gray-50 transition-colors"
                     >
                       Stay Here
                     </button>
