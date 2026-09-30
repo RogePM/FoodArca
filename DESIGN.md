@@ -84,7 +84,7 @@ components:
 
 Food Arca's dashboard is built for someone standing at a counter mid-shift, phone in one hand, a box of donations in the other. Every screen in this system reads like a clean, well-organized shelf: a small number of clearly-sized things, generous white space between groups, and photos doing the identification work that text would otherwise force someone to read under pressure. Nothing about it performs "software" — no dashboards-for-the-sake-of-dashboards, no dense data walls, no decorative flourishes. The system earns its calm by being genuinely restrained: one accent color, one shadow, one card radius, reused everywhere rather than reinvented per screen.
 
-The two screens that define this system today are `/dashboard/settings` (the original polish benchmark) and `/dashboard/add`'s empty-cart state (rebuilt this session to match it). Everything below was extracted from those two implementations, not invented in the abstract — this file exists so the next screen built for this app inherits their specific decisions instead of quietly drifting from them, which is exactly what happened before this documentation pass (see the Colors section's Named Rule).
+The reference implementations that define this system today are `/dashboard/settings` (the original polish benchmark), `/dashboard/add`'s empty-cart state, its filled-cart state (the staged-items list, confirmed to match this system in a later pass), and its four confirmation sheets (Clear Cart, Add to Inventory, Exit, How it works). Everything below was extracted from those implementations, not invented in the abstract — this file exists so the next screen built for this app inherits their specific decisions instead of quietly drifting from them, which is exactly what happened before this documentation pass (see the Colors section's Named Rule) and what happened again, independently, to the filled-cart state and its sheets before they were brought back in line (see Components → Cart Item Row and → Confirmation Sheet).
 
 **Key Characteristics:**
 - Photo-first recognition over text-first reading — a volunteer scans by image, not by label
@@ -162,7 +162,7 @@ The system is almost flat. One soft, low-opacity shadow is the entire elevation 
 
 - **Cards, tiles, hero panels:** `16px` radius (`rounded-2xl`) — the single card radius in the system, used with no exceptions.
 - **System icon containers** (search glyph, keyboard glyph, tool icons): fully round (`rounded-full`), `40–44px`. Circular is reserved for *system* iconography.
-- **Product/item photo containers:** `12px` radius (`rounded-xl`), square-ish, never circular. This is a deliberate semantic split established this session: a circle means "this is an app icon," a rounded square means "this is a photo of a real thing a volunteer is holding." Mixing the two (a product photo in a circle) was tried, flagged as a visual clash, and corrected.
+- **Product/item photo containers:** `12px` radius (`rounded-xl`), square-ish, never circular. This is a deliberate semantic split established this session: a circle means "this is an app icon," a rounded square means "this is a photo of a real thing a volunteer is holding." Mixing the two (a product photo in a circle) was tried, flagged as a visual clash, and corrected. The filled-cart item photos independently drifted to `rounded-md` (6px) before being caught and corrected to match this rule — a reminder that this radius applies to *every* product/item photo in the app, not just the ones on the empty-cart screen where it was first documented.
 - **Primary CTA buttons:** fully round (`rounded-full`, pill) — reserved for the one primary action per screen. A secondary or tertiary action never takes the pill shape; it takes a card or a plain text link instead.
 - **Borders:** 1px throughout. `gray-200` for ordinary cards/tiles; `gray-300/70` for a "list card" that itself contains its own bordered rows (see Components → List Card).
 
@@ -178,10 +178,21 @@ One per screen, at most. A `rounded-2xl` white card holding a heading, one line 
 A 2-up grid of secondary actions living below the Hero Action Card, separated from it by the full `24px` section gap (not the tighter `12px` sibling gap — these are next-best options, not part of the hero). Each tile: `rounded-2xl`, `p-4`, `min-h-[132px]`, icon chip + chevron on one row, label + caption anchored to the bottom via `justify-between` — proportioned to match Settings' 3-column grid tiles rather than shrinking to fit only its own text content.
 
 ### List Card ("More Tools" pattern)
-A bordered (`border-gray-300/70`) `rounded-2xl` card with its section title living *inside* the card, followed by `divide-y divide-gray-100` rows. Each row: inset hover (`-mx-2 px-2 rounded-xl hover:bg-gray-50/70`), a leading icon-chip or photo-thumb, a title + one-line caption, and a trailing `ChevronRight`. When the card needs a "see more" affordance, it sits as a small `text-gray-400`/`12.5px` link next to the section title — never as a full-width, accent-colored button; that treatment is reserved for the one primary CTA on the screen.
+A bordered (`border-gray-300/70`) `rounded-2xl` card with its section title living *inside* the card, followed by `divide-y divide-gray-100` rows. Each row: inset hover (`-mx-2 px-2 rounded-xl hover:bg-gray-50/70`), a leading icon-chip or photo-thumb, a title + one-line caption, and a trailing `ChevronRight`. When the card needs a "see more" affordance, it sits as a small `text-gray-400`/`12.5px` link next to the section title — never as a full-width, accent-colored button; that treatment is reserved for the one primary CTA on the screen. This is the same shell used by the Add page's "Added items" cart list (see Cart Item Row below) — it had drifted to `rounded-md`/`shadow-md`/manual per-row borders before being corrected to this one recipe.
+
+### Cart Item Row
+The row pattern inside a List Card when its rows are editable staged items rather than navigation links (the Add page's filled-cart state). Each row: a `60px` `rounded-xl` photo or category-tinted placeholder, a name + category/expiration caption block, and an actions row with plain-text `Edit`/`Remove` links (underlined, `text-[13.5px]`, no icon or badge) plus a pill quantity stepper (`rounded-full`, `border-[#e27f2c]`, `h-[30px]`) on the trailing edge. Rows are separated by the List Card's own `divide-y divide-gray-100` — never a manual per-row border.
+
+**The One Quantity Rule.** A staged item's count appears exactly once per row — inside the stepper pill. Don't also print "N units" elsewhere in the row; it was tried, read as redundant, and was cut. The one exception: a weight-tracked item (no stepper, since weight is edited via the Edit sheet) keeps its own "N lbs"-style label, since that's its only quantity indicator.
 
 ### Confirmation Sheet
-A bottom slide-up sheet (spring transition, `rounded-t-[32px]`) used for anything that changes or discards state (clear cart, submit batch, exit). Icon-in-circle at top (color signals intent: red for destructive, accent for confirm/progress), bold headline, one line of muted body copy naming the *exact* count affected, then a filled primary button stacked over an outlined secondary (cancel) button — always in that order, filled action first.
+A bottom slide-up sheet (spring transition, `rounded-t-[32px]`) used for anything that changes or discards state (clear cart, add to inventory, exit) — and for any auxiliary modal on the same screen (e.g. "How it works"), even one with no confirm/cancel choice. **One presentation pattern per screen**: a centered scale-in modal was tried for "How it works" alongside three bottom sheets on the same screen and corrected — every overlay on a screen that already has bottom sheets should be a bottom sheet too, not a second modal idiom.
+
+- **Icon-in-circle** at top, `48px`, tinted to signal intent: `bg-red-50`/`text-red-500` for destructive, `bg-[#fff0eb]`/`text-[#e27f2c]` for confirm/progress/informational — never Tailwind's default `orange-50`, which is a slightly different hue from the app's actual accent tint.
+- **Headline** is a short question that mirrors the exact label of the button/link that opened the sheet (e.g. the "Add to Inventory" header button opens a sheet titled "Add to Inventory?"; "Clear Cart" opens "Clear your cart?"). This keeps the trigger and its confirmation reading as the same action, not two different vocabularies for one flow.
+- **Body copy is exactly one sentence**, shaped `Your {n} item(s) will {outcome}.` — no throat-clearing lead-in ("You'll return to the dashboard...") and no trailing restatement of what the button below already says.
+- **Buttons**: a filled primary button (`rounded-full`, pill — same shape as the screen's one primary CTA) stacked over an outlined secondary/cancel button (`rounded-2xl`, the card radius, never a pill — a secondary action doesn't get the primary's shape), always filled-first-then-outlined in that order. A single-action auxiliary sheet (no cancel needed) still uses the pill for its one button.
+- **Vocabulary**: the staged items a volunteer is working with are always "your cart" in user-facing copy, never "batch" — "batch" is fine as an internal variable/function name (`submitBatch`, `foodarca_staged_batch`) but never appears in a heading, body line, or button a volunteer reads.
 
 ## Do's and Don'ts
 
@@ -191,6 +202,8 @@ A bottom slide-up sheet (spring transition, `rounded-t-[32px]`) used for anythin
 - **Do** separate secondary/optional content from the primary action with a full section gap (24–40px), not just smaller type or a lighter color.
 - **Do** keep product/item photos in `rounded-xl` squares and system icons in `rounded-full` circles — the shape itself carries meaning.
 - **Do** use `min-h-full`, never a `dvh`-based min-height, on content nested inside an already-scrollable container.
+- **Do** make a confirmation sheet's title and primary button echo the exact label of whatever button/link opened it, and keep its body copy to one sentence: "Your {n} item(s) will {outcome}."
+- **Do** call the volunteer's staged items "your cart" in every user-facing string — "batch" stays a code-level name only.
 
 ### Don't:
 - **Don't** add an uppercase eyebrow/kicker label above any heading.
@@ -198,3 +211,5 @@ A bottom slide-up sheet (spring transition, `rounded-t-[32px]`) used for anythin
 - **Don't** style a "view more"/tertiary link as a full-width, accent-colored button — that treatment belongs to the one primary CTA per screen only.
 - **Don't** introduce a third brand-orange value. The system currently carries two unconverged ones (`#e27f2c`, `#d97757`); match the sibling screen you're extending until they're unified.
 - **Don't** mix a decorative rainbow of category colors into system iconography that's meant to read as neutral chrome (flagged and corrected on the Add page's Recently Added icons this session).
+- **Don't** show a staged item's quantity twice on one row (a redundant "N units" label was cut once the stepper already showed the live count) — one exception: weight-tracked items, which have no stepper.
+- **Don't** mix a centered scale-in modal into a screen whose other overlays are all bottom sheets — pick the one presentation pattern the screen already uses.

@@ -77,11 +77,27 @@
       "description": "The identity anchor for every mobile screen — a sticky, accent-colored bar holding the shared search field, in place of a page title.",
       "html": "<div class=\"ds-sticky-header\"><div class=\"ds-search-pill\"><svg class=\"ds-search-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\" stroke-linecap=\"round\"/></svg><input class=\"ds-search-input\" placeholder=\"Search by name or barcode...\" /></div></div>",
       "css": ".ds-sticky-header { position:sticky; top:0; z-index:20; background:#e27f2c; padding:12px 16px 8px; box-shadow:0 1px 0 0 #e27f2c; } .ds-search-pill { display:flex; align-items:center; gap:8px; width:100%; height:40px; padding:0 12px; background:#ffffff; border-radius:12px; } .ds-search-icon { width:18px; height:18px; color:#9ca3af; flex-shrink:0; } .ds-search-input { border:none; outline:none; font-family:'Inter',sans-serif; font-size:14px; color:#1a1f36; width:100%; background:transparent; } .ds-search-input::placeholder { color:#9ca3af; }"
+    },
+    {
+      "name": "Cart Item Row",
+      "kind": "custom",
+      "refersTo": "cart-item-row",
+      "description": "A staged, editable item inside the Add page's 'Added items' List Card — photo, name/metadata, Edit/Remove links, and a quantity stepper. The stepper is the single source of truth for count; no duplicate 'N units' label.",
+      "html": "<div class=\"ds-cart-row\"><img class=\"ds-cart-photo\" src=\"/broccoli.jpg\" alt=\"\" /><div class=\"ds-cart-info\"><h4 class=\"ds-cart-name\">Brócoli</h4><span class=\"ds-cart-caption\">Produce</span></div><div class=\"ds-cart-actions\"><button class=\"ds-cart-link\">Edit</button><button class=\"ds-cart-link\">Remove</button><span class=\"ds-stepper\"><button class=\"ds-stepper-btn\">−</button><span class=\"ds-stepper-count\">4</span><button class=\"ds-stepper-btn\">+</button></span></div></div>",
+      "css": ".ds-cart-row { display:flex; gap:12px; align-items:flex-start; padding:12px; } .ds-cart-photo { width:60px; height:60px; border-radius:12px; object-fit:cover; border:1px solid #f3f4f6; background:#f9fafb; flex-shrink:0; } .ds-cart-info { flex:1; min-width:0; } .ds-cart-name { font-family:'Inter',sans-serif; font-size:15.5px; font-weight:400; color:#111827; margin:0; } .ds-cart-caption { font-family:'Inter',sans-serif; font-size:13px; color:#6b7280; } .ds-cart-actions { display:flex; align-items:center; gap:12px; margin-top:8px; } .ds-cart-link { font-family:'Inter',sans-serif; font-size:13.5px; color:#1a1f36; text-decoration:underline; text-decoration-color:#9ca3af; background:none; border:none; cursor:pointer; } .ds-stepper { display:flex; align-items:center; height:30px; border:1px solid #e27f2c; border-radius:9999px; overflow:hidden; margin-left:auto; } .ds-stepper-btn { width:36px; height:100%; border:none; background:transparent; color:#e27f2c; cursor:pointer; } .ds-stepper-count { width:28px; text-align:center; font-family:'Inter',sans-serif; font-size:13.5px; font-weight:500; color:#e27f2c; }"
+    },
+    {
+      "name": "Confirmation Sheet",
+      "kind": "overlay",
+      "refersTo": "confirmation-sheet",
+      "description": "A bottom slide-up sheet for anything that changes/discards state or needs a plain acknowledgement. Title and primary button echo the exact label that opened it; body is one sentence: 'Your {n} item(s) will {outcome}.' Icon tint signals intent (destructive vs. confirm); primary is a pill, secondary/cancel is rounded-2xl, never a pill.",
+      "html": "<div class=\"ds-sheet-scrim\"><div class=\"ds-sheet\"><div class=\"ds-sheet-icon ds-sheet-icon--confirm\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><path d=\"M20 6 9 17l-5-5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></div><h3 class=\"ds-sheet-title\">Add to Inventory?</h3><p class=\"ds-sheet-body\">Your <strong>2 items</strong> will be added to your inventory.</p><button class=\"ds-btn-primary\">Add to Inventory</button><button class=\"ds-sheet-cancel\">Cancel</button></div></div>",
+      "css": ".ds-sheet-scrim { display:flex; flex-direction:column; justify-content:flex-end; background:rgba(0,0,0,0.4); } .ds-sheet { background:#ffffff; border-radius:32px 32px 0 0; padding:24px; padding-bottom:calc(20px + env(safe-area-inset-bottom)); max-width:512px; margin:0 auto; width:100%; text-align:center; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); } .ds-sheet-icon { width:48px; height:48px; border-radius:9999px; display:flex; align-items:center; justify-content:center; margin:0 auto 12px; } .ds-sheet-icon--confirm { background:#fff0eb; color:#e27f2c; } .ds-sheet-icon--destructive { background:#fef2f2; color:#ef4444; } .ds-sheet-title { font-family:'Inter',sans-serif; font-size:18px; font-weight:600; color:#1a1f36; margin:0 0 4px; } .ds-sheet-body { font-family:'Inter',sans-serif; font-size:13.5px; color:#6b7280; line-height:1.6; margin:0 0 24px; } .ds-sheet-cancel { width:100%; height:46px; margin-top:10px; border-radius:16px; border:1px solid #e5e7eb; background:#ffffff; color:#1a1f36; font-family:'Inter',sans-serif; font-size:14.5px; font-weight:500; cursor:pointer; }"
     }
   ],
   "narrative": {
     "northStar": "The Volunteer's Counter",
-    "overview": "Food Arca's dashboard is built for someone standing at a counter mid-shift, phone in one hand, a box of donations in the other. Every screen in this system reads like a clean, well-organized shelf: a small number of clearly-sized things, generous white space between groups, and photos doing the identification work that text would otherwise force someone to read under pressure. Nothing about it performs \"software\" — no dashboards-for-the-sake-of-dashboards, no dense data walls, no decorative flourishes. The system earns its calm by being genuinely restrained: one accent color, one shadow, one card radius, reused everywhere rather than reinvented per screen.\n\nThe two screens that define this system today are /dashboard/settings (the original polish benchmark) and /dashboard/add's empty-cart state (rebuilt this session to match it). Everything documented here was extracted from those two implementations, not invented in the abstract.",
+    "overview": "Food Arca's dashboard is built for someone standing at a counter mid-shift, phone in one hand, a box of donations in the other. Every screen in this system reads like a clean, well-organized shelf: a small number of clearly-sized things, generous white space between groups, and photos doing the identification work that text would otherwise force someone to read under pressure. Nothing about it performs \"software\" — no dashboards-for-the-sake-of-dashboards, no dense data walls, no decorative flourishes. The system earns its calm by being genuinely restrained: one accent color, one shadow, one card radius, reused everywhere rather than reinvented per screen.\n\nThe reference implementations today are /dashboard/settings (the original polish benchmark), /dashboard/add's empty-cart state, its filled-cart state (the staged-items list), and its four confirmation sheets. Everything documented here was extracted from those implementations, not invented in the abstract — including two independent drifts (the filled-cart list's radius/shadow/borders, and the confirmation sheets' button shapes/icon tint/wording) that were caught and corrected after initially shipping out of step with the rest of the system.",
     "keyCharacteristics": [
       "Photo-first recognition over text-first reading — a volunteer scans by image, not by label",
       "One primary action per screen, unmistakably louder than everything else on it",
@@ -95,21 +111,27 @@
       { "name": "The One-Line Body Rule", "body": "Supporting copy under a heading is one sentence. A second sentence belongs in a modal instead.", "section": "typography" },
       { "name": "No Kicker Rule", "body": "No uppercase eyebrow/label ever sits above a heading.", "section": "typography" },
       { "name": "The No-Nested-dvh-Minimum Rule", "body": "Never set a min-height in viewport units (100dvh) on an element already inside a scrollable flex container — it causes real iOS Safari scroll-clipping bugs. Use min-h-full instead.", "section": "layout" },
-      { "name": "The One Shadow Rule", "body": "If a new component needs to feel lifted, it takes the exact Card Lift shadow value (0 2px 8px -4px rgba(0,0,0,0.05)). A second shadow recipe is a sign the component should probably just be a card.", "section": "elevation" }
+      { "name": "The One Shadow Rule", "body": "If a new component needs to feel lifted, it takes the exact Card Lift shadow value (0 2px 8px -4px rgba(0,0,0,0.05)). A second shadow recipe is a sign the component should probably just be a card.", "section": "elevation" },
+      { "name": "The One Quantity Rule", "body": "A staged cart item's count appears exactly once per row, inside its stepper pill — never also restated as a separate 'N units' label. Weight-tracked items (no stepper) are the one exception.", "section": "components" },
+      { "name": "Mirror the Trigger Rule", "body": "A confirmation sheet's title and primary button echo the exact label of whatever opened it ('Add to Inventory' button -> 'Add to Inventory?' sheet), and its body is one sentence: 'Your {n} item(s) will {outcome}.' Staged items are always 'your cart' in user-facing copy; 'batch' stays a code-only name.", "section": "components" }
     ],
     "dos": [
       "Do reuse the single Card Lift shadow and the single rounded-2xl card radius on every new card.",
       "Do give every mobile screen a Sticky Search Header instead of a bold page title.",
       "Do separate secondary/optional content from the primary action with a full section gap (24-40px), not just smaller type or a lighter color.",
       "Do keep product/item photos in rounded-xl squares and system icons in rounded-full circles — the shape itself carries meaning.",
-      "Do use min-h-full, never a dvh-based min-height, on content nested inside an already-scrollable container."
+      "Do use min-h-full, never a dvh-based min-height, on content nested inside an already-scrollable container.",
+      "Do make a confirmation sheet's title and primary button echo the exact label of whatever opened it, with one-sentence body copy: 'Your {n} item(s) will {outcome}.'",
+      "Do call the volunteer's staged items 'your cart' in every user-facing string."
     ],
     "donts": [
       "Don't add an uppercase eyebrow/kicker label above any heading.",
       "Don't add a caption restating what a CTA obviously does.",
       "Don't style a \"view more\"/tertiary link as a full-width, accent-colored button — that treatment belongs to the one primary CTA per screen only.",
       "Don't introduce a third brand-orange value.",
-      "Don't mix a decorative rainbow of category colors into system iconography that's meant to read as neutral chrome."
+      "Don't mix a decorative rainbow of category colors into system iconography that's meant to read as neutral chrome.",
+      "Don't show a staged item's quantity twice on one row — the stepper is the single source of truth (weight-tracked items excepted).",
+      "Don't mix a centered scale-in modal into a screen whose other overlays are all bottom sheets."
     ]
   }
 }

@@ -10,10 +10,13 @@ async function authenticateRequest() {
     { cookies: { getAll() { return cookieStore.getAll(); } } }
   );
 
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { authenticated: false, user: null, supabase: null };
+  // getSession() decodes the JWT cookie locally (0ms latency) instead of
+  // making a network round-trip to the Auth server like getUser() does —
+  // same optimization as /api/foods/dictionary.
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session?.user) return { authenticated: false, user: null, supabase: null };
 
-  return { authenticated: true, user, supabase };
+  return { authenticated: true, user: session.user, supabase };
 }
 
 async function resolveLocationAndOrg(supabase, pantryId) {

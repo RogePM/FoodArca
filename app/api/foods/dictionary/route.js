@@ -64,13 +64,27 @@ export async function GET(request) {
       return NextResponse.json({ dictionary: [] });
     }
 
-    // Fetch the unique catalog items for this organization
-    const { data: localItems, error: localErr } = await auth.supabase
+    // Optional ?names=a,b,c — callers that only need a handful of known
+    // items (e.g. the Recently Added strip looking up photos for ~8 items)
+    // can skip pulling the whole org catalog down to get them.
+    const { searchParams } = new URL(request.url);
+    const namesParam = searchParams.get('names');
+    const names = namesParam
+      ? namesParam.split(',').map((n) => n.trim()).filter(Boolean).slice(0, 20)
+      : null;
+
+    let query = auth.supabase
       .from('catalog_items')
       .select('id, barcode, name, category_id, photo_url, categories(id, name)')
-      .eq('organization_id', resolved.orgId)
-      .order('created_at', { ascending: false })
-      .limit(1000); // Reasonable limit for small/medium pantries
+      .eq('organization_id', resolved.orgId);
+
+    if (names && names.length > 0) {
+      query = query.or(names.map((n) => `name.ilike.${n.replace(/[%,]/g, '')}`).join(','));
+    } else {
+      query = query.order('created_at', { ascending: false }).limit(1000); // Reasonable limit for small/medium pantries
+    }
+
+    const { data: localItems, error: localErr } = await query;
 
     if (localErr || !localItems) {
       return NextResponse.json({ dictionary: [] });

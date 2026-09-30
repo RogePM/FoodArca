@@ -12,8 +12,6 @@ import {
   CheckCircle2,
   Scan,
   ChevronLeft,
-  Search,
-  Keyboard,
   ChevronRight,
 } from 'lucide-react';
 import { usePantry } from '@/components/providers/PantryProvider';
@@ -38,6 +36,7 @@ export function MobileCartView({
   const [cartSuccess, setCartSuccess] = useState('');
   const [cartError, setCartError] = useState('');
   const [recentItems, setRecentItems] = useState([]);
+  const [recentItemsLoading, setRecentItemsLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -52,22 +51,43 @@ export function MobileCartView({
   useEffect(() => {
     if (!pantryDetails?.id) return;
     let cancelled = false;
+    setRecentItemsLoading(true);
 
     (async () => {
       try {
-        const [recentRes, dictRes] = await Promise.all([
-          fetch('/api/foods/changes/recent', {
-            headers: { 'x-pantry-id': pantryDetails.id },
-            cache: 'no-store',
-          }),
-          fetch('/api/foods/dictionary', {
-            headers: { 'x-pantry-id': pantryDetails.id },
-            cache: 'no-store',
-          }),
-        ]);
+        const recentRes = await fetch('/api/foods/changes/recent', {
+          headers: { 'x-pantry-id': pantryDetails.id },
+          cache: 'no-store',
+        });
         if (!recentRes.ok) return;
         const logs = await recentRes.json();
         if (cancelled || !Array.isArray(logs)) return;
+
+        // Narrow down to the handful of items this strip will actually show
+        // BEFORE asking for photos, so the dictionary lookup only needs to
+        // fetch those ~8 items instead of the whole org catalog.
+        const seen = new Set();
+        const added = [];
+        for (const log of logs) {
+          if (log.rawActionType !== 'scan_in') continue;
+          if (!log.itemName || log.itemName === 'Unknown Item') continue;
+          if (seen.has(log.itemId)) continue;
+          seen.add(log.itemId);
+          added.push(log);
+          if (added.length >= 8) break;
+        }
+
+        if (added.length === 0) {
+          setRecentItems([]);
+          return;
+        }
+
+        const namesParam = [...new Set(added.map((log) => log.itemName))].join(',');
+        const dictRes = await fetch(`/api/foods/dictionary?names=${encodeURIComponent(namesParam)}`, {
+          headers: { 'x-pantry-id': pantryDetails.id },
+          cache: 'no-store',
+        });
+        if (cancelled) return;
 
         const dictByName = new Map();
         if (dictRes.ok) {
@@ -77,19 +97,15 @@ export function MobileCartView({
           }
         }
 
-        const seen = new Set();
-        const added = [];
-        for (const log of logs) {
-          if (log.rawActionType !== 'scan_in') continue;
-          if (!log.itemName || log.itemName === 'Unknown Item') continue;
-          if (seen.has(log.itemId)) continue;
-          seen.add(log.itemId);
+        const withPhotos = added.map((log) => {
           const dictMatch = dictByName.get(log.itemName.toLowerCase().trim());
-          added.push({ ...log, photoUrl: dictMatch?.photoUrl || null });
-          if (added.length >= 8) break;
-        }
-        setRecentItems(added);
-      } catch (_) {}
+          return { ...log, photoUrl: dictMatch?.photoUrl || null };
+        });
+        setRecentItems(withPhotos);
+      } catch (_) {
+      } finally {
+        if (!cancelled) setRecentItemsLoading(false);
+      }
     })();
 
     return () => { cancelled = true; };
@@ -215,10 +231,10 @@ export function MobileCartView({
               />
             </div>
 
-            <div className="px-4 mt-6">
+            <div className="px-4 mt-9">
               {/* ─── CARD: SCAN TO ADD (HERO) ─── */}
               <div>
-                <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(16px,3dvh,22px)] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
+                <div className="border border-gray-200 rounded-2xl bg-white p-[clamp(18px,3.4dvh,24px)] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
                   <div className="flex items-start justify-between">
                     <div className="flex flex-col pr-4">
                       <h2 className="text-[clamp(19px,3.4dvh,23px)] font-semibold text-[#1a1f36] tracking-tight leading-snug">
@@ -246,32 +262,41 @@ export function MobileCartView({
 
                   <button
                     onClick={() => onBack && onBack('CAMERA')}
-                    className="w-full h-[clamp(46px,6.5dvh,52px)] mt-[clamp(16px,2.8dvh,22px)] rounded-full bg-[#e27f2c] text-white text-[15px] font-semibold transition-all duration-200 hover:bg-[#cf6f20] active:scale-95 shadow-sm flex items-center justify-center gap-2"
+                    className="w-full h-[clamp(52px,7.5dvh,58px)] mt-[clamp(16px,2.8dvh,22px)] rounded-full bg-[#e27f2c] text-white text-[16px] font-semibold transition-all duration-200 hover:bg-[#cf6f20] active:scale-95 shadow-sm flex items-center justify-center gap-2"
                   >
-                    <Scan className="w-[18px] h-[18px]" strokeWidth={2.4} />
+                    <Scan className="w-[19px] h-[19px]" strokeWidth={2.4} />
                     Open Scanner
                   </button>
                 </div>
               </div>
 
-              {/* ─── SECONDARY OPTIONS: SEARCH TO RESTOCK + MANUAL ENTRY (COMPACT ROW) ─── */}
-              <div className="mt-6 grid grid-cols-2 gap-3">
+              {/* ─── SECONDARY OPTIONS: SEARCH TO RESTOCK + MANUAL ENTRY (COMPACT ROW) ───
+                  Section title + spacing lifted from Settings' section pattern
+                  (h2 text-[16px] font-medium mb-3, mt-8 between sections) so the
+                  hero and this row read as two distinct, separated groups. */}
+              <div className="mt-8">
+                <h2 className="text-[16px] font-medium text-gray-900 mb-3 tracking-tight">
+                  Or add another way
+                </h2>
+                <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => onBack && onBack('SEARCH')}
-                  className="border border-gray-200 rounded-2xl bg-white p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start justify-between text-left active:scale-95 active:bg-gray-50 transition-all duration-200 min-h-[132px]"
+                  className="border border-gray-200 rounded-2xl bg-white p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start justify-between text-left active:scale-95 active:bg-gray-50 transition-all duration-200 min-h-[148px]"
                 >
                   <div className="w-full flex items-center justify-between">
-                    <div className="w-11 h-11 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center">
-                      <Search className="w-5 h-5 text-[#1a1f36]" strokeWidth={2.2} />
-                    </div>
+                    <img
+                      src="/assets/images/product-photo-search.jpg"
+                      alt=""
+                      className="w-16 h-16 object-contain mix-blend-multiply"
+                    />
                     <ChevronRight className="w-[18px] h-[18px] text-gray-400" strokeWidth={2.5} />
                   </div>
                   <div className="mt-3">
-                    <span className="text-[14px] font-medium text-[#1a1f36] leading-snug block">
+                    <span className="text-[15px] font-medium text-[#1a1f36] leading-snug block">
                       Search to Restock
                     </span>
-                    <span className="text-[12px] text-gray-500 mt-0.5 leading-snug block">
+                    <span className="text-[12.5px] text-gray-500 mt-0.5 leading-snug block">
                       Existing items
                     </span>
                   </div>
@@ -280,23 +305,26 @@ export function MobileCartView({
                 <button
                   type="button"
                   onClick={() => onBack && onBack('MANUAL_ENTRY')}
-                  className="border border-gray-200 rounded-2xl bg-white p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start justify-between text-left active:scale-95 active:bg-gray-50 transition-all duration-200 min-h-[132px]"
+                  className="border border-gray-200 rounded-2xl bg-white p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col items-start justify-between text-left active:scale-95 active:bg-gray-50 transition-all duration-200 min-h-[148px]"
                 >
                   <div className="w-full flex items-center justify-between">
-                    <div className="w-11 h-11 rounded-full bg-gray-100 border border-gray-200/80 flex items-center justify-center">
-                      <Keyboard className="w-5 h-5 text-[#1a1f36]" strokeWidth={2.2} />
-                    </div>
+                    <img
+                      src="/assets/images/add-manual-amber.jpg"
+                      alt=""
+                      className="w-16 h-16 object-contain mix-blend-multiply"
+                    />
                     <ChevronRight className="w-[18px] h-[18px] text-gray-400" strokeWidth={2.5} />
                   </div>
                   <div className="mt-3">
-                    <span className="text-[14px] font-medium text-[#1a1f36] leading-snug block">
+                    <span className="text-[15px] font-medium text-[#1a1f36] leading-snug block">
                       Manual Entry
                     </span>
-                    <span className="text-[12px] text-gray-500 mt-0.5 leading-snug block">
+                    <span className="text-[12.5px] text-gray-500 mt-0.5 leading-snug block">
                       No barcode needed
                     </span>
                   </div>
                 </button>
+                </div>
               </div>
 
               {/* ─── RECENTLY ADDED: ONE-TAP RE-ADD (real activity_logs data) ───
@@ -306,8 +334,29 @@ export function MobileCartView({
                   from the primary Scan action above so it reads as a nice-to-
                   have shortcut, not a co-equal focus. Capped short, with a
                   "View all" row into the full Inventory page for the rest. */}
-              {recentItems.length > 0 && (
-                <div className="mt-10 bg-white border border-gray-300/70 rounded-2xl p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
+              {recentItemsLoading && (
+                <div className="mt-8 bg-white border border-gray-300/70 rounded-2xl p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-[16px] font-medium text-gray-900 tracking-tight">
+                      Recently Added
+                    </h2>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3.5 py-3.5 -mx-2 px-2">
+                        <div className="w-10 h-10 rounded-xl bg-gray-100 animate-pulse shrink-0" />
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="w-2/5 h-3.5 bg-gray-200/80 rounded-md animate-pulse" />
+                          <div className="w-1/4 h-3 bg-gray-100 rounded-md animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!recentItemsLoading && recentItems.length > 0 && (
+                <div className="mt-8 bg-white border border-gray-300/70 rounded-2xl p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-[16px] font-medium text-gray-900 tracking-tight">
                       Recently Added
