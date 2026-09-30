@@ -39,7 +39,7 @@ proper `next/image`-based product-photo component gets built once (sizing,
 `sizes`, fallback-on-error, category-icon placeholder handling, lazy
 loading policy) — then every smaller inventory-adjacent sheet (restock
 sheet, batch-selection sheet, quick-action sheet, cart/checkout views,
-search, etc.) should consume that *same* component instead of each screen
+search, etc.) should consume that _same_ component instead of each screen
 growing its own `<img>` + ad hoc padding/sizing/lazy logic independently
 (which is exactly what's happened so far — e.g. the padding/sizing tweaks
 made to `restock-sheet.jsx`'s product tiles in this session would need to
@@ -84,7 +84,7 @@ unit." Specifically:
   falls back to the generic word "units."
 - `restock-sheet.jsx`'s `totalQuantity` is a plain sum of `batch.quantity`
   across batches, with no regard for what that number represents.
-- The only places that *do* handle weight/volume items differently
+- The only places that _do_ handle weight/volume items differently
   (`mobile-cart-view.jsx`, `desktop-add-view.jsx`) only work because they
   still hold the form's in-memory `intakeMode` — which evaporates the
   moment the item is actually saved to the database.
@@ -146,6 +146,7 @@ Rows still render (read-only) until this is rebuilt properly.
 
 Right now the "Recently Added" strip on the Add screen fetches its own data
 independently:
+
 - `GET /api/foods/changes/recent` (last 50 activity_logs rows)
 - `GET /api/foods/dictionary?names=...` (photo lookup by item **name**)
 
@@ -163,9 +164,11 @@ that shouldn't be necessary.
    has `photo_url`. The recent-activity query already joins
    `catalog_item:catalog_items(categories(name))` — just add `photo_url` to
    that same select:
+
    ```
    .select('*, catalog_item:catalog_items(photo_url, categories(name))')
    ```
+
    This removes `/api/foods/dictionary` from this flow completely (no more
    name-matching, no second request, no risk of a missed match). This alone
    is the highest-value, lowest-effort fix — do this first regardless of

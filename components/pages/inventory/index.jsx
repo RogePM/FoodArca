@@ -38,10 +38,12 @@ import {
   getCategoryVisual,
   formatDate,
   getUrgentStatusStyles,
+  formatItemName,
 } from './inventory-utils';
 import { MobileGridSkeleton, DesktopTableSkeleton } from './skeletons';
 import { MobileGridView } from './mobile-grid-view';
 import { InventoryBatchSelectionSheet } from './batch-selection-sheet';
+import { InventoryItemActionsSheet } from './item-actions-sheet';
 import { MobileInventorySearch } from '@/components/ui/mobile-inventory-search';
 
 function matchesCategoryFilter(productCategory, selectedCategoryValue) {
@@ -90,6 +92,9 @@ export function InventoryView() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [batchSheetItem, setBatchSheetItem] = useState(null);
+  const [actionsSheetItem, setActionsSheetItem] = useState(null);
+  const [toast, setToast] = useState(null); // { message, showCartLink }
+  const toastTimerRef = React.useRef(null);
   const [showScanner, setShowScanner] = useState(false);
   const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
@@ -342,6 +347,89 @@ export function InventoryView() {
     }
   };
 
+  const showToast = (message, showCartLink = false) => {
+    clearTimeout(toastTimerRef.current);
+    setToast({ message, showCartLink });
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
+
+  // Stage the item's first-expiring (FEFO) batch into the same sessionStorage cart
+  // the Remove page's MobileDistributionFlow reads on mount, using its line shape.
+  const handleAddToCart = (product) => {
+    const batch = product?.batches?.[0] || product;
+    if (!batch) return;
+    const catalogItemId = product.catalogItemId || product.id;
+    const line = {
+      id: `${catalogItemId}-${batch.id}`,
+      batchId: batch.id,
+      catalogItemId,
+      name: product.name,
+      category: product.category,
+      categoryName: product.category,
+      unit: product.unit || 'units',
+      quantity: 1,
+      expirationDate: batch.expirationDate || null,
+      expirationPrecision: batch.expirationPrecision || 'none',
+      availableBatchStock: Number(batch.quantity || product.totalQuantity || 1),
+      photoUrl: product.photoUrl || null,
+      barcode: product.barcode || null,
+      donorName: batch.donorName || null,
+      sourceType: batch.sourceType || null,
+    };
+
+    try {
+      const key = 'foodarca_staged_distribution_cart';
+      const cart = JSON.parse(sessionStorage.getItem(key) || '[]');
+      const existing = cart.find(
+        (l) => (line.batchId && l.batchId === line.batchId) || l.id === line.id
+      );
+      if (existing) {
+        const max = Number(existing.availableBatchStock ?? line.availableBatchStock);
+        existing.quantity = Math.min(max, Number(existing.quantity || 1) + 1);
+      } else {
+        cart.unshift(line);
+      }
+      sessionStorage.setItem(key, JSON.stringify(cart));
+      setActionsSheetItem(null);
+      showToast(`${formatItemName(product.name)} added to your cart`, true);
+    } catch (err) {
+      console.error(err);
+      alert('Could not add this item to your cart. Please try again.');
+    }
+  };
+
+  // Remove every raw batch behind a grouped product
+  const handleRemoveProduct = async (product) => {
+    const ids = (product?.rawBatches || [])
+      .map((b) => b.id || b._id)
+      .filter(Boolean);
+    if (ids.length === 0 && product?.id) ids.push(product.id);
+
+    try {
+      const results = await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/foods/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-pantry-id': pantryId },
+          })
+        )
+      );
+      const failed = results.filter((r) => !r.ok).length;
+      setActionsSheetItem(null);
+      fetchInventory(true);
+      if (failed > 0) {
+        alert(`${failed} of ${ids.length} batches could not be removed. Please try again.`);
+      } else {
+        showToast(`${formatItemName(product.name)} removed`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Could not remove this item. Please try again.');
+    }
+  };
+
   return (
     <div className="w-full max-w-[100vw] bg-white md:bg-[#fafafa] font-sans text-sm md:text-base">
       
@@ -382,6 +470,7 @@ export function InventoryView() {
         
         {/* MOBILE REUSABLE SEARCH BAR */}
         <MobileInventorySearch
+          accentColor="#d97757"
           initialQuery={searchQuery}
           onQueryChange={handleSearchQueryChange}
           inventoryData={allBatchedInventory}
@@ -522,7 +611,7 @@ export function InventoryView() {
                               <div className="flex flex-col">
                                 <div className="flex items-center gap-2">
                                   <span className="font-bold text-gray-900 text-sm">
-                                    {item.name}
+                                    {formatItemName(item.name)}
                                   </span>
                                   {item.batches && item.batches.length > 1 && (
                                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 text-[#d97757] text-[10px] font-semibold border border-orange-100">
@@ -588,6 +677,12 @@ export function InventoryView() {
                     inventory={batchedInventory}
                     onSelectItem={handleSelectItem}
                     handleSelectProduct={handleSelectItem}
+                    onMoreActions={setActionsSheetItem}
+                    title={
+                      activeFilter === 'ALL'
+                        ? 'All items'
+                        : filterPillList.find((p) => p.id === activeFilter)?.name || 'All items'
+                    }
                   />
                 </div>
               </>
@@ -603,6 +698,32 @@ export function InventoryView() {
         onClose={() => setBatchSheetItem(null)}
         onSelectBatch={handleSelectBatch}
       />
+
+      {/* "More" actions sheet from a mobile grid tile: Add to cart / Remove */}
+      <InventoryItemActionsSheet
+        item={actionsSheetItem}
+        onClose={() => setActionsSheetItem(null)}
+        onAddToCart={handleAddToCart}
+        onRemove={handleRemoveProduct}
+      />
+
+      {toast && (
+        <div
+          role="status"
+          className="md:hidden fixed left-4 right-4 bottom-[calc(88px+env(safe-area-inset-bottom))] z-[10000] bg-[#1a1f36] text-white rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-[14px] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]"
+        >
+          <span className="min-w-0 truncate">{toast.message}</span>
+          {toast.showCartLink && (
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/remove')}
+              className="shrink-0 font-semibold text-orange-300"
+            >
+              View cart
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Edit Item Flows (Mobile vs Desktop) */}
       {isSheetOpen && !isDesktop ? (

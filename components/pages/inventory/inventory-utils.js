@@ -465,3 +465,15 @@ export const filterInventory = (inventory = [], query = '') => {
     return nameMatch || barcodeMatch || catMatch || batchBarcodeMatch;
   });
 };
+
+/**
+ * Display-only name formatting: uppercases the first letter and leaves the rest
+ * as typed, so "apple" → "Apple" but "iPhone charger" keeps its inner casing.
+ * The stored name is untouched; normalizing on save is a separate fix.
+ * @param {string|null|undefined} name
+ * @returns {string}
+ */
+export const formatItemName = (name) => {
+  const trimmed = String(name ?? '').trim();
+  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : '';
+};
