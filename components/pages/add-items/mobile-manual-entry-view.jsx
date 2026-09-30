@@ -48,7 +48,7 @@ function CleanField({ label, id, required, optional, hint, quiet, children }) {
     <div className="space-y-1 w-full">
       <div className="flex items-center justify-between ml-0.5">
         <label htmlFor={id} className={`text-[13px] ${quiet ? "font-medium text-gray-600" : "font-semibold text-gray-700"}`}>
-          {label} {required && <span className="text-[#c96a1f]">*</span>}
+          {label} {required && <span className="text-[#c06245]">*</span>}
         </label>
         {optional && !quiet && (
           <span className="text-[11.5px] font-medium text-gray-500 tracking-wide">
@@ -69,7 +69,7 @@ function MoreDetailsToggle({ open, onToggle, showLabel, hideLabel }) {
     <button
       type="button"
       onClick={onToggle}
-      className="flex items-center gap-1.5 min-h-11 -ml-0.5 pl-0.5 pr-3 text-[13px] font-bold text-[#c96a1f]"
+      className="flex items-center gap-1.5 min-h-11 -ml-0.5 pl-0.5 pr-3 text-[13px] font-bold text-[#c06245]"
     >
       <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} strokeWidth={2.5} />
       {open ? hideLabel : showLabel}
@@ -167,10 +167,10 @@ function ItemNameField({
                     src={sugg.photoUrl}
                     alt=""
                     referrerPolicy="no-referrer"
-                    className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                    className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 shrink-0 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-200 shrink-0 flex items-center justify-center">
                     <Search className="w-4 h-4 text-gray-400" />
                   </div>
                 )}
@@ -201,7 +201,7 @@ function CategoryField({ id, formCategory, categoryPickerOpen, setCategoryPicker
     >
       {formCategory ? (
         <>
-          <div className={`w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0 ${getCategoryVisual(formCategory).style.bg}`}>
+          <div className={`w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center shrink-0 ${getCategoryVisual(formCategory).style.bg}`}>
             <img
               src={getCategoryVisual(formCategory).imagePath}
               alt=""
@@ -302,7 +302,7 @@ function QuantityFields({
             }
           }}
           className={`flex-1 h-11 rounded-lg text-[13.5px] font-semibold transition-colors ${
-            intakeMode === "count" ? "bg-[#fff3ea] text-[#b85f1a]" : "text-gray-500"
+            intakeMode === "count" ? "bg-[#fff3ea] text-[#c06245]" : "text-gray-500"
           }`}
         >
           Count items
@@ -316,7 +316,7 @@ function QuantityFields({
             }
           }}
           className={`flex-1 h-11 rounded-lg text-[13.5px] font-semibold transition-colors ${
-            intakeMode === "weight" ? "bg-[#fff3ea] text-[#b85f1a]" : "text-gray-500"
+            intakeMode === "weight" ? "bg-[#fff3ea] text-[#c06245]" : "text-gray-500"
           }`}
         >
           Total weight
@@ -1289,7 +1289,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
             onClick={handleSave}
             disabled={isEditSaveDisabled() || saveState !== "idle"}
             aria-live="polite"
-            className={`w-full h-[48px] rounded-xl text-white font-bold text-[15.5px] shadow-sm active:scale-95 transition-all disabled:active:scale-100 flex items-center justify-center gap-2 ${
+            className={`w-full h-[48px] rounded-full text-white font-bold text-[15.5px] shadow-sm active:scale-95 transition-all disabled:active:scale-100 flex items-center justify-center gap-2 ${
               saveState === "saved"
                 ? "bg-green-600 disabled:opacity-100"
                 : "bg-[#e27f2c] hover:bg-[#cf6f20] disabled:opacity-50"
@@ -1316,7 +1316,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
           <button
             onClick={handleNextStep}
             disabled={isNextDisabled()}
-            className="w-full h-[48px] rounded-xl bg-[#e27f2c] hover:bg-[#cf6f20] text-white font-bold text-[15.5px] shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
+            className="w-full h-[48px] rounded-full bg-[#e27f2c] hover:bg-[#cf6f20] text-white font-bold text-[15.5px] shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
           >
             {currentStep < 3 ? (
               <>
@@ -1458,7 +1458,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                     }
                     setPendingSheet(null);
                   }}
-                  className={`w-full h-12 rounded-xl font-bold text-[15px] active:scale-95 transition-all ${
+                  className={`w-full h-12 rounded-full font-bold text-[15px] active:scale-95 transition-all ${
                     pendingSheet === "delete"
                       ? "bg-red-600 hover:bg-red-700 text-white"
                       : "bg-[#e27f2c] hover:bg-[#cf6f20] text-white"
@@ -1469,7 +1469,7 @@ export function MobileManualEntryView({ onBack, initialItem, onSave, onDelete, p
                 <button
                   type="button"
                   onClick={() => setPendingSheet(null)}
-                  className="w-full h-12 rounded-xl font-bold text-[15px] bg-gray-100 text-gray-700 active:bg-gray-200 transition-all"
+                  className="w-full h-12 rounded-2xl font-bold text-[15px] bg-gray-100 text-gray-700 active:bg-gray-200 transition-all"
                 >
                   {pendingSheet === "delete" ? (isBatchDelete ? "Keep batch" : "Keep item") : "Keep editing"}
                 </button>
