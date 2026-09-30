@@ -114,6 +114,9 @@ export function MobileCartView({
   // One tap re-adds a recent item straight into the batch at qty 1 — the
   // volunteer can fine-tune quantity/expiration with the existing Edit
   // action once it lands in the (now non-empty) cart list below.
+  // Currently disconnected from the row's onClick (see TODO.md — Recent
+  // Activity feature) while that section is redesigned; left in place
+  // since the tap-to-add behavior will likely return once it's rebuilt.
   const quickAddRecentItem = (log) => {
     const catVisual = getCategoryVisual(log.category);
     const newItem = {
@@ -377,7 +380,6 @@ export function MobileCartView({
                         <button
                           key={log.itemId}
                           type="button"
-                          onClick={() => quickAddRecentItem(log)}
                           className="w-full flex items-center justify-between gap-3 py-3.5 -mx-2 px-2 rounded-xl hover:bg-gray-50/70 active:bg-gray-100 transition-colors text-left group"
                         >
                           <div className="flex items-center gap-3.5 min-w-0">
