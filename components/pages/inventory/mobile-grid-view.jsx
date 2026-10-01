@@ -8,6 +8,7 @@ import {
   getExpirationStatus,
   getUrgentStatusStyles,
   formatItemName,
+  formatUnit,
 } from './inventory-utils';
 
 /**
@@ -80,13 +81,30 @@ export function getExpirationLine(displayDate) {
   return { text: `Expires ${formatDate(displayDate)}`, className: 'text-gray-500' };
 }
 
+/**
+ * Status tags for a tile, styled like the reference's "Pickup / Delivery" chips:
+ * one shape, small tint, color only when something needs attention.
+ */
+export function getStatusTags(item, { displayDate, isLowStock }) {
+  const tags = [];
+  if (displayDate) {
+    const { days, isExpired } = getExpirationStatus(displayDate);
+    if (isExpired) tags.push({ label: 'Expired', className: 'bg-red-50 text-red-700' });
+    else if (days !== null && days <= 30) {
+      tags.push({ label: 'Expiring soon', className: 'bg-amber-50 text-amber-800' });
+    }
+  }
+  if (isLowStock) tags.push({ label: 'Low stock', className: 'bg-gray-100 text-gray-700' });
+  return tags;
+}
+
 /** Trims float noise (e.g. 2.5000001) without forcing decimals on whole numbers. */
 const formatQty = (n) =>
   Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '0';
 
 /**
- * ProductTile
- * Single grid tile: image, action row (Edit + more), quantity, name, expiry, location.
+ * ProductTile — mirrors the Sam's Club Reorder tile:
+ * image → compact action row → big number → bold title → plain detail line → chips.
  * Owns its own broken-photo fallback state, since a real `photoUrl` can 404
  * independently of whether the category icon fallback applies.
  */
@@ -99,14 +117,15 @@ function ProductTile({ item, onEdit, onMoreActions }) {
       : item.logicalBatchCount || 1;
 
   const { totalQty, displayDate, isLowStock } = getProductStatusMeta(item);
-  const expLine = getExpirationLine(displayDate);
+  const tags = getStatusTags(item, { displayDate, isLowStock });
+  const dateText = displayDate && formatDate(displayDate);
   const showPhoto = Boolean(item.photoUrl) && !imgError;
   const displayName = formatItemName(item.name);
 
   return (
-    <article className="flex flex-col min-w-0 py-4 border-b border-gray-200">
+    <article className="flex flex-col min-w-0 pt-4 pb-5 border-b border-gray-200">
       {/* 1. Image */}
-      <div className="relative w-full aspect-[5/4] rounded-xl bg-white overflow-hidden flex items-center justify-center">
+      <div className="relative w-full aspect-[6/5] bg-white overflow-hidden flex items-center justify-center">
         {showPhoto ? (
           <img
             src={item.photoUrl}
@@ -128,7 +147,7 @@ function ProductTile({ item, onEdit, onMoreActions }) {
 
         {batchCount > 1 && (
           <div
-            className="absolute top-2 right-2 h-[26px] px-2 rounded-full bg-white border border-gray-200 flex items-center gap-1 text-[12px] font-medium text-gray-700"
+            className="absolute top-0 right-0 h-7 px-2 rounded-full bg-white border border-gray-200 flex items-center gap-1 text-[12px] font-medium text-gray-700"
             aria-label={`${batchCount} batches`}
           >
             <Layers className="w-[13px] h-[13px]" strokeWidth={2} />
@@ -137,59 +156,64 @@ function ProductTile({ item, onEdit, onMoreActions }) {
         )}
       </div>
 
-      {/* 2. Action row */}
+      {/* 2. Action row — compact pair right under the image, like "+ Add  (⋯)" */}
       <div className="mt-3 flex items-center gap-2">
         <button
           type="button"
           onClick={() => onEdit && onEdit(item)}
-          className="h-11 px-[18px] rounded-full border-[1.5px] border-[#d97757] bg-white text-[#b4532f] text-[15px] font-semibold flex items-center gap-1.5 active:scale-[0.97] active:bg-orange-50/60 transition-transform outline-none focus-visible:ring-2 focus-visible:ring-[#d97757]/40"
+          className="h-9 px-5 rounded-full border-[1.5px] border-[#d97757] bg-white text-[#b4532f] text-[15px] font-semibold flex items-center gap-1.5 active:scale-[0.97] active:bg-orange-50/60 transition-transform outline-none focus-visible:ring-2 focus-visible:ring-[#d97757]/40"
         >
-          <Pencil className="w-[15px] h-[15px]" strokeWidth={2.25} />
+          <Pencil className="w-[14px] h-[14px]" strokeWidth={2.5} />
           Edit
         </button>
         <button
           type="button"
           onClick={() => onMoreActions && onMoreActions(item)}
           aria-label={`More actions for ${displayName}`}
-          className="h-11 w-11 shrink-0 rounded-full border-[1.5px] border-gray-300 bg-white text-gray-700 flex items-center justify-center active:scale-[0.95] active:bg-gray-50 transition-transform outline-none focus-visible:ring-2 focus-visible:ring-[#d97757]/40"
+          className="h-9 w-9 shrink-0 rounded-full border-[1.5px] border-[#d97757] bg-white text-[#b4532f] flex items-center justify-center active:scale-[0.95] active:bg-orange-50/60 transition-transform outline-none focus-visible:ring-2 focus-visible:ring-[#d97757]/40"
         >
-          <MoreHorizontal className="w-5 h-5" strokeWidth={2.5} />
+          <MoreHorizontal className="w-[18px] h-[18px]" strokeWidth={2.25} />
         </button>
       </div>
 
-      {/* 3. Quantity — the tile's one big number */}
-      <div
-        className={`mt-3 flex items-baseline gap-1 ${
-          isLowStock ? 'text-amber-700' : 'text-[#1a1f36]'
-        }`}
-      >
-        <span className="text-[20px] font-semibold tracking-tight leading-none tabular-nums">
+      {/* 3. Quantity — the "$1.47" slot: biggest, boldest, always black */}
+      <p className="mt-3.5 flex items-baseline gap-1 text-gray-900 leading-none">
+        <span className="text-[24px] font-medium tracking-[-0.02em] tabular-nums">
           {formatQty(totalQty)}
         </span>
-        <span className="text-[13px] font-normal text-gray-500">{item.unit || 'units'}</span>
-        {isLowStock && <span className="text-[13px] font-medium">· Low</span>}
-      </div>
+        <span className="text-[14px] font-normal text-gray-500">{formatUnit(item.unit, totalQty)}</span>
+      </p>
 
-      {/* 4. Name — one line, so every tile keeps the same rhythm */}
+      {/* 4. Name — the bold "Dole" slot, one line */}
       <h3
         title={displayName}
-        className="mt-2 text-[14px] font-medium leading-snug text-[#1a1f36] truncate"
+        className="mt-2 text-[15px] font-semibold leading-snug text-gray-900 truncate"
       >
         {displayName}
       </h3>
 
-      {/* 5. Expiration */}
-      <p className={`mt-0.5 text-[13px] leading-snug ${expLine.className}`}>
-        {expLine.text}
+      {/* 5. Detail — the plain "Bananas, 3 lbs." slot */}
+      <p className="mt-0.5 text-[14px] font-normal leading-snug text-gray-600 truncate">
+        {dateText ? `Exp. ${dateText}` : 'No expiration date'}
       </p>
 
-      {/* 6. Storage location */}
-      {item.storageLocation && (
-        <div className="mt-2 flex">
-          <span className="inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-md bg-gray-100 text-gray-600 text-[12px] font-medium">
-            <MapPin className="w-3 h-3 shrink-0" strokeWidth={2.25} />
-            <span className="truncate">{item.storageLocation}</span>
-          </span>
+      {/* 6. Chips — the "Pickup / Delivery" slot */}
+      {(tags.length > 0 || item.storageLocation) && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <span
+              key={tag.label}
+              className={`h-6 px-2 rounded inline-flex items-center text-[13px] ${tag.className}`}
+            >
+              {tag.label}
+            </span>
+          ))}
+          {item.storageLocation && (
+            <span className="h-6 px-2 rounded inline-flex items-center gap-1 max-w-full bg-gray-100 text-gray-700 text-[13px]">
+              <MapPin className="w-3 h-3 shrink-0" strokeWidth={2.25} />
+              <span className="truncate">{item.storageLocation}</span>
+            </span>
+          )}
         </div>
       )}
     </article>
@@ -230,14 +254,14 @@ export function MobileGridView({
 
   return (
     <section>
-      <div className="flex items-baseline gap-1.5 pt-2">
-        <h2 className="text-[16px] font-medium tracking-[-0.01em] text-gray-900">
+      <div className="flex items-baseline gap-1.5 pt-3">
+        <h2 className="text-[20px] font-bold tracking-[-0.01em] text-gray-900">
           {title}
         </h2>
-        <span className="text-[14px] text-gray-500">({inventory.length})</span>
+        <span className="text-[16px] text-gray-500">({inventory.length})</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3">
+      <div className="grid grid-cols-2 gap-x-4 pb-6">
         {inventory.map((item) => {
           const itemKey =
             item.catalogItemId ||

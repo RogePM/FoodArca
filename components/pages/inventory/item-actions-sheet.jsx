@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, ShoppingCart, Trash2 } from 'lucide-react';
-import { getCategoryVisual, formatItemName } from './inventory-utils';
+import { getCategoryVisual, formatItemName, formatUnit } from './inventory-utils';
 import { getExpirationLine } from './mobile-grid-view';
 
 const formatQty = (n) =>
@@ -61,7 +61,7 @@ export function InventoryItemActionsSheet({ item, onClose, onAddToCart, onRemove
   const displayName = formatItemName(item?.name);
   if (item) {
     const qty = formatQty(item.totalQuantity ?? item.quantity);
-    const unit = item.unit || 'units';
+    const unit = formatUnit(item.unit, item.totalQuantity ?? item.quantity);
     const batchCount = item.batches?.length || 1;
     catVisual = getCategoryVisual(item.category);
     summary = `${qty} ${unit} · ${getExpirationLine(item.expirationDate).text}`;

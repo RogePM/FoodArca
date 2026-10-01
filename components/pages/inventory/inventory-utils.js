@@ -477,3 +477,12 @@ export const formatItemName = (name) => {
   const trimmed = String(name ?? '').trim();
   return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : '';
 };
+
+/** Display label for a unit: generic counts ("count", "units", none) read as "items". */
+export const formatUnit = (unit, qty) => {
+  const u = String(unit ?? '').trim();
+  if (!u || /^(count|counts|unit|units|item|items|ea|each)$/i.test(u)) {
+    return Number(qty) === 1 ? 'item' : 'items';
+  }
+  return u;
+};
