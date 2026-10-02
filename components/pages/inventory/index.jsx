@@ -40,7 +40,7 @@ import {
   getUrgentStatusStyles,
   formatItemName,
 } from './inventory-utils';
-import { MobileGridSkeleton, DesktopTableSkeleton } from './skeletons';
+import { MobileGridSkeleton, DesktopTableSkeleton, PillRowSkeleton } from './skeletons';
 import { MobileGridView } from './mobile-grid-view';
 import { InventoryBatchSelectionSheet } from './batch-selection-sheet';
 import { InventoryItemActionsSheet } from './item-actions-sheet';
@@ -82,7 +82,11 @@ export function InventoryView() {
   };
 
   const [inventory, setInventory] = useState([]);
-  const [activeFilter, setActiveFilter] = useState('ALL'); // ALL, EXPIRING, EXPIRED, LOW, NO_DATE, or category value
+  // Seeded from ?filter= so arriving from the global search bar (Settings,
+  // the Add-to-cart screen) with a pill already picked lands here filtered,
+  // not on "All". Later taps on the page's own pills just call setActiveFilter
+  // directly and don't touch the URL, same as before.
+  const [activeFilter, setActiveFilter] = useState(() => searchParams.get('filter') || 'ALL'); // ALL, EXPIRING, EXPIRED, LOW, NO_DATE, or category value
   const [sortConfig, setSortConfig] = useState({
     key: 'expirationDate',
     order: 'asc',
@@ -475,6 +479,10 @@ export function InventoryView() {
           onQueryChange={handleSearchQueryChange}
           inventoryData={allBatchedInventory}
           onItemSelect={handleSearchItemSelect}
+          onSubmit={(query, filterId) => {
+            updateSearchParams({ q: query || null, itemId: null });
+            setActiveFilter(filterId || 'ALL');
+          }}
         />
 
         {/* DESKTOP REAL SEARCH BAR */}
@@ -510,6 +518,9 @@ export function InventoryView() {
 
       {/* 3. NON-STICKY PILLS */}
       <div className="bg-[#d97757] md:bg-white px-4 md:px-6 pt-1 pb-3 overflow-hidden shrink-0 relative">
+        {isLoading ? (
+          <PillRowSkeleton />
+        ) : (
         <div className="flex gap-2 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {filterPillList.map((pill, index) => {
             const isActive = activeFilter === pill.id;
@@ -544,6 +555,7 @@ export function InventoryView() {
             );
           })}
         </div>
+        )}
 
         {/* Right-edge fade — hints that the pill row scrolls past the screen edge */}
         <div
@@ -683,6 +695,8 @@ export function InventoryView() {
                         ? 'All items'
                         : filterPillList.find((p) => p.id === activeFilter)?.name || 'All items'
                     }
+                    isFiltered={activeFilter !== 'ALL'}
+                    onClearFilter={() => setActiveFilter('ALL')}
                   />
                 </div>
               </>

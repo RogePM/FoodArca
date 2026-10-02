@@ -231,6 +231,8 @@ export function MobileGridView({
   handleSelectProduct,
   onMoreActions,
   title = 'All items',
+  isFiltered = false,
+  onClearFilter,
 }) {
   const handleEdit = onSelectItem || handleSelectProduct;
 
@@ -259,6 +261,15 @@ export function MobileGridView({
           {title}
         </h2>
         <span className="text-[16px] text-gray-500">({inventory.length})</span>
+        {isFiltered && onClearFilter && (
+          <button
+            type="button"
+            onClick={onClearFilter}
+            className="ml-auto text-[13px] font-semibold text-[#d97757] active:scale-95 transition-transform"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 pb-6">

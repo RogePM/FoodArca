@@ -27,6 +27,23 @@ export function MobileGridSkeleton() {
   );
 }
 
+// Filter-pill row placeholder — stands in for the status/category pills while
+// their counts are still being computed from the not-yet-fetched inventory,
+// so the row doesn't flash a misleading "0" on every pill before data lands.
+export function PillRowSkeleton({ count = 6 }) {
+  const widths = ['w-14', 'w-24', 'w-20', 'w-20', 'w-16', 'w-20', 'w-24', 'w-20'];
+  return (
+    <div className="flex gap-2 overflow-hidden">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className={`h-[31px] ${widths[i % widths.length]} shrink-0 rounded-full bg-white/30 animate-pulse`}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function DesktopTableSkeleton() {
   return (
     <div className="bg-white rounded-[20px] shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] border border-gray-200 overflow-hidden flex flex-col mb-12">

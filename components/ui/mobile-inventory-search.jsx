@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, ScanBarcode, ArrowLeft, ChevronRight } from 'lucide-react';
 import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 import { usePantry } from '@/components/providers/PantryProvider';
@@ -84,7 +85,7 @@ function PillButton({ label, count, isActive, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`px-4 py-2.5 rounded-full text-[13.5px] font-medium tracking-[-0.01em] whitespace-nowrap transition-colors ${
+      className={`px-4 py-2.5 rounded-full text-[13.5px] font-medium tracking-[-0.01em] whitespace-nowrap transition-colors active:scale-95 transition-transform ${
         isActive ? 'bg-[var(--accent)] text-white' : 'bg-gray-100 text-[#1a1f36] hover:bg-gray-200'
       }`}
     >
@@ -106,6 +107,20 @@ function RowSkeleton() {
         <div className="w-2/5 h-3.5 bg-gray-200/80 rounded-md animate-pulse" />
         <div className="w-1/4 h-3 bg-gray-100 rounded-md animate-pulse" />
       </div>
+    </div>
+  );
+}
+
+// Stands in for a row of PillButtons while this screen's own inventory fetch
+// is in flight (the Settings/Cart call sites, which don't pass inventoryData
+// and so start every count at 0) — without it the picker briefly shows every
+// pill at "0" before the real counts pop in.
+function PillRowSkeleton({ widths }) {
+  return (
+    <div className="flex flex-wrap gap-3">
+      {widths.map((w, i) => (
+        <div key={i} className={`h-[41px] ${w} rounded-full bg-gray-100 animate-pulse`} />
+      ))}
     </div>
   );
 }
@@ -133,6 +148,11 @@ export function MobileInventorySearch({
   // during render, without the extra render an effect-based sync would cost.
   const [prevInitialQuery, setPrevInitialQuery] = useState(initialQuery);
   const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(forceOpen);
+  // True for the brief exit-animation window between "go" being pressed and
+  // the overlay actually unmounting/navigating — without it the overlay was
+  // disappearing in the same frame the destination screen mounted, which
+  // read as a flash/flicker rather than a transition.
+  const [isClosing, setIsClosing] = useState(false);
   // null = no pill picked (the page's "browse" launcher state); a status id
   // ('EXPIRING'/'EXPIRED'/'LOW') or a category value once one is tapped.
   const [activeFilter, setActiveFilter] = useState(null);
@@ -210,7 +230,24 @@ export function MobileInventorySearch({
   }, [activeInventory]);
 
   // Toggling the already-active pill clears it, returning to the picker state.
+  // Only used as a fallback when there's nowhere to navigate to (no onSubmit).
   const togglePill = (id) => setActiveFilter((prev) => (prev === id ? null : id));
+
+  // A pill is a single, unambiguous ask ("show me Expired") with no keyboard
+  // in the way of confirming it, unlike a typed query which needs a beat to
+  // get right — so tapping one goes straight to the real grid instead of
+  // requiring a second "View results" tap. Deliberately does NOT set
+  // activeFilter: that state is what the results list below is gated on, and
+  // this screen should never render that list for a pill tap — not even for
+  // the one frame before the close animation kicks in. `id` is handed
+  // straight to onSubmit rather than round-tripped through state.
+  const selectPill = (id) => {
+    if (!onSubmit) {
+      togglePill(id);
+      return;
+    }
+    closeWithAnimation(() => onSubmit(searchQuery, id));
+  };
 
   // A short typed query (even one letter) can match a big chunk of the
   // pantry — capped so the list stays a quick glance, not a second full
@@ -248,18 +285,51 @@ export function MobileInventorySearch({
     if (onQueryChange) onQueryChange(val);
   };
 
+  // Dismissing without submitting (the back arrow) drops whatever was typed
+  // or picked — reopening the search should always start from a blank
+  // slate, not whatever draft was left over from last time. A submit also
+  // routes through here (via closeWithAnimation), but by then the caller's
+  // onSubmit has already captured the query/filter it needs, so clearing
+  // local state here doesn't lose anything.
   const closeOverlay = () => {
+    setSearchQuery(initialQuery);
+    setActiveFilter(null);
     if (forceOpen && onClose) onClose();
     else setIsSearchOverlayOpen(false);
   };
 
+  // Plays a short fade/slide-out before actually closing, then runs
+  // `after` (the navigation/selection side effect). Without the delay the
+  // overlay was unmounting the instant the destination screen mounted
+  // underneath it, which read as a flash rather than a transition.
+  const closeWithAnimation = (after) => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      closeOverlay();
+      if (after) after();
+    }, 160);
+  };
+
   const handleSelect = (item) => {
-    if (onItemSelect) {
-      onItemSelect(item);
-    } else {
-      handleQueryChange(item.name);
-    }
-    setIsSearchOverlayOpen(false);
+    closeWithAnimation(() => {
+      if (onItemSelect) {
+        onItemSelect(item);
+      } else {
+        handleQueryChange(item.name);
+      }
+    });
+  };
+
+  // The one "go" action for this screen: whatever's currently dialed in —
+  // typed text, a picked pill, or both — is handed to the caller as the
+  // filter to apply back on the real inventory grid. Pills alone (no text)
+  // can trigger this too, since browsing by pill has no keyboard "enter".
+  const handleGo = () => {
+    if (!searchQuery && !activeFilter) return;
+    closeWithAnimation(() => {
+      if (onSubmit) onSubmit(searchQuery, activeFilter);
+    });
   };
 
   return (
@@ -301,10 +371,19 @@ export function MobileInventorySearch({
         )}
       </div>
 
-      {/* FULL SCREEN LOOKUP PAGE (Mobile) */}
-      {isSearchOverlayOpen && (
+      {/* FULL SCREEN LOOKUP PAGE (Mobile) — portaled straight to <body>. Every
+          call site renders this inside a `position: sticky` header (its own
+          stacking context), which was trapping this "fixed" overlay's z-index
+          inside that context and letting the bottom tab bar (z-[100] at the
+          document root) paint over it regardless of how high this div's own
+          z-index was set. */}
+      {isSearchOverlayOpen && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 bg-white flex flex-col md:hidden animate-in fade-in duration-200"
+          className={`fixed inset-0 z-[9999] bg-white flex flex-col md:hidden ${
+            isClosing
+              ? 'animate-out fade-out slide-out-to-bottom-2 duration-150 ease-in'
+              : 'animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out'
+          }`}
           style={{ '--accent': accentColor }}
         >
           <div className="flex items-center gap-2 p-4 pb-3 border-b border-gray-100 shrink-0">
@@ -330,10 +409,7 @@ export function MobileInventorySearch({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (searchQuery) {
-                      if (onSubmit) onSubmit(searchQuery);
-                      closeOverlay();
-                    }
+                    handleGo();
                   }
                 }}
               />
@@ -372,7 +448,23 @@ export function MobileInventorySearch({
                 query is its own lookup, not a second filter layered on the
                 picker, so the results below replace this rather than sitting
                 alongside it. */}
-            {!searchQuery && statusPills.length > 0 && (
+            {!searchQuery && isLoading && (
+              <>
+                <div className="px-4 pt-6">
+                  <h3 className="text-[16px] font-medium text-gray-900 tracking-[-0.01em] mb-3.5">Item Status</h3>
+                  <div className="space-y-3">
+                    <PillRowSkeleton widths={['w-32', 'w-28']} />
+                    <PillRowSkeleton widths={['w-28']} />
+                  </div>
+                </div>
+                <div className="px-4 pt-6">
+                  <h3 className="text-[16px] font-medium text-gray-900 tracking-[-0.01em] mb-3.5">Categories</h3>
+                  <PillRowSkeleton widths={['w-24', 'w-20', 'w-28', 'w-24', 'w-20']} />
+                </div>
+              </>
+            )}
+
+            {!searchQuery && !isLoading && statusPills.length > 0 && (
               <div className="px-4 pt-6">
                 <h3 className="text-[16px] font-medium text-gray-900 tracking-[-0.01em] mb-3.5">Item Status</h3>
                 <div className="space-y-3">
@@ -381,13 +473,13 @@ export function MobileInventorySearch({
                       label={statusPills[0].name}
                       count={statusPills[0].count}
                       isActive={activeFilter === statusPills[0].id}
-                      onClick={() => togglePill(statusPills[0].id)}
+                      onClick={() => selectPill(statusPills[0].id)}
                     />
                     <PillButton
                       label={statusPills[1].name}
                       count={statusPills[1].count}
                       isActive={activeFilter === statusPills[1].id}
-                      onClick={() => togglePill(statusPills[1].id)}
+                      onClick={() => selectPill(statusPills[1].id)}
                     />
                   </div>
                   <div className="flex flex-wrap gap-3">
@@ -395,14 +487,14 @@ export function MobileInventorySearch({
                       label={statusPills[2].name}
                       count={statusPills[2].count}
                       isActive={activeFilter === statusPills[2].id}
-                      onClick={() => togglePill(statusPills[2].id)}
+                      onClick={() => selectPill(statusPills[2].id)}
                     />
                   </div>
                 </div>
               </div>
             )}
 
-            {!searchQuery && categoryPills.length > 0 && (
+            {!searchQuery && !isLoading && categoryPills.length > 0 && (
               <div className="px-4 pt-6">
                 <h3 className="text-[16px] font-medium text-gray-900 tracking-[-0.01em] mb-3.5">Categories</h3>
                 <div className="flex flex-wrap gap-3">
@@ -412,7 +504,7 @@ export function MobileInventorySearch({
                       label={pill.name}
                       count={pill.count}
                       isActive={activeFilter === pill.id}
-                      onClick={() => togglePill(pill.id)}
+                      onClick={() => selectPill(pill.id)}
                     />
                   ))}
                 </div>
@@ -423,8 +515,13 @@ export function MobileInventorySearch({
                 something (a pill or a query), never a default dump of every
                 item in the pantry. Typing replaces the picker outright, so
                 it gets plain top padding instead of the divider that
-                separates it from the picker when a pill is what's active. */}
-            {(activeFilter || searchQuery) && (
+                separates it from the picker when a pill is what's active.
+                Suppressed while closing: a pill tap sets activeFilter and
+                starts the close animation in the same instant, and without
+                this guard that one frame renders this whole results list
+                right as the screen fades out — a flash of item cards above
+                the grid it's about to land on. */}
+            {(activeFilter || searchQuery) && !isClosing && (
               <div className={searchQuery ? 'px-2 pt-2' : 'px-2 pt-5 mt-6 border-t border-gray-100'}>
                 {isLoading ? (
                   <div className="divide-y divide-gray-100">
@@ -455,7 +552,8 @@ export function MobileInventorySearch({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Fullscreen Barcode Scanner HUD */}

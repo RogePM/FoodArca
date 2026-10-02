@@ -222,3 +222,45 @@ that shouldn't be necessary.
 - Don't re-enable the row tap-to-add action until the data source above is
   settled — wiring it back onto the current name-matched, uncached fetch
   would just add UI on top of the thing we're about to replace.
+
+## Planned — Add Items search bar should add-to-cart inline, not jump to Inventory
+
+**Status:** Not started. Deferred until the Remove page / distribution cart
+flow is fixed, since this builds on the same cart concepts.
+
+### Current behavior
+
+`MobileInventorySearch` (`components/ui/mobile-inventory-search.jsx`) is a
+single shared component used in 3 places — the Inventory page, Settings, and
+the Add Items flow's empty-cart screen
+(`components/pages/add-items/mobile-cart-view.jsx:227`) — each customizing it
+via props (`accentColor`, `inventoryData`, `onSubmit`, `onItemSelect`), not
+via 3 separate implementations. Today all 3 call sites do the same thing on
+submit/select: navigate to `/dashboard/inventory`, filtered. There is no
+"Add to cart" action anywhere in the search results, including from the Add
+Items screen — that search bar is currently just a "check what's already in
+stock" shortcut, unrelated to the cart being staged.
+
+### The planned change
+
+When search is opened from the Add Items flow, picking a pill/result or
+pressing "Go" should stay in-flow and let the volunteer add the matched
+item(s) straight to the cart being built (e.g. a quantity-picker bottom
+sheet), instead of navigating away to the Inventory grid. This only requires
+a different `onSubmit`/`onItemSelect` callback passed from
+`mobile-cart-view.jsx` — the shared `MobileInventorySearch` component itself
+shouldn't need structural changes, just a new result-rendering mode/callback
+shape it can hand back to the caller (matched items, not just a query/filter
+to route with).
+
+Note: navigating away today is non-destructive in the meantime — the staged
+cart already persists to `sessionStorage` (`foodarca_staged_batch` in
+`mobile-add-flow.jsx`), so leaving via search and returning via the bottom
+nav keeps the in-progress cart intact.
+
+### Why deferred
+
+Product wants the Remove page / distribution cart rebuilt first (see cart
+state handling there), since the Add flow's "add to cart from search" result
+should follow whatever cart patterns come out of that work rather than
+inventing a second, inconsistent one.

@@ -3,7 +3,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { BrowserMultiFormatReader } from "@zxing/library";
 
 export function BarcodeScannerOverlay({
@@ -254,25 +253,29 @@ export function BarcodeScannerOverlay({
         </AnimatePresence>
       </div>
 
-      {/* TOP CONTROLS: Large Visible Close Button */}
+      {/* TOP CONTROLS: Close button, styled as the app's standard icon-chip
+          (white circle, soft card-lift shadow, ink icon) rather than a
+          one-off heavy-bordered control — same recipe as every other system
+          icon button in the dashboard. */}
       {showCloseButton && (
-        <div className="absolute top-0 left-0 right-0 p-8 flex justify-end items-start z-50 pointer-events-auto">
-          <Button
-            variant="secondary"
+        <div className="absolute top-0 left-0 right-0 p-4 pt-[calc(16px+env(safe-area-inset-top))] flex justify-end items-start z-50 pointer-events-auto">
+          <button
+            type="button"
             onClick={onClose}
-            className="h-16 w-16 rounded-full bg-white text-black shadow-2xl hover:bg-gray-100 active:scale-90 transition-all border-4 border-black/10"
+            aria-label="Close scanner"
+            className="h-11 w-11 rounded-full bg-white shadow-[0_2px_8px_-4px_rgba(0,0,0,0.3)] flex items-center justify-center text-[#1a1f36] active:scale-95 transition-transform"
           >
-            <X className="h-8 w-8 stroke-[3]" />
-          </Button>
+            <X className="h-5 w-5" strokeWidth={2.5} />
+          </button>
         </div>
       )}
 
       {/* LOADING STATE */}
       {!isReady && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-[100]">
-          <Loader2 className="h-12 w-12 text-[#d97757] animate-spin mb-6" />
-          <p className="text-white font-black uppercase tracking-[0.2em] text-sm">
-            Activating Lens
+          <Loader2 className="h-9 w-9 text-[#d97757] animate-spin mb-4" />
+          <p className="text-white/90 font-medium text-[14px] tracking-[-0.01em]">
+            Opening camera…
           </p>
         </div>
       )}

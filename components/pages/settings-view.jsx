@@ -105,7 +105,12 @@ export function SettingsView({ activeView, setActiveView }) {
             <div className="z-20 sticky top-0 bg-[#d97757] md:bg-white px-4 md:px-6 pt-3 pb-2 shadow-[0_1px_0_0_#d97757] md:shadow-none transition-colors shrink-0 md:hidden">
                 <MobileInventorySearch
                     accentColor="#d97757"
-                    onSubmit={(query) => router.push(`/dashboard/inventory?q=${encodeURIComponent(query)}`)}
+                    onSubmit={(query, filterId) => {
+                        const params = new URLSearchParams();
+                        if (query) params.set('q', query);
+                        if (filterId) params.set('filter', filterId);
+                        router.push(`/dashboard/inventory${params.toString() ? `?${params}` : ''}`);
+                    }}
                     onItemSelect={(item) => router.push(`/dashboard/inventory?itemId=${encodeURIComponent(item.catalogItemId || item.id || item._id)}&q=${encodeURIComponent(item.name || '')}`)}
                 />
             </div>

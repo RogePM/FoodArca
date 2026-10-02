@@ -225,7 +225,12 @@ export function MobileCartView({
                 than a decorative bar. */}
             <div className="z-20 sticky top-0 bg-[#e27f2c] px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-2 shadow-[0_1px_0_0_#e27f2c] shrink-0">
               <MobileInventorySearch
-                onSubmit={(query) => router.push(`/dashboard/inventory?q=${encodeURIComponent(query)}`)}
+                onSubmit={(query, filterId) => {
+                  const params = new URLSearchParams();
+                  if (query) params.set('q', query);
+                  if (filterId) params.set('filter', filterId);
+                  router.push(`/dashboard/inventory${params.toString() ? `?${params}` : ''}`);
+                }}
                 onItemSelect={(item) =>
                   router.push(
                     `/dashboard/inventory?itemId=${encodeURIComponent(item.catalogItemId || item.id || item._id)}&q=${encodeURIComponent(item.name || '')}`
