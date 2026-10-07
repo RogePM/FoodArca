@@ -8,28 +8,22 @@ export default function CTAActions() {
   const { handleSignIn } = useAuthAction();
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mt-4 w-full">
-      
-      {/* PRIMARY BUTTON: "Start for free" */}
-      <button 
+    <div className="flex w-full flex-col items-start gap-3 sm:flex-row sm:items-center">
+      <button
+        type="button"
         onClick={handleSignIn}
-        className="group relative w-full sm:w-auto px-8 py-3.5 rounded-full bg-brand-primary text-white font-inter font-semibold text-[15px] transition-all duration-300 hover:shadow-[0_8px_20px_-6px_rgba(217,119,87,0.6)] hover:-translate-y-0.5 flex items-center justify-center gap-2 overflow-hidden"
+        className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-primary px-7 py-3 font-inter text-[15px] font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_-6px_rgba(217,119,87,0.6)] sm:w-auto"
       >
-        <span className="relative z-10">Start for free</span>
-        <ArrowRight size={18} className="relative z-10 transition-transform duration-300 group-hover:translate-x-1" />
-        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out z-0"></div>
+        Try for free
+        <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1" />
       </button>
 
-      {/* SECONDARY BUTTON: "Explore features" */}
-      <button 
-        // CHANGED: Swapped bg-transparent for bg-white. 
-        // ADDED: shadow-sm to give it a physical presence over the tinted section background.
-        // CHANGED: Hover state is now a soft off-white/beige (bg-[#F5F5F4]).
-        className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-white border-2 border-[#E7E5E4] hover:border-[#D6D3D1] hover:bg-[#F5F5F4] text-[#1C1917] font-inter font-semibold text-[15px] transition-all duration-300 flex items-center justify-center shadow-sm"
+      <a
+        href="/features"
+        className="inline-flex w-full items-center justify-center rounded-full border border-[#E7E5E4] bg-white px-7 py-3 font-inter text-[15px] font-semibold text-[#1C1917] transition-colors duration-300 hover:border-[#D6D3D1] hover:bg-[#F5F5F4] sm:w-auto"
       >
         Explore features
-      </button>
-
+      </a>
     </div>
   );
 }

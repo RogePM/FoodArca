@@ -8,7 +8,7 @@ export default function SubpageHero({
   titleBase, 
   titleHighlight, 
   subtitle, 
-  primaryBtnText = "Get started", 
+  primaryBtnText = "Try for free", 
   primaryBtnHref = "/signup",
   secondaryBtnText = "Learn more",
   secondaryBtnHref = "#features",

@@ -4,7 +4,7 @@ import { Leaf } from 'lucide-react';
 export default function Footer() {
   return (
     // Changed bg to Deep Espresso (#1C1917) and removed the light border
-    <footer className="bg-[#1C1917] pt-24 pb-12 relative overflow-hidden">
+    <footer className="bg-[#1C1917] pt-16 lg:pt-20 pb-12 relative overflow-hidden">
       
       {/* Background Watermark - Flipped to light beige with very low opacity */}
       <div className="absolute -top-12 -right-12 md:-top-24 md:-right-24 text-[12rem] md:text-[20rem] font-serif text-[#FAFAF9] opacity-[0.03] pointer-events-none select-none leading-none">
@@ -52,7 +52,7 @@ export default function Footer() {
                 <a href="#" className="hover:text-[#D97757] transition-colors">About Us</a>
               </li>
               <li>
-                <a href="#" className="hover:text-[#D97757] transition-colors">Contact</a>
+                <a href="/contact" className="hover:text-[#D97757] transition-colors">Contact</a>
               </li>
               <li>
                 <a href="#" className="hover:text-[#D97757] transition-colors">Support</a>
@@ -66,10 +66,10 @@ export default function Footer() {
               <h4 className="font-serif text-[#FAFAF9] mb-6 text-lg tracking-wide">Legal</h4>
               <ul className="space-y-4 text-[15px] text-[#A8A29E]">
                 <li>
-                  <a href="#" className="hover:text-[#D97757] transition-colors">Privacy Policy</a>
+                  <a href="/privacy" className="hover:text-[#D97757] transition-colors">Privacy Policy</a>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-[#D97757] transition-colors">Terms of Service</a>
+                  <a href="/terms" className="hover:text-[#D97757] transition-colors">Terms of Service</a>
                 </li>
               </ul>
             </div>

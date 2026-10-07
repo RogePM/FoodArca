@@ -2,6 +2,7 @@ import './globals.css';
 import { PantryProvider } from '@/components/providers/PantryProvider';
 import Script from 'next/script';
 import { Inter } from 'next/font/google';
+import { SITE_URL } from '@/lib/site';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -9,8 +10,12 @@ const inter = Inter({
 });
 
 export const metadata = {
+  metadataBase: new URL(SITE_URL),
   title: 'Food Arca | Food Bank Inventory Management',
   description: 'Food Bank inventory management system',
+  // Defaults for link previews; pages override title, description and url.
+  openGraph: { siteName: 'Food Arca', type: 'website', locale: 'en_US' },
+  twitter: { card: 'summary' },
 };
 
 export const viewport = {
