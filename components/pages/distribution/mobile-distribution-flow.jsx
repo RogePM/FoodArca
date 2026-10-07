@@ -18,7 +18,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { MobileCheckoutCartView } from './mobile-checkout-cart-view';
 import { NoBarcodeVisualGridSheet } from './no-barcode-visual-grid-sheet';
-import { QuickActionSheet } from './quick-action-sheet';
 
 // Dynamically import scanner overlay to avoid SSR issues
 const BarcodeScannerOverlay = dynamic(
@@ -164,8 +163,7 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
   const [activeView, setActiveView] = useState('CART');
   const [isVisualGridOpen, setIsVisualGridOpen] = useState(false);
   const [visualGridFilter, setVisualGridFilter] = useState('all');
-  const [quickActionProduct, setQuickActionProduct] = useState(null);
-  const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
+  const [scanProduct, setScanProduct] = useState(null); // scanned item whose steps are open in the sheet
 
   // Scanner & Feedback State
   const [toastMessage, setToastMessage] = useState(null); // { title: string, count: number }
@@ -193,9 +191,10 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
         const maxStock = Number(currentLine.availableBatchStock ?? stagedItem.availableBatchStock ?? 9999);
         const nextQty = Math.min(
           maxStock,
-          Number(currentLine.quantity || 1) + Number(stagedItem.quantity || 1)
+          Math.round((Number(currentLine.quantity || 1) + Number(stagedItem.quantity || 1)) * 100) / 100
         );
-        updated[existingIndex] = { ...currentLine, quantity: nextQty };
+        // One line per batch: the latest reason picked for it wins.
+        updated[existingIndex] = { ...currentLine, quantity: nextQty, reason: stagedItem.reason || currentLine.reason };
         return updated;
       }
 
@@ -211,7 +210,9 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
         if (item.id !== id && item.batchId !== id) return item;
         const maxStock = Number(item.availableBatchStock ?? 9999);
         const currentQty = Number(item.quantity || 1);
-        const nextQty = Math.max(1, Math.min(maxStock, currentQty + delta));
+        // Weighed lines can go below 1 lb (e.g. 0.4 lb); counted lines stop at 1.
+        const isWeight = /^(lb|lbs|pound|pounds)$/i.test(item.unit || '');
+        const nextQty = Math.max(isWeight ? 0.01 : 1, Math.min(maxStock, Math.round((currentQty + delta) * 100) / 100));
         return { ...item, quantity: nextQty };
       })
     );
@@ -233,50 +234,14 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
     setTimeout(() => setToastMessage(null), type === 'not-found' ? 3500 : 2500);
   };
 
-  // --- PRODUCT SELECTION & QUICK ACTION HANDLERS ---
+  // --- ITEM SHEET (batch → how much → reason) ---
 
-  const handleSelectProductFromGrid = (product) => {
-    const batches = product?.batches || [];
-    if (batches.length > 1) {
-      setQuickActionProduct(product);
-      setIsQuickActionOpen(true);
-    } else {
-      const singleBatch = batches[0] || {
-        id: product.catalogItemId || product.id,
-        quantity: product.totalQuantity || 1,
-        expirationDate: product.expirationDate || null,
-        expirationPrecision: 'none',
-        sourceType: 'donation',
-      };
-      const stagedItem = {
-        id: `${product.catalogItemId || product.id}-${singleBatch.id}`,
-        batchId: singleBatch.id,
-        catalogItemId: product.catalogItemId || product.id,
-        name: product.name,
-        category: product.category,
-        categoryName: product.category,
-        unit: product.unit || 'units',
-        quantity: 1,
-        expirationDate: singleBatch.expirationDate || null,
-        expirationPrecision: singleBatch.expirationPrecision || 'none',
-        availableBatchStock: Number(singleBatch.quantity || product.totalQuantity || 1),
-        photoUrl: product.photoUrl || null,
-        barcode: product.barcode || null,
-        donorName: singleBatch.donorName || null,
-        sourceType: singleBatch.sourceType || null,
-      };
-      handleStageItem(stagedItem);
-      setIsVisualGridOpen(false);
-      setActiveView('CART');
-    }
-  };
-
-  const handleStageFromQuickAction = (stagedItem) => {
+  const handleStageFromSheet = (stagedItem) => {
     handleStageItem(stagedItem);
-    setIsQuickActionOpen(false);
-    setQuickActionProduct(null);
     setIsVisualGridOpen(false);
-    setActiveView('CART');
+    // From a scan, stay on the camera to keep scanning; from the Inventory sheet, back to the cart.
+    if (scanProduct) setScanProduct(null);
+    else setActiveView('CART');
   };
 
   // --- CAMERA SCANNER HANDLER ---
@@ -298,36 +263,17 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
           (p.batches && p.batches.some((b) => b.barcode === code))
       );
 
-      if (matchedProduct && matchedProduct.batches && matchedProduct.batches.length > 1) {
+      // Found it: open the same "Take from" / "How much" steps as the Inventory sheet.
+      const openScanSteps = (product) => {
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
           navigator.vibrate(80);
         }
-        // Intercept with Quick Action Sheet for multi-batch selection
-        setQuickActionProduct(matchedProduct);
-        setIsQuickActionOpen(true);
-      } else if (matchedProduct && matchedProduct.batches && matchedProduct.batches.length === 1) {
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate(80);
-        }
-        const singleBatch = matchedProduct.batches[0];
-        const stagedItem = {
-          id: `${matchedProduct.catalogItemId || matchedProduct.id}-${singleBatch.id}`,
-          batchId: singleBatch.id,
-          catalogItemId: matchedProduct.catalogItemId || matchedProduct.id,
-          name: matchedProduct.name,
-          category: matchedProduct.category,
-          categoryName: matchedProduct.category,
-          unit: matchedProduct.unit || 'units',
-          quantity: 1,
-          expirationDate: singleBatch.expirationDate || null,
-          expirationPrecision: singleBatch.expirationPrecision || 'none',
-          availableBatchStock: Number(singleBatch.quantity || matchedProduct.totalQuantity || 1),
-          photoUrl: matchedProduct.photoUrl || null,
-          barcode: matchedProduct.barcode || null,
-          donorName: singleBatch.donorName || null,
-          sourceType: singleBatch.sourceType || null,
-        };
-        handleStageItem(stagedItem);
+        setScanProduct(product);
+        setIsVisualGridOpen(true);
+      };
+
+      if (matchedProduct && matchedProduct.batches && matchedProduct.batches.length > 0) {
+        openScanSteps(matchedProduct);
       } else {
         // Check raw inventory matches as fallback
         const matches = inventory.filter(
@@ -336,36 +282,8 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
 
         if (matches.length > 0) {
           const groupedFallback = groupInventoryByProduct(matches)[0];
-          if (groupedFallback && groupedFallback.batches && groupedFallback.batches.length > 1) {
-            if (typeof navigator !== 'undefined' && navigator.vibrate) {
-              navigator.vibrate(80);
-            }
-            setQuickActionProduct(groupedFallback);
-            setIsQuickActionOpen(true);
-            return;
-          } else if (groupedFallback && groupedFallback.batches && groupedFallback.batches.length === 1) {
-            if (typeof navigator !== 'undefined' && navigator.vibrate) {
-              navigator.vibrate(80);
-            }
-            const singleBatch = groupedFallback.batches[0];
-            const stagedItem = {
-              id: `${groupedFallback.catalogItemId || groupedFallback.id}-${singleBatch.id}`,
-              batchId: singleBatch.id,
-              catalogItemId: groupedFallback.catalogItemId || groupedFallback.id,
-              name: groupedFallback.name,
-              category: groupedFallback.category,
-              categoryName: groupedFallback.category,
-              unit: groupedFallback.unit || 'units',
-              quantity: 1,
-              expirationDate: singleBatch.expirationDate || null,
-              expirationPrecision: singleBatch.expirationPrecision || 'none',
-              availableBatchStock: Number(singleBatch.quantity || groupedFallback.totalQuantity || 1),
-              photoUrl: groupedFallback.photoUrl || null,
-              barcode: groupedFallback.barcode || null,
-              donorName: singleBatch.donorName || null,
-              sourceType: singleBatch.sourceType || null,
-            };
-            handleStageItem(stagedItem);
+          if (groupedFallback && groupedFallback.batches && groupedFallback.batches.length > 0) {
+            openScanSteps(groupedFallback);
             return;
           }
         }
@@ -390,36 +308,48 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
 
     const totalCount = cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
 
-    const cartPayload = cart.map((line) => ({
+    const toPayloadLine = (line) => ({
       itemId: line.batchId || line.id,
       catalogItemId: line.catalogItemId || line.id,
       itemName: line.name,
       category: line.category,
       quantityDistributed: Number(line.quantity) || 1,
       unit: line.unit || 'units',
-      reason: 'Distribution',
-    }));
+    });
 
-    const payload = {
-      cart: cartPayload,
-      clientName: 'Walk-in',
-      clientId: 'SYS',
-      isNewClient: false,
-    };
+    // Given-out lines go out as one visit; lines with a throw-out reason go out per reason.
+    const groups = [];
+    const givenOut = cart.filter((l) => !l.reason || l.reason === 'given_out');
+    if (givenOut.length) {
+      groups.push({
+        lines: givenOut,
+        url: '/api/client-distributions',
+        body: { cart: givenOut.map(toPayloadLine), clientName: 'Walk-in', clientId: 'SYS', isNewClient: false },
+      });
+    }
+    for (const reason of ['expired', 'damaged', 'recalled', 'other']) {
+      const lines = cart.filter((l) => l.reason === reason);
+      if (lines.length) groups.push({ lines, url: '/api/throw-out', body: { reason, lines: lines.map(toPayloadLine) } });
+    }
 
     try {
-      const res = await fetch('/api/client-distributions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-pantry-id': pantryId,
-        },
-        body: JSON.stringify(payload),
-      });
+      for (const group of groups) {
+        const res = await fetch(group.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-pantry-id': pantryId,
+          },
+          body: JSON.stringify(group.body),
+        });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Checkout submission failed');
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.message || data.error || 'Checkout submission failed');
+        }
+        // Drop what went through, so a retry after a later failure can't remove it twice.
+        const doneIds = new Set(group.lines.map((l) => l.id));
+        setCart((prev) => prev.filter((l) => !doneIds.has(l.id)));
       }
 
       const successMsg = `Successfully deducted ${totalCount} ${totalCount === 1 ? 'item' : 'items'}`;
@@ -475,7 +405,6 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
               setVisualGridFilter(filter);
               setIsVisualGridOpen(true);
             }}
-            onSelectProduct={handleSelectProductFromGrid}
             onCheckout={handleCheckout}
             isSubmitting={isCheckingOut}
             checkoutSuccess={checkoutSuccess}
@@ -489,7 +418,7 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
           {/* CAMERA STREAM LAYER */}
           <BarcodeScannerOverlay
             onScan={handleScan}
-            isPaused={isQuickActionOpen || isVisualGridOpen}
+            isPaused={isVisualGridOpen}
             showCloseButton={false}
             className="absolute inset-0 z-0"
           />
@@ -611,22 +540,15 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
       {/* 2. "NO BARCODE" VISUAL GRID SHEET */}
       <NoBarcodeVisualGridSheet
         isOpen={isVisualGridOpen}
-        onClose={() => setIsVisualGridOpen(false)}
-        products={groupedProducts}
-        onSelectProduct={handleSelectProductFromGrid}
-        initialCategory={visualGridFilter}
-      />
-
-      {/* 3. QUICK ACTION SHEET (BATCH SELECTION & QUANTITY STEPPER) */}
-      <QuickActionSheet
-        isOpen={isQuickActionOpen}
         onClose={() => {
-          setIsQuickActionOpen(false);
-          setQuickActionProduct(null);
+          setIsVisualGridOpen(false);
+          setScanProduct(null);
         }}
-        product={quickActionProduct}
-        onStageItem={handleStageFromQuickAction}
+        startProduct={scanProduct}
+        products={groupedProducts}
+        onStageItem={handleStageFromSheet}
         stagedCart={cart}
+        initialCategory={visualGridFilter}
       />
     </>
   );

@@ -9,9 +9,53 @@ import {
   Layers,
   Loader2,
   Plus,
+  Minus,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { categories, getCategoryName, getCategoryVisual } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
+import { formatDate } from '../inventory/inventory-utils';
+
+// Why it's leaving. "Given out" is the default; the rest are recorded as thrown out.
+export const REMOVE_REASONS = [
+  { value: 'given_out', label: 'Given out' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'damaged', label: 'Damaged' },
+  { value: 'recalled', label: 'Recalled' },
+  { value: 'other', label: 'Other' },
+];
+
+const isWeightUnit = (unit) => /^(lb|lbs|pound|pounds)$/i.test(unit || '');
+
+// Oldest expiration first; undated batches last.
+function sortBatchesFefo(batches) {
+  return [...(batches || [])].sort((a, b) => {
+    const ta = a?.expirationDate ? new Date(a.expirationDate).getTime() : NaN;
+    const tb = b?.expirationDate ? new Date(b.expirationDate).getTime() : NaN;
+    if (isNaN(ta) && isNaN(tb)) return 0;
+    if (isNaN(ta)) return 1;
+    if (isNaN(tb)) return -1;
+    return ta - tb;
+  });
+}
+
+// A product without batch records is treated as one batch holding its whole stock.
+function batchesOf(product) {
+  if (product?.batches?.length) return sortBatchesFefo(product.batches);
+  return [{
+    id: product.catalogItemId || product.id,
+    quantity: product.totalQuantity || 1,
+    expirationDate: product.expirationDate || null,
+    expirationPrecision: 'none',
+    sourceType: 'donation',
+  }];
+}
+
+function amountWithUnit(n, unit) {
+  if (isWeightUnit(unit)) return `${n} lb`;
+  return `${n} ${Number(n) === 1 ? 'item' : 'items'}`;
+}
 
 function matchesCategoryFilter(productCategory, selectedCategoryValue) {
   if (!selectedCategoryValue || selectedCategoryValue === 'all') return true;
@@ -77,15 +121,213 @@ function getProductExpirationMeta(product) {
   };
 }
 
+function ItemThumb({ product, size = 'w-14 h-14' }) {
+  const catVisual = getCategoryVisual(product.category);
+  return product.photoUrl ? (
+    <img src={product.photoUrl} alt="" className={`${size} rounded-lg object-cover border border-gray-100 shrink-0 bg-gray-50`} />
+  ) : (
+    <div className={`${size} rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden ${catVisual.style.bg}`}>
+      <img src={catVisual.imagePath} alt="" className="w-full h-full object-contain mix-blend-multiply scale-[1.35]" />
+    </div>
+  );
+}
+
+const expText = (batch) => {
+  const d = formatDate(batch?.expirationDate);
+  return d ? `Exp ${d}` : 'No expiration date';
+};
+
+// The sheet's item view: "Take from" (batch list) or "How much" (amount + optional reason).
+function ItemStep({
+  step, picked, availableIn, onPickBatch,
+  isWeight, available, qty, setQty, weightDraft, setWeightDraft,
+  reason, setReason, canStage, onStage,
+}) {
+  const { product, batch } = picked;
+  const batches = batchesOf(product);
+  const [countDraft, setCountDraft] = useState(null); // typed text while the count box is focused
+  const unit = product.unit;
+
+  return (
+    <>
+      <div className="flex-1 overflow-y-auto px-5 pt-1 pb-6">
+        {/* Item */}
+        <div className="flex items-center gap-3.5 pb-4 border-b border-gray-100">
+          <ItemThumb product={product} />
+          <div className="min-w-0">
+            <h3 className="text-[16px] font-medium text-[#1a1f36] leading-snug truncate">{product.name}</h3>
+            <p className="text-[13px] text-gray-500 mt-0.5">
+              {amountWithUnit(product.totalQuantity ?? batches.reduce((s, b) => s + Number(b.quantity || 0), 0), unit)} in stock
+            </p>
+          </div>
+        </div>
+
+        {step === 'batch' ? (
+          <>
+            <p className="text-[13px] text-gray-500 mt-4 mb-2.5">
+              {batches.length} batches · oldest first
+            </p>
+            <div className="border border-gray-200 rounded-2xl divide-y divide-gray-100 overflow-hidden">
+              {batches.map((b, i) => {
+                const free = availableIn(product, b);
+                const empty = free <= 0;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    disabled={empty}
+                    onClick={() => onPickBatch(b)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-gray-50 disabled:opacity-40 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[15px] text-[#1a1f36]">{expText(b)}</span>
+                        {i === 0 && !empty && (
+                          <span className="text-[11px] font-medium text-[#b5583a] bg-[#fbeee9] px-2 py-0.5 rounded-full">Use first</span>
+                        )}
+                      </div>
+                      <span className="text-[13px] text-gray-500">
+                        {empty ? 'All in cart' : `${amountWithUnit(free, unit)} available`}
+                      </span>
+                    </div>
+                    {!empty && <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={2} />}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Which batch */}
+            <div className="mt-4 flex items-center justify-between text-[13px]">
+              <span className="text-gray-600">{expText(batch)}</span>
+              <span className="text-gray-500">{amountWithUnit(available, unit)} available</span>
+            </div>
+
+            {/* Amount */}
+            <p className="text-[15px] font-medium text-[#1a1f36] mt-6 mb-3">
+              {isWeight ? 'How much weight?' : 'How many?'}
+            </p>
+            {available <= 0 ? (
+              <p className="text-[14px] text-gray-500">All of this batch is already in the cart.</p>
+            ) : isWeight ? (
+              <label className="flex items-center justify-center gap-1.5 h-[52px] rounded-full border border-gray-300 focus-within:border-[#d97757] cursor-text transition-colors">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoFocus
+                  value={weightDraft}
+                  onChange={(e) => setWeightDraft(e.target.value.replace(/[^0-9.]/g, ''))}
+                  placeholder="0.0"
+                  aria-label="Weight to take out, in pounds"
+                  className="w-20 text-right bg-transparent outline-none text-[20px] font-medium text-[#1a1f36] placeholder-gray-300 tabular-nums"
+                />
+                <span className="text-[16px] text-gray-500">lb</span>
+              </label>
+            ) : (
+              <div className="flex items-center justify-between h-[52px] rounded-full border border-gray-300 px-1.5">
+                <button
+                  type="button"
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  disabled={qty <= 1}
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-[#1a1f36] active:bg-gray-100 disabled:opacity-30"
+                  aria-label="Fewer"
+                >
+                  <Minus className="w-5 h-5" strokeWidth={2} />
+                </button>
+                {/* Type the number directly; 20px text so no phone zooms in on focus (iOS zooms under 16px). */}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={countDraft ?? String(Math.min(qty, available))}
+                  onFocus={(e) => { setCountDraft(String(Math.min(qty, available))); e.target.select(); }}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '');
+                    setCountDraft(digits);
+                    const n = parseInt(digits, 10);
+                    if (n > 0) setQty(Math.min(available, n));
+                  }}
+                  onBlur={() => setCountDraft(null)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                  aria-label="How many to take out"
+                  className="w-20 text-center bg-transparent outline-none text-[20px] font-medium text-[#1a1f36] tabular-nums rounded-md focus:bg-gray-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQty((q) => Math.min(available, q + 1))}
+                  disabled={qty >= available}
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-[#1a1f36] active:bg-gray-100 disabled:opacity-30"
+                  aria-label="More"
+                >
+                  <Plus className="w-5 h-5" strokeWidth={2} />
+                </button>
+              </div>
+            )}
+            {isWeight && Number(weightDraft) > available && (
+              <p className="text-[12.5px] text-gray-500 mt-2 text-center">Only {available} lb available; {available} lb will be taken.</p>
+            )}
+
+            {/* Reason (optional) */}
+            <p className="text-[15px] font-medium text-[#1a1f36] mt-7 mb-3">
+              Reason <span className="font-normal text-gray-400">(optional)</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {REMOVE_REASONS.map((r) => {
+                const active = reason === r.value;
+                return (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => setReason(r.value)}
+                    aria-pressed={active}
+                    className={`px-4 py-2 rounded-full border text-[13.5px] transition-colors ${
+                      active
+                        ? 'bg-[#fbeee9] border-[#d97757] text-[#b5583a] font-medium'
+                        : 'bg-white border-gray-200 text-gray-600 active:bg-gray-50'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {step === 'amount' && (
+        <div className="shrink-0 px-5 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
+          <button
+            type="button"
+            onClick={onStage}
+            disabled={!canStage}
+            className="w-full h-[50px] rounded-full bg-[#d97757] text-white text-[15px] font-semibold active:bg-[#c66547] active:scale-[0.99] disabled:opacity-40 transition-all"
+          >
+            Add to cart
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function NoBarcodeVisualGridSheet({
   isOpen,
   onClose,
   products = [],
-  onSelectProduct,
+  onStageItem,
+  stagedCart = [],
   initialCategory = 'all',
+  startProduct = null, // set when a scan opens the sheet on one item
 }) {
   const { pantryId } = usePantry();
   const [searchQuery, setSearchQuery] = useState('');
+  // Tapping an item turns this same sheet into the item: pick a batch (if there are several), then how much + why.
+  const [picked, setPicked] = useState(null); // { product, batch | null }
+  const [qty, setQty] = useState(1); // count lines
+  const [weightDraft, setWeightDraft] = useState(''); // weighed lines, typed
+  const [reason, setReason] = useState('given_out');
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [dictionaryItems, setDictionaryItems] = useState([]);
   const [isLoadingDictionary, setIsLoadingDictionary] = useState(false);
@@ -126,8 +368,73 @@ export function NoBarcodeVisualGridSheet({
     } else {
       setSearchQuery('');
       setSelectedCategory('all');
+      setPicked(null);
     }
   }, [isOpen, initialCategory]);
+
+  // How much of a batch is still free (minus what's already in the cart).
+  const availableIn = (product, batch) => {
+    const inCart = stagedCart
+      .filter((l) => l && (l.batchId === batch.id || l.id === `${product.catalogItemId || product.id}-${batch.id}`))
+      .reduce((s, l) => s + (Number(l.quantity) || 0), 0);
+    return Math.max(0, Math.round((Number(batch.quantity || 0) - inCart) * 100) / 100);
+  };
+
+  const openAmount = (product, batch) => {
+    setPicked({ product, batch });
+    setQty(1);
+    setWeightDraft('');
+    setReason('given_out');
+  };
+
+  const handlePickProduct = (product) => {
+    const batches = batchesOf(product);
+    if (batches.length > 1) setPicked({ product, batch: null });
+    else openAmount(product, batches[0]);
+  };
+
+  const goBack = () => {
+    if (picked?.batch && batchesOf(picked.product).length > 1) setPicked({ product: picked.product, batch: null });
+    else if (startProduct) onClose?.(); // opened from a scan: there's no grid behind it
+    else setPicked(null);
+  };
+
+  // Opened from a scan: go straight to that item's steps.
+  useEffect(() => {
+    if (isOpen && startProduct) handlePickProduct(startProduct);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, startProduct]);
+
+  const step = !picked ? 'grid' : picked.batch ? 'amount' : 'batch';
+  const pickedIsWeight = picked ? isWeightUnit(picked.product.unit) : false;
+  const pickedAvailable = picked?.batch ? availableIn(picked.product, picked.batch) : 0;
+  const chosenAmount = pickedIsWeight
+    ? Math.min(pickedAvailable, Math.round((parseFloat(weightDraft) || 0) * 100) / 100)
+    : Math.min(pickedAvailable, qty);
+  const canStage = chosenAmount > 0;
+
+  const handleStage = () => {
+    if (!picked?.batch || !canStage) return;
+    const { product, batch } = picked;
+    onStageItem?.({
+      id: `${product.catalogItemId || product.id}-${batch.id}`,
+      batchId: batch.id,
+      catalogItemId: product.catalogItemId || product.id,
+      name: product.name,
+      category: product.category,
+      categoryName: product.category,
+      unit: product.unit || 'units',
+      quantity: chosenAmount,
+      reason,
+      expirationDate: batch.expirationDate || null,
+      expirationPrecision: batch.expirationPrecision || 'none',
+      availableBatchStock: Number(batch.quantity || product.totalQuantity || 1),
+      photoUrl: product.photoUrl || null,
+      barcode: product.barcode || null,
+      donorName: batch.donorName || null,
+      sourceType: batch.sourceType || null,
+    });
+  };
 
   // Lock background scroll when open
   useEffect(() => {
@@ -278,8 +585,18 @@ export function NoBarcodeVisualGridSheet({
           >
             {/* Header */}
             <div className="relative flex items-center justify-center pt-4 pb-3.5 shrink-0">
+              {step !== 'grid' && (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="absolute left-4 p-1 text-gray-500 active:text-[#1a1f36] transition-colors"
+                  aria-label="Back"
+                >
+                  <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+                </button>
+              )}
               <h2 className="text-[17px] font-medium text-[#1a1f36] tracking-tight">
-                Inventory
+                {step === 'grid' ? 'Inventory' : step === 'batch' ? 'Take from' : 'How much'}
               </h2>
               <button
                 type="button"
@@ -291,6 +608,8 @@ export function NoBarcodeVisualGridSheet({
               </button>
             </div>
 
+            {step === 'grid' && startProduct ? null : step === 'grid' ? (
+            <>
             {/* Search Input */}
             <div className="px-5 pt-1 pb-2 shrink-0">
               <div className="relative flex items-center">
@@ -318,7 +637,8 @@ export function NoBarcodeVisualGridSheet({
             {/* Quick Filter Pills (All, Expiring Soon, No Date, Categories) */}
             <div className="shrink-0 border-b border-gray-100 pb-3">
               <div className="flex gap-2.5 overflow-x-auto px-6 pt-1 scroll-smooth touch-pan-x overscroll-x-contain [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {filterPillList.map((pill) => {
+                {/* Hide empty filters; "All" and the active one always stay. */}
+                {filterPillList.filter((pill) => pill.count > 0 || pill.id === 'all' || pill.id === selectedCategory).map((pill) => {
                   const isActive = selectedCategory === pill.id;
                   return (
                     <button
@@ -389,11 +709,11 @@ export function NoBarcodeVisualGridSheet({
                         key={product.catalogItemId || product.id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => onSelectProduct && onSelectProduct(product)}
+                        onClick={() => handlePickProduct(product)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            onSelectProduct && onSelectProduct(product);
+                            handlePickProduct(product);
                           }
                         }}
                         className="bg-white border border-gray-200 hover:border-orange-300 active:border-[#d97757] rounded-lg p-3 flex flex-col text-center transition-all active:scale-[0.98] shadow-sm group relative cursor-pointer"
@@ -434,16 +754,16 @@ export function NoBarcodeVisualGridSheet({
                           {product.name}
                         </h4>
 
-                        {/* Add to Cart Button */}
+                        {/* Take out: opens the item in this sheet (batch, then amount) */}
                         <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onSelectProduct && onSelectProduct(product);
+                                handlePickProduct(product);
                               }}
                               className="w-full flex items-center justify-center py-2.5 rounded-md bg-[#d97757] text-white text-[13px] font-semibold hover:bg-[#c66547] transition-all active:scale-95 shadow-sm mt-auto"
                             >
-                              Add to Cart
+                              Take out
                             </button>
                       </div>
                     );
@@ -451,6 +771,25 @@ export function NoBarcodeVisualGridSheet({
                 </div>
               )}
             </div>
+            </>
+            ) : (
+              <ItemStep
+                step={step}
+                picked={picked}
+                availableIn={availableIn}
+                onPickBatch={(batch) => openAmount(picked.product, batch)}
+                isWeight={pickedIsWeight}
+                available={pickedAvailable}
+                qty={qty}
+                setQty={setQty}
+                weightDraft={weightDraft}
+                setWeightDraft={setWeightDraft}
+                reason={reason}
+                setReason={setReason}
+                canStage={canStage}
+                onStage={handleStage}
+              />
+            )}
           </motion.div>
         </div>
       )}
