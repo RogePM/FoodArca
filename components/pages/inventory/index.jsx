@@ -193,20 +193,22 @@ export function InventoryView() {
       if (!item.expirationDate) noDateCount++;
     });
 
+    // Empty status pills are hidden ("All" always stays). The active pill is kept even at 0 so a
+    // filter selected from the URL, or one whose last item was just removed, doesn't vanish.
     const list = [
       { id: 'ALL', name: 'All', count: allBatchedInventory.length, isCategory: false },
       { id: 'EXPIRING', name: 'Expiring Soon', count: expiringSoonCount, isCategory: false },
       { id: 'EXPIRED', name: 'Expired', count: expiredCount, isCategory: false },
       { id: 'LOW', name: 'Low Stock', count: lowStockCount, isCategory: false },
       { id: 'NO_DATE', name: 'No Date', count: noDateCount, isCategory: false },
-    ];
+    ].filter((pill) => pill.id === 'ALL' || pill.count > 0 || pill.id === activeFilter);
 
     categories.forEach((cat) => {
       const count = allBatchedInventory.filter((item) =>
         matchesCategoryFilter(item.category, cat.value)
       ).length;
 
-      if (count > 0) {
+      if (count > 0 || cat.value === activeFilter) {
         list.push({
           id: cat.value,
           name: cat.name,
@@ -217,7 +219,7 @@ export function InventoryView() {
     });
 
     return list;
-  }, [allBatchedInventory]);
+  }, [allBatchedInventory, activeFilter]);
 
   // Filter and sort items based on search query, filter pill, and sort config
   const batchedInventory = useMemo(() => {
