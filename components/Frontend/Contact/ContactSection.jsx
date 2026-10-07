@@ -117,7 +117,7 @@ export default function ContactSection({ initialTopic = 'plans' }) {
               <h2 className="font-serif text-[1.35rem] text-hero-main">Looking for something else?</h2>
               <ul className="mt-4 space-y-2.5 text-[15px]">
                 <li><a href="/pricing" className="font-semibold text-[#B95B3E] hover:text-[#9A4A30]">See plans and pricing</a></li>
-                <li><a href="/features" className="font-semibold text-[#B95B3E] hover:text-[#9A4A30]">See what Food Arca does</a></li>
+                <li><a href="/how-it-works" className="font-semibold text-[#B95B3E] hover:text-[#9A4A30]">See how Food Arca works</a></li>
                 <li><a href="/terms" className="font-semibold text-[#B95B3E] hover:text-[#9A4A30]">Read the terms</a></li>
               </ul>
             </div>

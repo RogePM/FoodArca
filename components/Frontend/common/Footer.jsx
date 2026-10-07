@@ -32,7 +32,7 @@ export default function Footer() {
             <h4 className="font-serif text-[#FAFAF9] mb-6 text-lg tracking-wide">Platform</h4>
             <ul className="space-y-4 text-[15px] text-[#A8A29E]">
               {[
-                { name: 'Features', href: '/features' },
+                { name: 'How it works', href: '/how-it-works' },
                 { name: 'Pricing', href: '/pricing' },
               ].map((item) => (
                 <li key={item.name}>

@@ -8,7 +8,7 @@ import { useAuthAction } from '@/lib/use-auth-action';
 // Ordered by the questions a visitor asks: what does it do, what does it cost, how do I reach you.
 // Legal pages (Privacy, Terms) live in the footer, not here.
 const NAV_LINKS = [
-  { name: 'Features', href: '/features' },
+  { name: 'How it works', href: '/how-it-works' },
   { name: 'Pricing', href: '/pricing' },
   { name: 'Contact', href: '/contact' },
 ];

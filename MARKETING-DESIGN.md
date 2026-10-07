@@ -145,7 +145,7 @@ Barely there. Cards use `shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]`. Phone mock u
 ### Navigation (`components/frontNav/NavBar.jsx`)
 - Fixed at the top. White with a hairline border and soft shadow at the top of the page; cream with no border once scrolled ("compact").
 - Left: leaf icon in terracotta plus "Food Arca" in serif. Centre: links in `text-sm font-medium text-[#57534E]`, hover terracotta. Right: terracotta pill "Try for free". Hamburger below `lg`.
-- Links today: Features (`/features`), Distribution, Pricing. Two of these still point at `/`. Fix them when those pages exist.
+- Links today: How it works (`/how-it-works`), Pricing, Contact. Ordered by what a visitor asks: what does it do, what does it cost, how do I reach you. Legal pages live in the footer. The current page is terracotta.
 
 ### Buttons
 - **Primary:** `rounded-full bg-brand-primary px-7/8 py-3 font-inter text-[15px] font-semibold text-white`, arrow icon after the label, lifts 2px and gains a soft terracotta glow on hover. One per view.
@@ -217,13 +217,13 @@ Dark `#1C1917`, with a faint "Arca" watermark, the leaf logo and column links. I
 4. One primary button per view, labelled "Try for free" (or the real action). Everything else is secondary or a text link.
 5. Add `stagger-animate opacity-0` to the header and the main blocks, and make sure `GlobalScrollObserver` is on the page (the home page mounts it; mount it on new pages too).
 6. Check it at phone width (stack columns, full-width buttons) and with reduced motion.
-7. Update the nav links if the page is new (Pricing and Distribution currently point at `/`).
+7. Update the nav links if the page is new, and add it to `PUBLIC_PATHS` in `lib/site.js`.
 
 ### Page ideas that fit this system
 - **Pricing:** header, then plan rows or three plain cards from `lib/plans.js`, a short billing FAQ, a closing call to action.
 - **Contact:** header, a short form with name, organization, message and reply email, then the email as a text line.
 - **Privacy / Terms:** a narrow reading column (`max-w-3xl`), serif headings, light body text, plenty of space. No visuals.
-- **Features / How it works:** reuse the feature stack and scene panels; add scenes rather than new styles.
+- **How it works** (`/how-it-works`, built): setup steps, then alternating text and scene rows (`components/Frontend/HowItWorks/JobScene.jsx`, scenes in `FeatureScenes.jsx`), roles, FAQ, closing call to action. The old `/features` redirects here.
 
 ---
 

@@ -19,10 +19,10 @@ export default function CTAActions() {
       </button>
 
       <a
-        href="/features"
+        href="/how-it-works"
         className="inline-flex w-full items-center justify-center rounded-full border border-[#E7E5E4] bg-white px-7 py-3 font-inter text-[15px] font-semibold text-[#1C1917] transition-colors duration-300 hover:border-[#D6D3D1] hover:bg-[#F5F5F4] sm:w-auto"
       >
-        Explore features
+        See how it works
       </a>
     </div>
   );

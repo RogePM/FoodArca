@@ -312,6 +312,131 @@ function ReportScene() {
 
 export const SCENES = [ScanScene, DevicesScene, ReportScene];
 
+/* How it works hero: one delivery from scan to stock. The scan lands, the checklist ticks off,
+   then the new count arrives on every device at the same moment, with an expiry heads-up below. */
+const HERO_CHECKS = [
+  { label: 'Category set: Canned goods', d: 1300 },
+  { label: 'Expiration date saved', d: 1900 },
+  { label: 'Added to inventory', d: 2500 },
+];
+const HERO_DEVICES = [
+  { Icon: Smartphone, label: 'Front desk phone', d: 3800 },
+  { Icon: Tablet, label: 'Warehouse tablet', d: 3950 },
+  { Icon: Laptop, label: 'Office laptop', d: 4100 },
+];
+
+export function HeroScene() {
+  return (
+    <>
+      <Step d={0} className={`${card} flex items-center gap-3 p-3 sm:p-4`}>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F3F4F6] text-[#57534E]">
+          <Package size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14px] font-medium text-[#1C1917]">Black Beans, 15 oz</p>
+          <p className="text-[12.5px] text-[#57534E]">Barcode scanned at the door</p>
+        </div>
+        <span className="scene-in rounded-md bg-[#1A1F36] px-2 py-1 text-[11px] font-medium text-white" style={{ '--d': '700ms' }}>
+          Found
+        </span>
+      </Step>
+
+      <ul className="flex flex-col gap-2.5 px-3 py-2">
+        {HERO_CHECKS.map(({ label, d }) => (
+          <Step key={label} d={d}>
+            <li className="flex items-center gap-2.5 text-[13px] text-[#57534E]">
+              <Tick d={d + 350} />
+              {label}
+            </li>
+          </Step>
+        ))}
+      </ul>
+
+      <Step d={3300} className={`${card} p-3 sm:p-4`}>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[14px] font-medium text-[#1C1917]">Black Beans in stock</p>
+          <span className="text-[24px] font-semibold leading-none text-[#1C1917]">
+            <Count from={48} to={60} d={4300} />
+          </span>
+        </div>
+        {HERO_DEVICES.map(({ Icon, label, d }) => (
+          <div
+            key={label}
+            className="scene-flash flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] text-[#1C1917]"
+            style={{ '--d': '4300ms' }}
+          >
+            <Icon size={15} className="text-[#57534E]" />
+            <span className="scene-in flex-1" style={{ '--d': `${d}ms` }}>{label}</span>
+            <span className="font-semibold">
+              <Count from={48} to={60} d={4300} />
+            </span>
+          </div>
+        ))}
+      </Step>
+
+      <Step d={5000} className={`${card} flex items-center gap-3 px-3 py-2.5`}>
+        <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+        <span className="flex-1 text-[13px] text-[#1C1917]">Pasta, 16 oz</span>
+        <span className="text-[12.5px] text-[#57534E]">Expires in 6 days</span>
+      </Step>
+    </>
+  );
+}
+
+/* Giving food out (How it works page): scan items into a cart, give them out with no names
+   needed, and the stock count drops. */
+const CART_LINES = [
+  { name: 'Brown Rice, 5 lb', qty: 1, d: 500 },
+  { name: 'Pasta, 16 oz', qty: 2, d: 900 },
+  { name: 'Canned Corn, 15 oz', qty: 1, d: 1300 },
+];
+
+export function GiveOutScene() {
+  return (
+    <>
+      <Step d={0} className={`${card} w-full p-3 sm:p-4`}>
+        <div className="mb-1 flex items-center justify-between">
+          <p className="text-[14px] font-medium text-[#1C1917]">Cart</p>
+          <span className="text-[12px] text-[#57534E]">4 items</span>
+        </div>
+        <ul className="text-[13px] text-[#57534E]">
+          {CART_LINES.map(({ name, qty, d }) => (
+            <Step key={name} d={d}>
+              <li className="flex items-center border-t border-gray-100 py-2">
+                <span className="min-w-0 flex-1 truncate">{name}</span>
+                <span className="tabular-nums text-[#1C1917]">x{qty}</span>
+              </li>
+            </Step>
+          ))}
+        </ul>
+      </Step>
+
+      <Step d={1900} className={`${card} flex w-full items-center gap-3 px-3 py-2.5`}>
+        <span className="flex-1 text-[13px] text-[#57534E]">Who it is for</span>
+        <span className="text-[13px] font-medium text-[#1C1917]">No name needed</span>
+      </Step>
+
+      <Step d={2500} className="w-full">
+        <div className="relative">
+          <div className="flex h-11 items-center justify-center rounded-xl bg-[#D97757] text-[14px] font-semibold text-white">
+            <span className="scene-out" style={{ '--d': '3400ms' }}>Give out</span>
+          </div>
+          <div className="scene-in absolute inset-0 flex items-center justify-center gap-1.5 rounded-xl bg-[#1A1F36] text-[14px] font-semibold text-white" style={{ '--d': '3500ms' }}>
+            <Check size={14} strokeWidth={3} /> Given out
+          </div>
+        </div>
+      </Step>
+
+      <Step d={3900} className={`${card} flex w-[72%] items-center justify-between self-end px-3 py-2.5`}>
+        <span className="text-[13px] text-[#57534E]">Pasta, 16 oz in stock</span>
+        <span className="text-[16px] font-semibold text-[#1C1917]">
+          <Count from={36} to={34} d={4300} />
+        </span>
+      </Step>
+    </>
+  );
+}
+
 // Soft contour lines behind the cards, same idea as the page's hills.
 export function SceneLines() {
   return (
