@@ -6,7 +6,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Minus, Plus, ChevronLeft, ChevronRight, RotateCw, Hash, Scale } from 'lucide-react';
+import { Minus, Plus, ChevronLeft, ChevronRight, RotateCw, Hash, Scale, Check } from 'lucide-react';
 import { SIZE_UNITS, formatStorage, lastDayOfMonth } from '@/lib/inventory-format';
 import { CategoryGlyph } from '@/components/ui/category-glyph';
 import { BottomSheet } from './intake-fields';
@@ -247,10 +247,19 @@ export function PillButton({ children, onClick, disabled, className = '' }) {
 // Category page
 // ---------------------------------------------------------------------------
 
-// The drawings are mostly white line art, so they sit straight on the card (no gray chip) and
-// large enough to recognise before reading the name.
-function CategoryIcon({ name, size = 64 }) {
-  return <CategoryGlyph category={name} className={`${size === 64 ? 'w-16 h-16' : 'w-12 h-12'} object-contain object-left-bottom`} />;
+// Every drawing sits centered in the same light well, so tiles line up like photos whatever the
+// drawing's shape, and the drawings' white fills read against the gray.
+function CategoryArt({ name, on, compact = false }) {
+  return (
+    <span className={`relative shrink-0 rounded-xl bg-gray-50 flex items-center justify-center ${compact ? 'w-14 h-14' : 'w-full h-[76px]'}`}>
+      <CategoryGlyph category={name} className={`${compact ? 'w-10 h-10' : 'w-14 h-14'} object-contain`} />
+      {on && (
+        <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#1a1f36] text-white flex items-center justify-center">
+          <Check className="w-3 h-3" strokeWidth={3} />
+        </span>
+      )}
+    </span>
+  );
 }
 
 export function CategoryPage({ open, onBack, categories, selectedId, onSelect }) {
@@ -264,8 +273,10 @@ export function CategoryPage({ open, onBack, categories, selectedId, onSelect })
     ],
   })).filter((g) => g.items.length > 0);
   const other = categories.find((c) => c.name === OTHER);
+  // Selected: ink outline (One Accent Rule — orange stays on the primary button). The ring adds
+  // the extra half pixel without shifting the tile.
   const tileClass = (on) =>
-    `text-[#1a1f36] text-left ${on ? 'border-[1.5px] border-[#1a1f36] bg-gray-50' : 'border border-gray-200 bg-white active:bg-gray-50'}`;
+    `text-[#1a1f36] text-left bg-white border transition-colors ${on ? 'border-[#1a1f36] ring-1 ring-[#1a1f36]' : 'border-gray-200 active:bg-gray-50'}`;
 
   return (
     <SlidePage open={open} onBack={onBack} title="Pick a category">
@@ -286,14 +297,14 @@ export function CategoryPage({ open, onBack, categories, selectedId, onSelect })
                         type="button"
                         aria-pressed={on}
                         onClick={() => onSelect(c)}
-                        className={`p-3 pt-2 rounded-2xl flex flex-col items-start gap-1 ${tileClass(on)}`}
+                        className={`p-2 rounded-2xl flex flex-col items-stretch gap-2 ${tileClass(on)}`}
                       >
-                        <CategoryIcon name={c.name} />
-                        <span className="w-full min-w-0 flex flex-col gap-0.5">
-                          <span className="text-[14px] font-medium leading-tight">{c.name}</span>
-                          {CATEGORY_TILE[c.name] && (
-                            <span className="text-[11.5px] leading-snug text-gray-500">{CATEGORY_TILE[c.name].hint}</span>
-                          )}
+                        <CategoryArt name={c.name} on={on} />
+                        <span className="px-1 pb-1 min-w-0 flex flex-col gap-0.5">
+                          <span className="text-[14px] font-medium leading-tight truncate">{c.name}</span>
+                          <span className="text-[12px] leading-snug text-gray-500 line-clamp-2 min-h-[33px]">
+                            {CATEGORY_TILE[c.name]?.hint}
+                          </span>
                         </span>
                       </button>
                     );
@@ -306,9 +317,9 @@ export function CategoryPage({ open, onBack, categories, selectedId, onSelect })
                 type="button"
                 aria-pressed={selectedId === other.id}
                 onClick={() => onSelect(other)}
-                className={`w-full min-h-16 p-2.5 rounded-2xl flex items-center gap-2.5 ${tileClass(selectedId === other.id)}`}
+                className={`w-full p-2 rounded-2xl flex items-center gap-3 ${tileClass(selectedId === other.id)}`}
               >
-                <CategoryIcon name={OTHER} size={48} />
+                <CategoryArt name={OTHER} on={selectedId === other.id} compact />
                 <span className="flex-1 min-w-0 flex flex-col gap-px">
                   <span className="text-[14px] font-medium">{OTHER}</span>
                   <span className="text-[12px] text-gray-500">{CATEGORY_TILE[OTHER].hint}</span>

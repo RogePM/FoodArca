@@ -12,10 +12,12 @@ import {
   Minus,
   ChevronLeft,
   ChevronRight,
+  Check,
 } from 'lucide-react';
 import { categories, getCategoryName, getCategoryVisual } from '@/lib/constants';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { formatDate } from '../inventory/inventory-utils';
+import { CategoryGlyph } from '@/components/ui/category-glyph';
 
 // Why it's leaving. "Given out" is the default; the rest are recorded as thrown out.
 export const REMOVE_REASONS = [
@@ -121,14 +123,15 @@ function getProductExpirationMeta(product) {
   };
 }
 
-function ItemThumb({ product, size = 'w-14 h-14' }) {
-  const catVisual = getCategoryVisual(product.category);
-  return product.photoUrl ? (
-    <img src={product.photoUrl} alt="" className={`${size} rounded-lg object-cover border border-gray-100 shrink-0 bg-gray-50`} />
-  ) : (
-    <div className={`${size} rounded-lg flex items-center justify-center shrink-0 border border-gray-100 overflow-hidden ${catVisual.style.bg}`}>
-      <img src={catVisual.imagePath} alt="" className="w-full h-full object-contain mix-blend-multiply scale-[1.35]" />
-    </div>
+// Photo, or the new category drawing on a light tile (same as the Remove landing and Add pages).
+function ItemThumb({ product }) {
+  if (product.photoUrl) {
+    return <img src={product.photoUrl} alt="" className="w-14 h-14 shrink-0 rounded-xl border border-gray-100 bg-gray-50 object-cover" />;
+  }
+  return (
+    <span className="w-14 h-14 shrink-0 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center">
+      <CategoryGlyph category={product.category} className="w-9 h-9" />
+    </span>
   );
 }
 
@@ -139,7 +142,7 @@ const expText = (batch) => {
 
 // The sheet's item view: "Take from" (batch list) or "How much" (amount + optional reason).
 function ItemStep({
-  step, picked, availableIn, onPickBatch,
+  step, picked, availableIn, inCartFor, onPickBatch,
   isWeight, available, qty, setQty, weightDraft, setWeightDraft,
   reason, setReason, canStage, onStage,
 }) {
@@ -158,6 +161,9 @@ function ItemStep({
             <h3 className="text-[16px] font-medium text-[#1a1f36] leading-snug truncate">{product.name}</h3>
             <p className="text-[13px] text-gray-500 mt-0.5">
               {amountWithUnit(product.totalQuantity ?? batches.reduce((s, b) => s + Number(b.quantity || 0), 0), unit)} in stock
+              {inCartFor(product) > 0 && (
+                <span className="text-[#b5583a]"> · {amountWithUnit(inCartFor(product), unit).replace(/ items?$/, '')} in cart</span>
+              )}
             </p>
           </div>
         </div>
@@ -188,6 +194,9 @@ function ItemStep({
                       </div>
                       <span className="text-[13px] text-gray-500">
                         {empty ? 'All in cart' : `${amountWithUnit(free, unit)} available`}
+                        {!empty && inCartFor(product, b) > 0 && (
+                          <span className="text-[#b5583a]"> · {amountWithUnit(inCartFor(product, b), unit).replace(/ items?$/, '')} in cart</span>
+                        )}
                       </span>
                     </div>
                     {!empty && <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={2} />}
@@ -201,7 +210,12 @@ function ItemStep({
             {/* Which batch */}
             <div className="mt-4 flex items-center justify-between text-[13px]">
               <span className="text-gray-600">{expText(batch)}</span>
-              <span className="text-gray-500">{amountWithUnit(available, unit)} available</span>
+              <span className="text-gray-500">
+                {amountWithUnit(available, unit)} available
+                {inCartFor(product, batch) > 0 && (
+                  <span className="text-[#b5583a]"> · {amountWithUnit(inCartFor(product, batch), unit).replace(/ items?$/, '')} in cart</span>
+                )}
+              </span>
             </div>
 
             {/* Amount */}
@@ -304,7 +318,7 @@ function ItemStep({
             disabled={!canStage}
             className="w-full h-[50px] rounded-full bg-[#d97757] text-white text-[15px] font-semibold active:bg-[#c66547] active:scale-[0.99] disabled:opacity-40 transition-all"
           >
-            Add to cart
+            {inCartFor(product, batch) > 0 ? 'Add more to cart' : 'Add to cart'}
           </button>
         </div>
       )}
@@ -372,13 +386,17 @@ export function NoBarcodeVisualGridSheet({
     }
   }, [isOpen, initialCategory]);
 
-  // How much of a batch is still free (minus what's already in the cart).
-  const availableIn = (product, batch) => {
-    const inCart = stagedCart
+  // How much of a batch is already in the cart; with no batch, the whole item.
+  const inCartFor = (product, batch) => {
+    if (!batch) return Math.round(batchesOf(product).reduce((s, b) => s + inCartFor(product, b), 0) * 100) / 100;
+    return stagedCart
       .filter((l) => l && (l.batchId === batch.id || l.id === `${product.catalogItemId || product.id}-${batch.id}`))
       .reduce((s, l) => s + (Number(l.quantity) || 0), 0);
-    return Math.max(0, Math.round((Number(batch.quantity || 0) - inCart) * 100) / 100);
   };
+
+  // How much of a batch is still free (minus what's already in the cart).
+  const availableIn = (product, batch) =>
+    Math.max(0, Math.round((Number(batch.quantity || 0) - inCartFor(product, batch)) * 100) / 100);
 
   const openAmount = (product, batch) => {
     setPicked({ product, batch });
@@ -701,7 +719,7 @@ export function NoBarcodeVisualGridSheet({
               ) : (
                 <div className="grid grid-cols-2 gap-3.5">
                   {filteredProducts.map((product) => {
-                    const catVisual = getCategoryVisual(product.category);
+                
                     const batchCount = product.batches?.length || 1;
 
                     return (
@@ -719,7 +737,7 @@ export function NoBarcodeVisualGridSheet({
                         className="bg-white border border-gray-200 hover:border-orange-300 active:border-[#d97757] rounded-lg p-3 flex flex-col text-center transition-all active:scale-[0.98] shadow-sm group relative cursor-pointer"
                       >
                         {/* Image / Icon Box */}
-                        <div className={`aspect-[4/3] w-full rounded-md flex items-center justify-center relative overflow-hidden mb-2 border border-gray-100/60 ${product.photoUrl ? 'bg-gray-50' : catVisual.style.bg}`}>
+                        <div className={`aspect-[4/3] w-full rounded-md flex items-center justify-center relative overflow-hidden mb-2 border border-gray-100/60 bg-gray-50`}>
                           {product.photoUrl ? (
                             <img
                               src={product.photoUrl}
@@ -727,14 +745,14 @@ export function NoBarcodeVisualGridSheet({
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center p-1">
-                              <img 
-                                src={catVisual.imagePath} 
-                                alt={catVisual.name} 
-                                loading="lazy"
-                                decoding="async"
-                                className="w-full h-full object-contain drop-shadow-sm group-hover:scale-110 transition-transform duration-300 mix-blend-multiply"
-                              />
+                            <CategoryGlyph category={product.category} className="w-[52%] h-[64%] object-contain" />
+                          )}
+
+                          {/* Already in the cart (Top-Right) */}
+                          {inCartFor(product) > 0 && (
+                            <div className="absolute top-2 right-2 bg-[#fbeee9] text-[#b5583a] text-[10.5px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                              <Check className="w-3 h-3" strokeWidth={2.6} />
+                              <span>{amountWithUnit(inCartFor(product), product.unit).replace(/ items?$/, '')} in cart</span>
                             </div>
                           )}
 
@@ -777,6 +795,7 @@ export function NoBarcodeVisualGridSheet({
                 step={step}
                 picked={picked}
                 availableIn={availableIn}
+                inCartFor={inCartFor}
                 onPickBatch={(batch) => openAmount(picked.product, batch)}
                 isWeight={pickedIsWeight}
                 available={pickedAvailable}

@@ -27,12 +27,63 @@ import {
   AlertTriangle,
   Clock,
   TrendingDown,
+  Check,
 } from 'lucide-react';
 import { categories, getCategoryVisual } from '@/lib/constants';
-import { usePantry } from '@/components/providers/PantryProvider';
+import { CategoryGlyph } from '@/components/ui/category-glyph';
 import { summarizeAmounts } from '@/lib/inventory-format';
 import { REMOVE_REASONS } from './no-barcode-visual-grid-sheet';
-import { groupInventoryBatches, getUrgentStatusStyles } from '@/components/pages/inventory/inventory-utils';
+import { BottomSheet } from '@/components/pages/add-items/intake-fields';
+import { RemoveLanding } from './remove-landing';
+
+const MAX_PHOTOS = 6;
+// The cart's own photos, overlapped (same as the Add cart). Lines without a photo are skipped.
+function CartPhotos({ photos }) {
+  if (!photos?.length) return null;
+  return (
+    <div className="flex pl-2" aria-hidden="true">
+      {photos.map((p) => (
+        <img key={p.id} src={p.url} alt="" referrerPolicy="no-referrer" className="-ml-2 w-10 h-10 shrink-0 rounded-full border-2 border-white bg-gray-50 object-cover" />
+      ))}
+    </div>
+  );
+}
+
+// Items + Reason, the same two rows on Confirm and Removed.
+function CartSummary({ total, reasons }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 px-3.5 divide-y divide-gray-100 text-[14px] text-left">
+      <div className="min-h-[52px] flex items-center justify-between gap-3">
+        <span className="shrink-0 text-gray-500">Items</span>
+        <span className="text-[15px] font-semibold">{total}</span>
+      </div>
+      <div className="min-h-[52px] flex items-center justify-between gap-3">
+        <span className="shrink-0 text-gray-500">Reason</span>
+        <span className="min-w-0 truncate text-right font-medium text-[#1a1f36]">{reasons}</span>
+      </div>
+    </div>
+  );
+}
+
+// Bottom sheet with the Add cart's confirm layout: title, one line, then filled + outlined buttons.
+function ConfirmSheet({ open, onClose, id, title, body, children, primary, primaryClass, onPrimary, secondary }) {
+  return (
+    <BottomSheet open={open} onClose={onClose} labelledBy={id}>
+      <div className="flex justify-center pt-2.5"><span className="w-10 h-[5px] rounded-full bg-gray-200" /></div>
+      <h2 id={id} className="px-4 pt-3.5 text-[17px] font-semibold tracking-[-0.01em] text-[#1a1f36]">{title}</h2>
+      {body && <p className="px-4 pt-0.5 text-[13px] text-gray-500">{body}</p>}
+      {children}
+      <div className="px-4 pt-5 pb-[calc(28px+env(safe-area-inset-bottom))] flex flex-col gap-2">
+        <button type="button" onClick={onPrimary} className={`w-full h-[52px] rounded-full text-white text-[16px] font-semibold ${primaryClass}`}>
+          {primary}
+        </button>
+        <button type="button" onClick={onClose} className="w-full h-[52px] rounded-2xl border border-gray-300 bg-white text-[16px] font-semibold text-[#1a1f36] active:bg-gray-50">
+          {secondary}
+        </button>
+      </div>
+    </BottomSheet>
+  );
+}
 
 function formatItemExpiration(dateStr) {
   if (!dateStr) return '';
@@ -109,10 +160,12 @@ export function MobileCheckoutCartView({
   cartItems = [],
   onUpdateQuantity,
   onRemoveItem,
+  onRestoreItem,
   onClearCart,
   onOpenScanner,
   onOpenVisualGrid,
   onCheckout,
+  onOpenProduct,
   isSubmitting = false,
   checkoutSuccess = '',
   checkoutError = '',
@@ -120,13 +173,7 @@ export function MobileCheckoutCartView({
 }) {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [isVisualGridOpen, setIsVisualGridOpen] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('all');
   const [mounted, setMounted] = useState(false);
-  const [localInventory, setLocalInventory] = useState([]);
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
-  const { pantryId, pantryDetails } = usePantry();
   const [scrolled, setScrolled] = useState(false);
   const [pillOpen, setPillOpen] = useState(false); // circle tapped: show the ways in again
   const [isScrolling, setIsScrolling] = useState(false); // hide the floating control mid-scroll so it never sits on a row
@@ -135,57 +182,9 @@ export function MobileCheckoutCartView({
   // Few items and at the top (or the circle was tapped): show the pill. Otherwise the round button.
   const addExpanded = (cartItems.length <= 3 && !scrolled) || pillOpen;
 
-  const handleOpenVisualGrid = (filter = 'all') => {
-    setActiveFilter(filter);
-    setIsVisualGridOpen(true);
-  };
-
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (cartItems.length > 0 || !pantryId) return;
-    
-    let isMounted = true;
-    const fetchInventory = async () => {
-      setIsLoadingStats(true);
-      try {
-        const res = await fetch('/api/foods', { headers: { 'x-pantry-id': pantryId } });
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data && Array.isArray(data.data)) {
-            setLocalInventory(data.data);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching inventory stats:', err);
-      } finally {
-        if (isMounted) setIsLoadingStats(false);
-      }
-    };
-    fetchInventory();
-    return () => { isMounted = false; };
-  }, [pantryId, cartItems.length]);
-
-  const inventoryStats = React.useMemo(() => {
-    let expired = 0;
-    let expiringSoon = 0;
-    let lowStock = 0;
-    let noDate = 0;
-
-    const allBatchedInventory = groupInventoryBatches(localInventory);
-
-    allBatchedInventory.forEach((item) => {
-      const statusStyles = getUrgentStatusStyles(item);
-      if (statusStyles.isExpired) expired++;
-      if (statusStyles.isExpiring) expiringSoon++;
-      if (statusStyles.isLowStock) lowStock++;
-      if (!item.expirationDate) noDate++;
-    });
-
-    return { expired, expiringSoon, lowStock, noDate };
-  }, [localInventory]);
 
   // Counted items and pounds are totalled apart: "12 items + 4 lb", never "16 items".
   const totals = summarizeAmounts(
@@ -199,15 +198,46 @@ export function MobileCheckoutCartView({
     totals.lbs > 0 ? { n: Math.round(totals.lbs * 100) / 100, label: 'lb' } : null,
   ].filter(Boolean);
   const totalText = totals.text.replace(' · ', ' + ');
+  const countText = `${cartItems.length} ${cartItems.length === 1 ? 'item' : 'items'}`;
+  const photos = cartItems.filter((l) => l.photoUrl).slice(0, MAX_PHOTOS).map((l) => ({ id: l.id || l.batchId, url: l.photoUrl }));
+  // "Given out", or "Given out · Expired" when the cart mixes reasons.
+  const reasonsText = REMOVE_REASONS
+    .filter((r) => cartItems.some((l) => (l.reason || 'given_out') === r.value))
+    .map((r) => r.label)
+    .join(' · ');
+  const [done, setDone] = useState(null); // { total, count, reasons, photos } of the cart that just checked out
+  const [removed, setRemoved] = useState(null); // { line, index } for Undo
+  const undoTimer = useRef(null);
+  useEffect(() => () => clearTimeout(undoTimer.current), []);
+
+  const removeLine = (line) => {
+    const index = cartItems.indexOf(line);
+    setRemoved({ line, index });
+    onRemoveItem?.(line.id);
+    clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => setRemoved(null), 5000);
+  };
+
+  const undoRemove = () => {
+    if (!removed) return;
+    onRestoreItem?.(removed.line, removed.index);
+    clearTimeout(undoTimer.current);
+    setRemoved(null);
+  };
 
   const handleConfirmClear = () => {
+    setRemoved(null);
     if (onClearCart) onClearCart();
     setShowClearConfirm(false);
   };
 
-  const handleConfirmSubmit = () => {
+  const handleConfirmSubmit = async () => {
     setShowSubmitConfirm(false);
-    if (onCheckout) onCheckout();
+    if (!onCheckout) return;
+    // Keep what went out for the Removed screen; the flow clears the cart on success.
+    const snapshot = { total: totalText, count: cartItems.length, reasons: reasonsText, photos };
+    const ok = await onCheckout();
+    if (ok) setDone(snapshot);
   };
 
   return (
@@ -216,11 +246,7 @@ export function MobileCheckoutCartView({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className={
-        cartItems.length > 0
-          ? 'absolute inset-0 z-50 bg-white flex flex-col'
-          : 'absolute inset-0 z-50 bg-[#fff7f2] flex flex-col'
-      }
+      className="absolute inset-0 z-50 bg-white flex flex-col"
     >
       {/* ── SCROLLABLE CONTENT (HEADER + CARDS ALL SCROLL TOGETHER) ── */}
       <div
@@ -236,222 +262,14 @@ export function MobileCheckoutCartView({
           clearTimeout(scrollIdleTimer.current);
           setIsScrolling(false);
         }}
-        className="flex-1 overflow-y-auto w-full pb-[calc(120px+env(safe-area-inset-bottom))]"
+        className={`flex-1 overflow-y-auto w-full ${cartItems.length > 0 ? 'pb-[calc(120px+env(safe-area-inset-bottom))]' : 'pb-[calc(clamp(72px,13dvh,104px)+env(safe-area-inset-bottom))]'}`}
       >
         {cartItems.length === 0 ? (
-          <>
-            {/* ─── HEADER BLOCK ─── */}
-            <div className="px-4 pt-safe mt-4">
-              {/* Row: back arrow + tiny label */}
-              <div className="flex items-center gap-1.5 mb-1">
-                {onBack && (
-                  <button
-                    onClick={onBack}
-                    className="p-0.5 -ml-1.5 text-gray-500 active:text-[#1a1f36] transition-colors"
-                  >
-                    <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
-                  </button>
-                )}
-                <span className="text-[12px] text-gray-500 font-bold uppercase tracking-wider">Outbound Checkout</span>
-              </div>
-
-              {/* Action Name */}
-              <h1 className="text-[28px] font-semibold text-[#1a1f36] tracking-tight leading-tight mt-0.5">
-                Remove Items
-              </h1>
-
-              {/* Subtitle / Pantry Name */}
-              <p className="text-[14px] text-gray-500 mt-1.5 flex items-center">
-                From:<span className="font-medium text-gray-700 ml-1.5">{pantryDetails?.name || 'Food Arca'}</span>
-              </p>
-            </div>
-
-            {/* â”€â”€ SEARCH BAR â”€â”€ */}
-            <div className="px-4 mt-6 mb-2">
-              <div
-                className="flex items-center w-full h-[48px] bg-white border border-gray-200 shadow-sm rounded-full px-4 gap-3 cursor-text active:border-gray-300 transition-all"
-                onClick={() => onOpenVisualGrid('all')}
-              >
-                <Search className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={1.8} />
-                <span className="text-[15px] text-gray-500 font-normal select-none">
-                  Find an item in the pantry
-                </span>
-              </div>
-            </div>
-
-            {/* â”€â”€ SCAN & GO CARD â”€â”€ */}
-            <div className="px-4 mt-4">
-              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
-                {/* Top section */}
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col pr-4">
-                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
-                      Scan to Remove
-                    </h2>
-                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
-                      Skip manual entry.{' '}
-                      <button
-                        onClick={() => setShowHowItWorks(true)}
-                        className="underline underline-offset-2 decoration-gray-400 text-[#1a1f36] font-normal"
-                      >
-                        How it works
-                      </button>
-                    </p>
-                  </div>
-
-                  {/* Phone illustration */}
-                  <div className="w-[76px] h-[76px] shrink-0 relative">
-                    <img src="/assets/images/scan-barcode-only.jpg" alt="Scan to Remove" className="w-full h-full object-contain mix-blend-multiply" />
-                  </div>
-                </div>
-
-                {/* Footer pill */}
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-1.5 flex items-center justify-between gap-3 -mx-1.5">
-                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
-                    Uses your device camera
-                  </span>
-                  <button
-                    onClick={onOpenScanner}
-                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
-                  >
-                    Open Scanner
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* â”€â”€ BROWSE ITEMS CARD â”€â”€ */}
-            <div className="px-4 mt-4 mb-6">
-              <div className="border border-gray-200 rounded-2xl bg-white p-3.5">
-                {/* Top section */}
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col pr-4">
-                    <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
-                      Browse Items
-                    </h2>
-                    <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">
-                      Select items visually.
-                    </p>
-                  </div>
-
-                  {/* Grid illustration */}
-                  <div className="w-[76px] h-[76px] shrink-0 relative">
-                    <img src="/assets/images/browse-shelf.jpg" alt="Browse and Select" className="w-full h-full object-contain mix-blend-multiply" />
-                  </div>
-                </div>
-
-                {/* Footer pill */}
-                <div className="bg-gray-50 rounded-xl px-4 sm:px-5 py-3 mt-1.5 flex items-center justify-between gap-3 -mx-1.5">
-                  <span className="text-[13.5px] text-gray-700 font-medium tracking-tight leading-tight">
-                    No barcode needed
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onOpenVisualGrid('all')}
-                    className="h-[36px] px-4 shrink-0 rounded-full bg-[#d97757] text-white text-[13px] font-medium transition-colors hover:bg-[#c66547] active:scale-95 shadow-sm"
-                  >
-                    Open Grid
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* â”€â”€ STATS TILES (CAROUSEL) â”€â”€ */}
-            <div className="mb-8">
-              <div className="px-4 mb-3">
-                <h2 className="text-[21px] font-semibold text-[#1a1f36] tracking-tight leading-snug">
-                  Inventory Alerts
-                </h2>
-              </div>
-              {/* Carousel Container */}
-              <div className="flex gap-3 px-4 overflow-x-auto snap-x scroll-pl-5 scroll-smooth pb-4 -mb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden after:content-[''] after:w-1 after:shrink-0">
-
-                {/* Expired Tile */}
-                <button
-                  type="button"
-                  onClick={() => onOpenVisualGrid('expired')}
-                  className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
-                    <span className="text-[13.5px] font-medium text-[#1a1f36] tracking-tight">
-                      Expired
-                    </span>
-                  </div>
-                  {isLoadingStats ? (
-                    <div className="h-[28px] w-12 bg-gray-100 rounded-md animate-pulse"></div>
-                  ) : (
-                    <span className="text-[30px] font-bold text-[#1a1f36] leading-none tracking-tight">
-                      {inventoryStats.expired}
-                    </span>
-                  )}
-                </button>
-
-                {/* Expiring Soon Tile */}
-                <button
-                  type="button"
-                  onClick={() => onOpenVisualGrid('expiring_soon')}
-                  className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                    <span className="text-[13.5px] font-medium text-[#1a1f36] tracking-tight">
-                      Expiring Soon
-                    </span>
-                  </div>
-                  {isLoadingStats ? (
-                    <div className="h-[28px] w-12 bg-gray-100 rounded-md animate-pulse"></div>
-                  ) : (
-                    <span className="text-[30px] font-bold text-[#1a1f36] leading-none tracking-tight">
-                      {inventoryStats.expiringSoon}
-                    </span>
-                  )}
-                </button>
-
-                {/* Low Stock Tile */}
-                <button
-                  type="button"
-                  onClick={() => onOpenVisualGrid('low_stock')}
-                  className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
-                    <span className="text-[13.5px] font-medium text-[#1a1f36] tracking-tight">
-                      Low Stock
-                    </span>
-                  </div>
-                  {isLoadingStats ? (
-                    <div className="h-[28px] w-12 bg-gray-100 rounded-md animate-pulse"></div>
-                  ) : (
-                    <span className="text-[30px] font-bold text-[#1a1f36] leading-none tracking-tight">
-                      {inventoryStats.lowStock}
-                    </span>
-                  )}
-                </button>
-
-                {/* No Date Tile */}
-                <button
-                  type="button"
-                  onClick={() => onOpenVisualGrid('no_date')}
-                  className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-sm flex flex-col items-start justify-between h-[115px] min-w-[145px] shrink-0 snap-start text-left cursor-pointer active:scale-[0.98] transition-transform"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0"></span>
-                    <span className="text-[13.5px] font-medium text-[#1a1f36] tracking-tight">
-                      No Date
-                    </span>
-                  </div>
-                  {isLoadingStats ? (
-                    <div className="h-[28px] w-12 bg-gray-100 rounded-md animate-pulse"></div>
-                  ) : (
-                    <span className="text-[30px] font-bold text-[#1a1f36] leading-none tracking-tight">
-                      {inventoryStats.noDate}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
-          </>
+          <RemoveLanding
+            onOpenScanner={onOpenScanner}
+            onOpenVisualGrid={onOpenVisualGrid}
+            onOpenProduct={onOpenProduct}
+          />
         ) : (
           <>
             {/* ── TOP CHECKOUT ROW ── */}
@@ -471,12 +289,20 @@ export function MobileCheckoutCartView({
                 </span>
               </div>
               <button
+                disabled={isSubmitting}
                 onClick={() => setShowSubmitConfirm(true)}
-                className="h-[44px] px-6 rounded-full bg-white text-[#b5583a] text-[15px] font-semibold shadow-sm active:scale-95 active:bg-[#fbeee9] transition-all"
+                className="h-[44px] px-6 rounded-full bg-white text-[#b5583a] text-[15px] font-semibold shadow-sm flex items-center gap-1.5 active:scale-95 active:bg-[#fbeee9] disabled:opacity-60 transition-all"
               >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Check Out
               </button>
             </div>
+
+            {checkoutError && (
+              <div role="alert" className="mx-4 mb-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-[13.5px] text-red-700">
+                {checkoutError}
+              </div>
+            )}
 
             <div className="mx-4 mb-8 bg-white border border-gray-200 rounded-md overflow-hidden shadow-md">
               <div className="mx-4 py-3 border-b border-gray-300 flex items-center bg-white">
@@ -485,7 +311,6 @@ export function MobileCheckoutCartView({
               <div className="flex flex-col bg-white">
                 <AnimatePresence initial={false}>
                   {cartItems.map((item, index) => {
-                    const catVisual = getCategoryVisual(item.category);
                     const expLabel = formatItemExpiration(item.expirationDate);
                     const maxStock = Number(item.availableBatchStock ?? 9999);
                     const isMaxReached = item.quantity >= maxStock;
@@ -510,8 +335,8 @@ export function MobileCheckoutCartView({
                               className="w-[72px] h-[72px] rounded-md object-cover border border-gray-100 shrink-0 bg-gray-50"
                             />
                           ) : (
-                            <div className={`w-[72px] h-[72px] rounded-md flex items-center justify-center shrink-0 border border-gray-100 p-0 overflow-hidden ${catVisual.style.bg}`}>
-                              <img src={catVisual.imagePath} alt="" className="w-full h-full object-contain mix-blend-multiply scale-[1.35]" />
+                            <div className="w-[72px] h-[72px] rounded-md flex items-center justify-center shrink-0 border border-gray-200 bg-gray-50">
+                              <CategoryGlyph category={item.category} className="w-11 h-11" />
                             </div>
                           )}
 
@@ -531,13 +356,12 @@ export function MobileCheckoutCartView({
                                     : !item.unit || /^(units?|count|ct|items?)$/i.test(item.unit)
                                       ? (Number(item.availableBatchStock) === 1 ? 'item' : 'items')
                                       : item.unit}
-                                </div>
-                              )}
-
-                              {/* Reason, when it isn't a normal give-out */}
-                              {item.reason && item.reason !== 'given_out' && (
-                                <div className="text-[#b5583a]">
-                                  Reason: {REMOVE_REASONS.find((r) => r.value === item.reason)?.label || item.reason}
+                                  {/* Reason rides on the stock line so it never adds a row */}
+                                  {item.reason && item.reason !== 'given_out' && (
+                                    <span className="text-[#b5583a]">
+                                      {' · '}{REMOVE_REASONS.find((r) => r.value === item.reason)?.label || item.reason}
+                                    </span>
+                                  )}
                                 </div>
                               )}
 
@@ -558,7 +382,7 @@ export function MobileCheckoutCartView({
                         {/* Bottom Row: Actions */}
                         <div className="flex items-center justify-between">
                           <button
-                            onClick={() => onRemoveItem && onRemoveItem(item.id)}
+                            onClick={() => removeLine(item)}
                             className="text-[14px] font-normal text-[#1a1f36] underline underline-offset-4 decoration-gray-400 hover:text-red-600 hover:decoration-red-300 transition-colors"
                           >
                             Remove
@@ -664,223 +488,99 @@ export function MobileCheckoutCartView({
         )}
       </AnimatePresence>
 
+      {/* Undo after Remove (same toast as the Add cart) */}
+      <AnimatePresence>
+        {removed && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.18 }}
+            role="status"
+            className={`absolute left-4 z-40 h-[52px] ${
+              cartItems.length > 0 && !isScrolling && !addExpanded
+                ? 'right-[76px] bottom-[calc(78px+env(safe-area-inset-bottom))]'
+                : cartItems.length > 0 && !isScrolling
+                  ? 'right-4 bottom-[calc(144px+env(safe-area-inset-bottom))]'
+                  : 'right-4 bottom-[calc(80px+env(safe-area-inset-bottom))]'
+            } rounded-2xl bg-[#1a1f36] text-white flex items-center gap-3 pl-4 pr-2 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)]`}
+          >
+            <span className="flex-1 min-w-0 truncate text-[14px]">Removed {removed.line.name}</span>
+            <button type="button" onClick={undoRemove} className="h-10 px-3.5 rounded-xl text-[14px] font-semibold underline underline-offset-[3px]">
+              Undo
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
 
 
 
-      {/* CLEAR CART CONFIRMATION MODAL */}
-      {mounted ? createPortal(
-        <AnimatePresence>
-          {showClearConfirm && (
-            <div
-              className="fixed inset-0 z-[10001] flex items-center justify-center p-3.5"
-              style={{ isolation: 'isolate' }}
-            >
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
-                onClick={() => setShowClearConfirm(false)}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-                className="relative bg-white rounded-3xl p-6 w-full max-w-[340px] shadow-2xl"
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowClearConfirm(false)}
-                  className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 active:scale-95 transition-all p-1"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" strokeWidth={2.5} />
-                </button>
-                
-                <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-2 pr-6">
-                  Clear checkout cart?
-                </h3>
-                <p className="text-gray-500 text-[14px] leading-relaxed mb-8">
-                  This will remove all {cartItems.length}{' '}
-                  {cartItems.length === 1 ? 'item' : 'items'} from your cart. This action cannot be undone.
-                </p>
-                <div className="flex flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={handleConfirmClear}
-                    className="w-full h-[50px] bg-rose-500 text-white font-semibold text-[15px] rounded-xl active:scale-[0.98] transition-all shadow-sm"
-                  >
-                    Clear cart
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowClearConfirm(false)}
-                    className="w-full h-[50px] bg-white border border-gray-200 text-[#1a1f36] font-medium text-[15px] rounded-xl active:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </motion.div>
+      {/* Removed: the cart came out of inventory (same screen as the Add cart's Added) */}
+      {done && mounted && createPortal(
+        <div className="fixed inset-0 z-[105] bg-white flex flex-col text-[#1a1f36]">
+          <div className="flex-1 flex flex-col justify-center gap-6 px-4">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <span className="w-16 h-16 rounded-full bg-[#fbeee9] text-[#d97757] flex items-center justify-center">
+                <Check className="w-[30px] h-[30px]" strokeWidth={2.6} />
+              </span>
+              <h2 className="text-[20px] font-semibold tracking-[-0.01em]">Removed from inventory</h2>
+              <p className="-mt-1.5 text-[14px] text-gray-500">
+                {done.count} {done.count === 1 ? 'item is' : 'items are'} off the shelves now.
+              </p>
             </div>
-          )}
-        </AnimatePresence>,
-        document.body
-      ) : null}
-
-      {/* SUBMIT CONFIRMATION MODAL */}
-      {mounted ? createPortal(
-        <AnimatePresence>
-          {showSubmitConfirm && (
-            <div
-              className="fixed inset-0 z-[10001] flex items-center justify-center p-3.5"
-              style={{ isolation: 'isolate' }}
+            {done.photos.length > 0 && (
+              <div className="flex justify-center"><CartPhotos photos={done.photos} /></div>
+            )}
+            <CartSummary total={done.total} reasons={done.reasons} />
+          </div>
+          <div className="px-4 pt-3 pb-[calc(28px+env(safe-area-inset-bottom))] flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => { setDone(null); onOpenScanner?.(); }}
+              className="w-full h-[52px] rounded-full bg-[#d97757] active:bg-[#c66547] text-white text-[16px] font-semibold"
             >
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
-                onClick={() => setShowSubmitConfirm(false)}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-                className="relative bg-white rounded-3xl p-6 w-full max-w-[340px] shadow-2xl"
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowSubmitConfirm(false)}
-                  className="absolute top-5 right-5 text-[#d97757] hover:text-[#c66547] active:scale-95 transition-all p-1"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" strokeWidth={2.5} />
-                </button>
-
-                <h3 className="text-[18px] font-semibold text-[#1a1f36] tracking-tight mb-2 pr-6">
-                  Checkout items?
-                </h3>
-                <p className="text-gray-500 text-[14px] leading-relaxed mb-8">
-                  You are about to remove{' '}
-                  <span className="font-semibold text-[#1a1f36]">
-                    {totalText}
-                  </span>{' '}
-                  from your pantry inventory.
-                </p>
-
-                <div className="w-full flex flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={handleConfirmSubmit}
-                    className="w-full h-[50px] bg-[#d97757] text-white font-semibold text-[15px] rounded-xl active:scale-[0.98] transition-all shadow-sm"
-                  >
-                    Confirm checkout
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowSubmitConfirm(false)}
-                    className="w-full h-[50px] bg-white border border-gray-200 text-[#1a1f36] font-medium text-[15px] rounded-xl active:bg-gray-50 transition-colors"
-                  >
-                    Go back
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
+              Remove more items
+            </button>
+            <button
+              type="button"
+              onClick={() => setDone(null)}
+              className="w-full h-[52px] rounded-2xl border border-gray-300 bg-white text-[16px] font-semibold active:bg-gray-50"
+            >
+              Back to Remove
+            </button>
+          </div>
+        </div>,
         document.body
-      ) : null}
+      )}
 
-      {/* HOW CHECKOUT WORKS MODAL */}
-      {mounted
-        ? createPortal(
-            <AnimatePresence>
-              {showHowItWorks && (
-                <div
-                  className="fixed inset-0 z-[9999] flex flex-col justify-end"
-                  style={{ isolation: 'isolate' }}
-                >
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
-                    onClick={() => setShowHowItWorks(false)}
-                  />
-                  <motion.div
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '100%' }}
-                    transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                    className="relative bg-white rounded-t-3xl p-6 pb-[calc(2rem+env(safe-area-inset-bottom))] flex flex-col items-center max-w-lg mx-auto w-full"
-                  >
-                    <div className="w-10 h-1 bg-gray-200 rounded-full mb-5" />
+      <ConfirmSheet
+        open={showSubmitConfirm}
+        onClose={() => setShowSubmitConfirm(false)}
+        id="remove-checkout-title"
+        title="Check out these items?"
+        body={`${countText} ${cartItems.length === 1 ? 'comes' : 'come'} out of inventory right away.`}
+        primary="Yes, check out"
+        primaryClass="bg-[#d97757] active:bg-[#c66547]"
+        onPrimary={handleConfirmSubmit}
+        secondary="Keep editing"
+      >
+        <div className="px-4 pt-4 flex flex-col gap-3">
+          <CartPhotos photos={photos} />
+          <CartSummary total={totalText} reasons={reasonsText} />
+        </div>
+      </ConfirmSheet>
 
-                    <h2 className="text-[18px] font-semibold text-[#1a1f36] mb-6 text-center">
-                      How to checkout items
-                    </h2>
+      <ConfirmSheet
+        open={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        id="remove-clear-title"
+        title="Clear the cart?"
+        body={`All ${countText} come out of the cart. Nothing in inventory changes.`}
+        primary="Clear cart"
+        primaryClass="bg-[#dc2626] active:bg-red-700"
+        onPrimary={handleConfirmClear}
+        secondary="Keep them"
+      />
 
-                    <div className="w-full space-y-5 mb-8 px-2">
-                      <div className="flex gap-3.5 items-start">
-                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
-                          <Scan className="w-5 h-5" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[#1a1f36] text-[15px] mb-0.5">
-                            Scan barcode
-                          </p>
-                          <p className="text-gray-400 text-[14px] leading-snug">
-                            Tap the orange scan button to scan items using your camera.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3.5 items-start">
-                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
-                          <Search className="w-5 h-5" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[#1a1f36] text-[15px] mb-0.5">
-                            Browse unbarcoded
-                          </p>
-                          <p className="text-gray-400 text-[14px] leading-snug">
-                            Tap the search button to select items directly from inventory.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3.5 items-start">
-                        <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#d97757] shrink-0">
-                          <MinusSquare className="w-5 h-5" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[#1a1f36] text-[15px] mb-0.5">
-                            Select batch & deduct
-                          </p>
-                          <p className="text-gray-400 text-[14px] leading-snug">
-                            Pick the expiration batch, specify quantity, and deduct from inventory.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowHowItWorks(false)}
-                      className="w-full h-[52px] bg-[#d97757] text-white text-[15px] font-semibold rounded-2xl active:scale-[0.97] transition-transform shadow-[0_8px_20px_-4px_rgba(217,119,87,0.45)]"
-                    >
-                      Got it
-                    </button>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>,
-            document.body
-          )
-        : null}
     </motion.div>
   );
 }

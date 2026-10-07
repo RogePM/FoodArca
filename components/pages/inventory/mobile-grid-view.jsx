@@ -135,9 +135,9 @@ function ProductTile({ item, onEdit, onMoreActions }) {
             className="w-full h-full object-contain object-left"
           />
         ) : (
-          // No photo: the category drawing, trimmed to its edges, filling the frame like a photo and
-          // standing on the same bottom-left line as the product photos.
-          <CategoryGlyph category={item.category} className="self-end w-full h-[86%] object-contain object-left-bottom" />
+          // No photo: the category drawing, kept smaller than a photo so its heavy line art doesn't
+          // dominate the tile, standing on the same bottom-left line as the product photos.
+          <CategoryGlyph category={item.category} className="self-end w-[72%] h-[62%] object-contain object-left-bottom" />
         )}
 
         {batchCount > 1 && (

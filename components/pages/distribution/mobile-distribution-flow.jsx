@@ -222,6 +222,16 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
     setCart((prev) => prev.filter((item) => item.id !== id && item.batchId !== id));
   };
 
+  // Undo after Remove: put the line back where it was.
+  const handleRestoreItem = (line, index) => {
+    setCart((prev) => {
+      if (prev.some((l) => l.id === line.id)) return prev;
+      const next = prev.slice();
+      next.splice(index < 0 ? 0 : Math.min(index, next.length), 0, line);
+      return next;
+    });
+  };
+
   const handleClearCart = () => {
     setCart([]);
     try {
@@ -301,7 +311,7 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
 
   // --- CHECKOUT SUBMISSION ---
   const handleCheckout = async () => {
-    if (cart.length === 0 || !pantryId) return;
+    if (cart.length === 0 || !pantryId) return false;
     setIsCheckingOut(true);
     setCheckoutError('');
     setCheckoutSuccess('');
@@ -379,12 +389,12 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
         onCheckoutSuccess();
       }
 
-      setTimeout(() => {
-        setCheckoutSuccess('');
-        setActiveView('CART');
-      }, 1500);
+      // The cart shows its Removed screen, which leads back to the Remove page.
+      setActiveView('CART');
+      return true;
     } catch (err) {
       setCheckoutError(err.message || 'Checkout failed. Please try again.');
+      return false;
     } finally {
       setIsCheckingOut(false);
     }
@@ -399,10 +409,20 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
             cartItems={cart}
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveItem}
+            onRestoreItem={handleRestoreItem}
             onClearCart={handleClearCart}
             onOpenScanner={() => setActiveView('CAMERA')}
             onOpenVisualGrid={(filter = 'all') => {
               setVisualGridFilter(filter);
+              setIsVisualGridOpen(true);
+            }}
+            onOpenProduct={(item) => {
+              // A landing row opens that item's steps, like a scan; unknown items fall back to the full sheet.
+              const match = groupedProducts.find(
+                (p) => (item.catalogItemId && p.catalogItemId === item.catalogItemId) || p.name === item.name
+              );
+              setVisualGridFilter('all');
+              setScanProduct(match || null);
               setIsVisualGridOpen(true);
             }}
             onCheckout={handleCheckout}
