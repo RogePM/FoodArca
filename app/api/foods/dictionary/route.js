@@ -1,122 +1,41 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { handle, getContext, ITEM_SELECT, mapItem } from '@/lib/server/inventory-api';
 
-async function authenticateRequest() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookieStore.getAll(); } } }
-  );
+// GET: the pantry's item list (for name autocomplete, restock, the no-barcode grid).
+// Optional ?names=a,b,c to fetch just a few items by name.
+export const GET = handle(async (req) => {
+  const { supabase, orgId } = await getContext(req);
 
-  // OPTIMIZATION: Use getSession() instead of getUser(). 
-  // getSession() decodes the JWT cookie locally (0ms latency).
-  // getUser() makes a network request to the Auth server (100ms latency).
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error || !session?.user) return { authenticated: false, user: null, supabase: null };
+  const { searchParams } = new URL(req.url);
+  const namesParam = searchParams.get('names');
+  const names = namesParam
+    ? namesParam.split(',').map((n) => n.trim()).filter(Boolean).slice(0, 20)
+    : null;
 
-  return { authenticated: true, user: session.user, supabase };
-}
+  let query = supabase
+    .from('catalog_items')
+    .select(ITEM_SELECT)
+    .eq('organization_id', orgId)
+    .is('archived_at', null);
 
-async function resolveLocationAndOrg(supabase, pantryId) {
-  if (!pantryId) return null;
-  const { data: loc } = await supabase
-    .from('locations')
-    .select('id, organization_id')
-    .eq('id', pantryId)
-    .maybeSingle();
-
-  if (loc) {
-    return { locationId: loc.id, orgId: loc.organization_id };
+  if (names && names.length > 0) {
+    query = query.or(names.map((n) => `name.ilike.${n.replace(/[%,()]/g, '')}`).join(','));
+  } else {
+    query = query.order('created_at', { ascending: false }).limit(1000);
   }
 
-  // pantryId may be an organization id rather than a location id (as sent by
-  // some callers) — fall back to that org's first location, matching the
-  // resolution used by /api/foods/changes/recent.
-  const { data: firstLoc } = await supabase
-    .from('locations')
-    .select('id, organization_id')
-    .eq('organization_id', pantryId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await query;
+  if (error) throw error;
 
-  if (firstLoc) {
-    return { locationId: firstLoc.id, orgId: firstLoc.organization_id };
-  }
+  const dictionary = (data || []).map((row) => {
+    const item = mapItem(row);
+    return {
+      ...item,
+      id: item.barcode || item.catalogItemId, // legacy key used by the current UI
+      category: item.categorySlug || 'other', // legacy: UI slug
+      categoryName: item.category,
+    };
+  });
 
-  return null;
-}
-
-export async function GET(request) {
-  const pantryId = request.headers.get('x-pantry-id');
-  if (!pantryId) return NextResponse.json({ dictionary: [] });
-
-  try {
-    const auth = await authenticateRequest();
-    if (!auth.authenticated || !auth.supabase) {
-      return NextResponse.json({ dictionary: [] }, { status: 401 });
-    }
-
-    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
-    if (!resolved || !resolved.orgId) {
-      return NextResponse.json({ dictionary: [] });
-    }
-
-    // Optional ?names=a,b,c — callers that only need a handful of known
-    // items (e.g. the Recently Added strip looking up photos for ~8 items)
-    // can skip pulling the whole org catalog down to get them.
-    const { searchParams } = new URL(request.url);
-    const namesParam = searchParams.get('names');
-    const names = namesParam
-      ? namesParam.split(',').map((n) => n.trim()).filter(Boolean).slice(0, 20)
-      : null;
-
-    let query = auth.supabase
-      .from('catalog_items')
-      .select('id, barcode, name, category_id, photo_url, categories(id, name)')
-      .eq('organization_id', resolved.orgId);
-
-    if (names && names.length > 0) {
-      query = query.or(names.map((n) => `name.ilike.${n.replace(/[%,]/g, '')}`).join(','));
-    } else {
-      query = query.order('created_at', { ascending: false }).limit(1000); // Reasonable limit for small/medium pantries
-    }
-
-    const { data: localItems, error: localErr } = await query;
-
-    if (localErr || !localItems) {
-      return NextResponse.json({ dictionary: [] });
-    }
-
-    // Deduplicate by name
-    const seen = new Set();
-    const dictionary = [];
-
-    for (const item of localItems) {
-      const normalizedName = item.name?.toLowerCase().trim() || '';
-      if (!seen.has(normalizedName)) {
-        seen.add(normalizedName);
-        
-        let categorySlug = 'other';
-        if (item.categories?.name) {
-          categorySlug = item.categories.name.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_');
-        }
-
-        dictionary.push({
-          id: item.barcode || item.id,
-          barcode: item.barcode || null,
-          name: item.name,
-          category: categorySlug,
-          photoUrl: item.photo_url || null,
-        });
-      }
-    }
-
-    return NextResponse.json({ dictionary });
-  } catch (error) {
-    console.error('Error fetching dictionary:', error);
-    return NextResponse.json({ dictionary: [] });
-  }
-}
+  return NextResponse.json({ dictionary });
+});

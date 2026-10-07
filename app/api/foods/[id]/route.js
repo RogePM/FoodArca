@@ -1,320 +1,108 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import {
+  handle, getContext, rpc, BATCH_SELECT, mapBatch, resolveCategoryId, toDateOnly, toPrecision, ApiError, round3,
+} from '@/lib/server/inventory-api';
 
-const formatQty = (num) => Math.round((Number(num) + Number.EPSILON) * 1000) / 1000;
-
-async function authenticateRequest() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookieStore.getAll(); } } }
-  );
-
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { authenticated: false, user: null, supabase: null };
-
-  return { authenticated: true, user, supabase };
-}
-
-async function resolveLocationAndOrg(supabase, pantryId) {
-  if (!pantryId) return null;
-  const { data: loc } = await supabase
-    .from('locations')
-    .select('id, organization_id')
-    .eq('id', pantryId)
+async function loadBatch(supabase, locationId, id) {
+  const { data, error } = await supabase
+    .from('inventory_batches')
+    .select(BATCH_SELECT)
+    .eq('id', id)
+    .eq('location_id', locationId)
     .maybeSingle();
-
-  if (loc) {
-    return { locationId: loc.id, orgId: loc.organization_id };
-  }
-
-  const { data: firstLoc } = await supabase
-    .from('locations')
-    .select('id, organization_id')
-    .eq('organization_id', pantryId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (firstLoc) {
-    return { locationId: firstLoc.id, orgId: firstLoc.organization_id };
-  }
-
-  return null;
+  if (error) throw error;
+  return data;
 }
 
-// ----------------------------------------------------------------------------------
-// --- GET Single Item ---
-// ----------------------------------------------------------------------------------
-export async function GET(req, { params }) {
-  try {
-    const auth = await authenticateRequest();
-    if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+// GET: one lot.
+export const GET = handle(async (req, { params }) => {
+  const { supabase, locationId } = await getContext(req);
+  const { id } = await params;
+  const batch = await loadBatch(supabase, locationId, id);
+  if (!batch) throw new ApiError(404, 'Item not found');
+  return NextResponse.json(mapBatch(batch));
+});
 
-    const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
+// PUT: edit a lot from the current Edit screens.
+// Amount → update_amount (with why), expiry/storage → edit_lot, item facts → edit_item.
+// Body: { quantity?, why?, reason?, note?, expirationDate?, expirationPrecision?, storageLocation?,
+//         name?, category?, categoryId?, photoUrl?, sizeAmount?, sizeUnit?, caseSize? }
+export const PUT = handle(async (req, { params }) => {
+  const { supabase, locationId } = await getContext(req);
+  const { id } = await params;
+  const data = await req.json();
 
-    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
-    if (!resolved) return NextResponse.json({ message: 'Location not found' }, { status: 404 });
-    const { locationId, orgId } = resolved;
+  const batch = await loadBatch(supabase, locationId, id);
+  if (!batch) throw new ApiError(404, 'Item not found');
+  const item = batch.catalog_item;
 
-    const { data: membership } = await auth.supabase
-      .from('user_organizations')
-      .select('role, status')
-      .eq('user_id', auth.user.id)
-      .eq('organization_id', orgId)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    if (!membership) return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
-
-    const { id } = await params;
-
-    let { data: batch } = await auth.supabase
-      .from('inventory_batches')
-      .select(`
-        id,
-        quantity,
-        expiration_date,
-        expiration_precision,
-        source_type,
-        received_date,
-        catalog_item:catalog_items (
-          id, name, barcode, unit_of_measure, input_unit_value, weight_per_unit_lbs,
-          category:categories ( id, name, is_food )
-        )
-      `)
-      .eq('id', id)
-      .eq('location_id', locationId)
-      .maybeSingle();
-
-    if (!batch) {
-      const { data: altBatch } = await auth.supabase
-        .from('inventory_batches')
-        .select(`
-          id,
-          quantity,
-          expiration_date,
-          expiration_precision,
-          source_type,
-          received_date,
-          catalog_item:catalog_items (
-            id, name, barcode, unit_of_measure, input_unit_value, weight_per_unit_lbs,
-            category:categories ( id, name, is_food )
-          )
-        `)
-        .eq('catalog_item_id', id)
-        .eq('location_id', locationId)
-        .maybeSingle();
-      batch = altBatch;
-    }
-
-    if (!batch) return NextResponse.json({ message: 'Item not found' }, { status: 404 });
-
-    const item = batch.catalog_item || {};
-    const cat = item.category || {};
-    const formatted = {
-      _id: batch.id,
-      id: batch.id,
-      name: item.name || 'Unknown Item',
-      barcode: item.barcode || '',
-      category: cat.name || 'General',
-      quantity: formatQty(batch.quantity || 0),
-      unit: item.unit_of_measure || 'units',
-      expirationDate: batch.expiration_date || null,
-      expirationPrecision: batch.expiration_precision || 'none',
-      sourceType: batch.source_type || 'donation',
-      receivedDate: batch.received_date || null,
-      catalogItemId: item.id,
-      weightPerUnit: item.weight_per_unit_lbs || 1
-    };
-
-    return NextResponse.json(formatted);
-  } catch (error) {
-    console.error('GET /api/foods/[id] Error:', error);
-    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
+  // 1. Item facts (only what actually changed, so volunteers can still edit amounts)
+  const itemChanges = {};
+  if (data.name && data.name.trim() !== item.name) itemChanges.name = data.name.trim();
+  if (data.photoUrl !== undefined && (data.photoUrl || null) !== (item.photo_url || null)) itemChanges.photo_url = data.photoUrl || null;
+  if (data.categoryId !== undefined || data.category !== undefined) {
+    const categoryId = await resolveCategoryId(supabase, data);
+    if (categoryId && categoryId !== item.category?.id) itemChanges.category_id = categoryId;
   }
-}
-
-// ----------------------------------------------------------------------------------
-// --- PUT: Update Item ---
-// ----------------------------------------------------------------------------------
-export async function PUT(req, { params }) {
-  try {
-    const auth = await authenticateRequest();
-    if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-
-    const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
-
-    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
-    if (!resolved) return NextResponse.json({ message: 'Location not found' }, { status: 404 });
-    const { locationId, orgId } = resolved;
-
-    const { data: membership } = await auth.supabase
-      .from('user_organizations')
-      .select('role, status')
-      .eq('user_id', auth.user.id)
-      .eq('organization_id', orgId)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    if (!membership) return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
-
-    const { id } = await params;
-    const data = await req.json();
-
-    const { data: batch } = await auth.supabase
-      .from('inventory_batches')
-      .select(`
-        id,
-        quantity,
-        catalog_item:catalog_items (
-          id, name, weight_per_unit_lbs
-        )
-      `)
-      .eq('id', id)
-      .eq('location_id', locationId)
-      .maybeSingle();
-
-    if (!batch) return NextResponse.json({ message: 'Item not found' }, { status: 404 });
-
-    const updateData = {};
-    if (data.quantity !== undefined) updateData.quantity = formatQty(data.quantity);
-    if (data.expirationDate !== undefined) {
-      if (data.expirationDate === null || data.expirationDate === '') {
-        // Explicitly "no expiration date" — must stay null, not fall through to
-        // new Date(null) which resolves to the 1970-01-01 epoch and looks like a real date.
-        updateData.expiration_date = null;
-      } else {
-        const d = new Date(data.expirationDate);
-        if (!isNaN(d.getTime())) updateData.expiration_date = d.toISOString().split('T')[0];
-      }
-    }
-    if (data.sourceType !== undefined) updateData.source_type = data.sourceType;
-    if (data.storageLocation !== undefined) updateData.storage_location = data.storageLocation;
-
-    if (Object.keys(updateData).length > 0) {
-      const { error: updErr } = await auth.supabase
-        .from('inventory_batches')
-        .update(updateData)
-        .eq('id', batch.id);
-      if (updErr) throw updErr;
-    }
-
-    if (batch.catalog_item) {
-      const catUpdate = {};
-      if (data.name) catUpdate.name = data.name;
-      if (data.photoUrl !== undefined) catUpdate.photo_url = data.photoUrl || null;
-      if (Object.keys(catUpdate).length > 0) {
-        const { error: catErr } = await auth.supabase
-          .from('catalog_items')
-          .update(catUpdate)
-          .eq('id', batch.catalog_item.id);
-        if (catErr) throw catErr;
-      }
-    }
-
-    if (data.quantity !== undefined && formatQty(data.quantity) !== formatQty(batch.quantity)) {
-      const diff = formatQty(data.quantity - batch.quantity);
-      // ✅ CRITICAL FIX: Use 'audit_update' instead of 'adjustment', and set reason to null!
-      const { error: logErr } = await auth.supabase.from('activity_logs').insert({
-        organization_id: orgId,
-        location_id: locationId,
-        user_id: auth.user.id,
-        action_type: 'audit_update',
-        reason: null,
-        quantity_changed: Math.abs(diff),
-        total_weight_lbs_changed: formatQty(Math.abs(diff) * Number(batch.catalog_item?.weight_per_unit_lbs || 1)),
-        catalog_item_id: batch.catalog_item?.id,
-        snapshot_item_name: data.name || batch.catalog_item?.name
-      });
-      if (logErr) console.error("Activity log insert error:", logErr);
-    }
-
-    return NextResponse.json({ message: 'Item updated successfully' });
-  } catch (error) {
-    console.error('PUT /api/foods/[id] Error:', error);
-    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
+  if (data.sizeAmount !== undefined || data.sizeUnit !== undefined) {
+    itemChanges.size_amount = data.sizeAmount ?? null;
+    itemChanges.size_unit = data.sizeUnit ?? null;
   }
-}
+  if (data.caseSize !== undefined) itemChanges.case_size = data.caseSize ?? null;
+  if (Object.keys(itemChanges).length > 0) {
+    await rpc(supabase, 'edit_item', { p_item_id: item.id, p_changes: itemChanges });
+  }
 
-// ----------------------------------------------------------------------------------
-// --- DELETE: Remove Item ---
-// ----------------------------------------------------------------------------------
-export async function DELETE(req, { params }) {
-  try {
-    const auth = await authenticateRequest();
-    if (!auth.authenticated) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-
-    const pantryId = req.headers.get('x-pantry-id');
-    if (!pantryId) return NextResponse.json({ message: 'Pantry ID required' }, { status: 400 });
-
-    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
-    if (!resolved) return NextResponse.json({ message: 'Location not found' }, { status: 404 });
-    const { locationId, orgId } = resolved;
-
-    const { data: membership } = await auth.supabase
-      .from('user_organizations')
-      .select('role, status')
-      .eq('user_id', auth.user.id)
-      .eq('organization_id', orgId)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    if (!membership) return NextResponse.json({ message: 'Access Denied: Not a member' }, { status: 403 });
-
-    const { id } = await params;
-
-    let catalogItemId = id;
-    const { data: batch } = await auth.supabase
-      .from('inventory_batches')
-      .select('catalog_item_id')
-      .eq('id', id)
-      .eq('location_id', locationId)
-      .maybeSingle();
-
-    if (batch) {
-      catalogItemId = batch.catalog_item_id;
-
-      // This id points at one batch among possibly several for the same catalog
-      // item (e.g. two donations of the same product with different expiration
-      // dates). Only remove that single batch row — deleting the whole catalog
-      // item here would wipe out every other batch too.
-      const { count: siblingCount } = await auth.supabase
-        .from('inventory_batches')
-        .select('id', { count: 'exact', head: true })
-        .eq('catalog_item_id', catalogItemId)
-        .eq('location_id', locationId);
-
-      if (siblingCount > 1) {
-        const { data: deletedRows, error: delErr } = await auth.supabase
-          .from('inventory_batches')
-          .delete()
-          .eq('id', id)
-          .select('id');
-        if (delErr) throw delErr;
-        // A delete RLS can block the row silently (0 rows affected, no error) —
-        // surface that as a real failure instead of reporting success.
-        if (!deletedRows || deletedRows.length === 0) {
-          throw new Error('Batch could not be deleted (permission denied)');
-        }
-
-        return NextResponse.json({ message: 'Batch deleted successfully' });
-      }
-    }
-
-    const { error: rpcErr } = await auth.supabase.rpc('delete_catalog_item_safe', {
-      p_item_id: catalogItemId
+  // 2. Amount
+  let batchId = batch.id;
+  let lotGone = false;
+  if (data.quantity !== undefined && round3(data.quantity) !== round3(batch.quantity)) {
+    await rpc(supabase, 'update_amount', {
+      p_batch_id: batch.id,
+      p_new_quantity: round3(data.quantity),
+      p_why: data.why || 'corrected',
+      p_reason: data.reason || null,
+      p_note: data.note || null,
     });
-
-    if (rpcErr) throw rpcErr;
-
-    return NextResponse.json({ message: 'Item deleted safely' });
-  } catch (error) {
-    console.error('DELETE /api/foods/[id] Error:', error);
-    return NextResponse.json({ message: error.message || 'Server Error' }, { status: 500 });
+    lotGone = round3(data.quantity) === 0;
   }
-}
+
+  // 3. Expiry / storage
+  if (!lotGone) {
+    const lotChanges = {};
+    if (data.expirationDate !== undefined) {
+      const date = toDateOnly(data.expirationDate);
+      lotChanges.expiration_date = date;
+      lotChanges.expiration_precision = date ? toPrecision(data.expirationPrecision || batch.expiration_precision) : null;
+    }
+    if (data.storageLocation !== undefined) lotChanges.storage_location = data.storageLocation || null;
+    if (Object.keys(lotChanges).length > 0) {
+      const res = await rpc(supabase, 'edit_lot', { p_batch_id: batch.id, p_changes: lotChanges });
+      batchId = res?.batch_id || batchId;
+    }
+  }
+
+  const updated = lotGone ? null : await loadBatch(supabase, locationId, batchId);
+  return NextResponse.json({ message: 'Item updated successfully', data: updated ? mapBatch(updated) : null });
+});
+
+// DELETE: take a lot out of stock. Always recorded in history.
+// Body or query: { why: given_out | thrown_out | corrected (default), reason?, note? }
+export const DELETE = handle(async (req, { params }) => {
+  const { supabase, locationId } = await getContext(req);
+  const { id } = await params;
+  const { searchParams } = new URL(req.url);
+  const body = await req.json().catch(() => ({}));
+
+  const batch = await loadBatch(supabase, locationId, id);
+  if (!batch) throw new ApiError(404, 'Item not found');
+
+  await rpc(supabase, 'update_amount', {
+    p_batch_id: batch.id,
+    p_new_quantity: 0,
+    p_why: body.why || searchParams.get('why') || 'corrected',
+    p_reason: body.reason || searchParams.get('reason') || null,
+    p_note: body.note || 'Removed from inventory',
+  });
+  return NextResponse.json({ message: 'Removed from inventory' });
+});

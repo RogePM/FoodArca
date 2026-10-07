@@ -1,192 +1,103 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { mapOpenFoodFactsCategory } from '@/lib/categoryMapper';
+import { handle, getContext, ITEM_SELECT, mapItem, ApiError } from '@/lib/server/inventory-api';
 
-async function authenticateRequest() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookieStore.getAll(); } } }
-  );
-
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { authenticated: false, user: null, supabase: null };
-
-  return { authenticated: true, user, supabase };
-}
-
-async function resolveLocationAndOrg(supabase, pantryId) {
-  if (!pantryId) return null;
-  
-  // Parallelize location lookups by id and by organization_id
-  const [locRes, firstLocRes] = await Promise.all([
-    supabase.from('locations').select('id, organization_id').eq('id', pantryId).maybeSingle(),
-    supabase.from('locations').select('id, organization_id').eq('organization_id', pantryId).order('created_at', { ascending: true }).limit(1).maybeSingle()
-  ]);
-
-  if (locRes.data) {
-    return { locationId: locRes.data.id, orgId: locRes.data.organization_id };
-  }
-  if (firstLocRes.data) {
-    return { locationId: firstLocRes.data.id, orgId: firstLocRes.data.organization_id };
-  }
+// Size printed on the label, e.g. "15 oz", "20 fl oz", "1 gal", "500 g", "12 ct".
+// Returned as written; the database converts g / kg / mL / L when the item is saved.
+function parseLabelSize(raw) {
+  const s = String(raw || '').toLowerCase();
+  const num = s.match(/(\d+(?:[.,]\d+)?)/);
+  if (!num) return null;
+  const amount = parseFloat(num[1].replace(',', '.'));
+  if (!(amount > 0)) return null;
+  const rules = [
+    [/fl\.?\s?oz|fluid\s?ounces?/, 'fl_oz'],
+    [/\b(oz|ounces?)\b|\doz\b/, 'oz'],
+    [/\b(lbs?|pounds?)\b|\dlbs?\b/, 'lb'],
+    [/\b(kg|kilos?|kilograms?)\b|\dkg\b/, 'kg'],
+    [/\b(gal|gallons?)\b|\dgal\b/, 'gal'],
+    [/\b(ml|millilit(er|re)s?)\b|\dml\b/, 'ml'],
+    [/\b(l|lit(er|re)s?)\b|\dl\b/, 'l'],
+    [/\b(g|grams?)\b|\dg\b/, 'g'],
+    [/\b(ct|count|pack|pcs|pieces?)\b/, 'ct'],
+  ];
+  for (const [re, unit] of rules) if (re.test(s)) return { amount, unit };
   return null;
 }
 
-export async function GET(req, { params }) {
-  try {
-    const auth = await authenticateRequest();
-    if (!auth.authenticated) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
+const LB_PER = { oz: 1 / 16, lb: 1, kg: 2.20462, g: 1 / 453.592, fl_oz: 0.0652, gal: 8.34, ml: 0.0022, l: 2.2046 };
 
-    const { code } = await params;
-    const pantryId = req.headers.get('x-pantry-id');
+// GET: look up a scanned barcode — the pantry's own items first, then Open Food Facts.
+// Open Food Facts never sets the category: the volunteer picks it once.
+export const GET = handle(async (req, { params }) => {
+  const { code } = await params;
+  const cleanCode = String(code || '').trim();
+  if (!cleanCode) throw new ApiError(400, 'Barcode is required');
 
-    if (!pantryId) {
-      return NextResponse.json({ message: 'Pantry ID is required' }, { status: 400 });
-    }
+  const offPromise = fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(cleanCode)}.json`, {
+    headers: { 'User-Agent': 'FoodArca/1.0 (contact@foodarca.com)' },
+    signal: AbortSignal.timeout(5000),
+    next: { revalidate: 86400 },
+  }).catch((err) => {
+    console.warn('OpenFoodFacts lookup failed or timed out:', err.message);
+    return null;
+  });
 
-    const resolved = await resolveLocationAndOrg(auth.supabase, pantryId);
-    if (!resolved) {
-      return NextResponse.json({ message: 'Organization not found' }, { status: 404 });
-    }
-    const { orgId } = resolved;
+  const { supabase, orgId } = await getContext(req);
+  const { data: row, error } = await supabase
+    .from('catalog_items')
+    .select(ITEM_SELECT)
+    .eq('organization_id', orgId)
+    .eq('barcode', cleanCode)
+    .maybeSingle();
+  if (error) throw error;
 
-    if (!code) {
-      return NextResponse.json({ message: 'Barcode is required' }, { status: 400 });
-    }
-
-    const cleanCode = code.trim();
-
-    // Launch membership check, local catalog lookup, and OpenFoodFacts fetch ALL IN PARALLEL!
-    const membershipPromise = auth.supabase
-      .from('user_organizations')
-      .select('role, status')
-      .eq('user_id', auth.user.id)
-      .eq('organization_id', orgId)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    const catalogPromise = auth.supabase
-      .from('catalog_items')
-      .select(`
-        id, name, barcode, photo_url, unit_of_measure, input_unit_value, weight_per_unit_lbs,
-        category:categories ( id, name, is_food )
-      `)
-      .eq('organization_id', orgId)
-      .eq('barcode', cleanCode)
-      .maybeSingle();
-
-    const offPromise = fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(cleanCode)}.json`, {
-      headers: { 'User-Agent': 'FoodArca/1.0 (contact@foodarca.com)' },
-      signal: AbortSignal.timeout(5000),
-      next: { revalidate: 86400 } // Cache barcode lookups for 24 hours
-    }).catch(err => {
-      console.warn('⚠️ OpenFoodFacts API lookup failed or timed out:', err.message);
-      return null;
+  if (row) {
+    const item = mapItem(row);
+    return NextResponse.json({
+      found: true,
+      source: 'catalog',
+      data: {
+        ...item,
+        _id: item.catalogItemId,
+        id: item.catalogItemId,
+        category: item.categorySlug || 'other', // legacy: UI slug
+        categoryName: item.category,
+        inputUnitValue: item.sizeAmount, // legacy
+        source: 'catalog',
+      },
     });
-
-    const [memberRes, catalogRes, offRes] = await Promise.all([membershipPromise, catalogPromise, offPromise]);
-
-    if (memberRes.error || !memberRes.data) {
-      console.log(`🚫 Security Alert: ${auth.user.email} attempted unauthorized access to org ${orgId}`);
-      return NextResponse.json({ message: 'Access Denied: You are not a member of this organization.' }, { status: 403 });
-    }
-
-    if (catalogRes.error) {
-      console.error('❌ GET /api/barcode - Database Error:', catalogRes.error);
-      return NextResponse.json({ message: 'Database Error' }, { status: 500 });
-    }
-
-    if (catalogRes.data) {
-      const item = catalogRes.data;
-      const formatted = {
-        _id: item.id,
-        id: item.id,
-        name: item.name,
-        barcode: item.barcode,
-        category: item.category?.name || 'other',
-        unit: item.unit_of_measure || 'units',
-        inputUnitValue: item.input_unit_value || 1,
-        weightPerUnit: item.weight_per_unit_lbs || 1,
-        photoUrl: item.photo_url || null,
-        source: 'catalog'
-      };
-      return NextResponse.json({ found: true, source: 'catalog', data: formatted });
-    }
-
-    // If not found in local catalog, process OpenFoodFacts API result
-    if (offRes && offRes.ok) {
-      try {
-        const offData = await offRes.json();
-        if (offData && offData.status === 1 && offData.product) {
-          const p = offData.product;
-          const name = p.product_name || p.product_name_en || p.generic_name || 'Scanned Item';
-          const photoUrl = p.image_front_small_url || p.image_url || null;
-          
-          // Map OpenFoodFacts category using our robust categoryMapper utility
-          const tags = [p.categories, p.categories_old, ...(Array.isArray(p.categories_tags) ? p.categories_tags : [])].filter(Boolean);
-          const category = mapOpenFoodFactsCategory(tags);
-
-          // Parse quantity/unit string (e.g. "20 fl oz", "15 oz", "5 lb", "500g", "1 gal")
-          let unit = 'units';
-          let inputUnitValue = 1;
-          const qtyStr = String(p.quantity || p.serving_size || '').toLowerCase();
-          const matchNum = qtyStr.match(/(\d+(?:\.\d+)?)/);
-          const parsedNum = matchNum ? parseFloat(matchNum[1]) : NaN;
-
-          if (/(?:\b|(?<=\d))(fl\.?\s?oz|fluid\s?oz|fl\s?oz)\b/.test(qtyStr)) {
-            unit = 'oz';
-            if (!isNaN(parsedNum)) inputUnitValue = parsedNum;
-          } else if (/(?:\b|(?<=\d))(oz|ounce|ounces)\b/.test(qtyStr)) {
-            unit = 'oz';
-            if (!isNaN(parsedNum)) inputUnitValue = parsedNum;
-          } else if (/(?:\b|(?<=\d))(lb|lbs|pound|pounds)\b/.test(qtyStr)) {
-            unit = 'lbs';
-            if (!isNaN(parsedNum)) inputUnitValue = parsedNum;
-          } else if (/(?:\b|(?<=\d))(kg|kilo|kilos|kilogram|kilograms)\b/.test(qtyStr)) {
-            unit = 'kg';
-            if (!isNaN(parsedNum)) inputUnitValue = parsedNum;
-          } else if (/(?:\b|(?<=\d))(gal|gallon|gallons)\b/.test(qtyStr)) {
-            unit = 'gal';
-            if (!isNaN(parsedNum)) inputUnitValue = parsedNum;
-          } else if (/(?:\b|(?<=\d))(g|gram|grams)\b/.test(qtyStr)) {
-            unit = 'oz';
-            if (!isNaN(parsedNum)) inputUnitValue = Math.round((parsedNum / 28.3495) * 10) / 10;
-          } else if (/(?:\b|(?<=\d))(ml|l|liter|litres?|liters?)\b/.test(qtyStr)) {
-            unit = 'oz';
-            if (!isNaN(parsedNum)) inputUnitValue = Math.round((parsedNum / 29.5735) * 10) / 10;
-          } else if (/(?:\b|(?<=\d))(can|cans|jar|jars|box|boxes|bag|bags|count|units?)\b/.test(qtyStr)) {
-            unit = 'units';
-            if (!isNaN(parsedNum)) inputUnitValue = parsedNum;
-          }
-
-          return NextResponse.json({
-            found: true,
-            source: 'openfoodfacts',
-            data: {
-              name,
-              barcode: cleanCode,
-              category,
-              unit,
-              inputUnitValue,
-              photoUrl,
-              weightPerUnit: unit === 'lbs' ? inputUnitValue : (unit === 'oz' ? Math.round((inputUnitValue / 16) * 100) / 100 : 1),
-              source: 'openfoodfacts'
-            }
-          });
-        }
-      } catch (offParseErr) {
-        console.warn('⚠️ OpenFoodFacts JSON parse failed:', offParseErr.message);
-      }
-    }
-
-    return NextResponse.json({ found: false, source: 'none', data: null });
-  } catch (error) {
-    console.error('❌ GET /api/barcode - Error:', error);
-    return NextResponse.json({ message: 'Server Error' }, { status: 500 });
   }
-}
+
+  const offRes = await offPromise;
+  if (offRes && offRes.ok) {
+    try {
+      const offData = await offRes.json();
+      if (offData?.status === 1 && offData.product) {
+        const p = offData.product;
+        const size = parseLabelSize(p.quantity);
+        const weightPerUnit = size && size.unit !== 'ct' ? Math.round(size.amount * LB_PER[size.unit] * 1000) / 1000 : null;
+        return NextResponse.json({
+          found: true,
+          source: 'openfoodfacts',
+          data: {
+            name: p.product_name || p.product_name_en || p.generic_name || null,
+            barcode: cleanCode,
+            photoUrl: p.image_front_small_url || p.image_url || null,
+            category: null,
+            categoryId: null,
+            trackBy: 'count',
+            unit: 'items',
+            sizeAmount: size?.amount ?? null,
+            sizeUnit: size?.unit ?? null,
+            weightPerUnit,
+            source: 'openfoodfacts',
+          },
+        });
+      }
+    } catch (parseErr) {
+      console.warn('OpenFoodFacts JSON parse failed:', parseErr.message);
+    }
+  }
+
+  return NextResponse.json({ found: false, source: 'none', data: null });
+});

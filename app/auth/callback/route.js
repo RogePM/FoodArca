@@ -38,6 +38,10 @@ export async function GET(request) {
     // 3. Invite Link Fast-Track & Security Check
     // We only redirect if 'next' is an internal path (starts with / and not //)
     if (next.startsWith('/') && !next.startsWith('//')) {
+      // Password reset must work even for users with no organization yet.
+      if (next === '/reset-password') {
+        return NextResponse.redirect(new URL(next, requestUrl.origin))
+      }
       if (next.includes('onboarding')) {
         console.log(`🚀 Invite flow detected. Fast-tracking to: ${next}`)
         return NextResponse.redirect(new URL(next, requestUrl.origin))
@@ -76,5 +80,5 @@ export async function GET(request) {
   }
 
   // Fallback if no code
-  return NextResponse.redirect(new URL('/', requestUrl.origin))
+  return NextResponse.redirect(new URL('/?error=auth_code_error', requestUrl.origin))
 }

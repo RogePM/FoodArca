@@ -1,141 +1,88 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { getPlanDetails } from '@/lib/plans';
+import {
+  handle, getContext, BATCH_SELECT, mapBatch, fetchHistory, SOURCE_LABELS, ApiError,
+} from '@/lib/server/inventory-api';
 
-// --- SHARED SECURITY HELPER ---
-async function authenticateAndVerify(req) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookieStore.getAll(); } } }
-  );
+// Blank stays blank: unknown values are empty cells, never a made-up default.
+const cell = (v) => {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number') return String(v);
+  return `"${String(v).replace(/"/g, '""')}"`;
+};
+const toCsv = (headers, rows) => [headers.map(cell).join(','), ...rows.map((r) => r.map(cell).join(','))].join('\n');
+const sizeText = (amount, unit) => (amount ? `${amount} ${unit === 'fl_oz' ? 'fl oz' : unit}` : '');
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return { valid: false, status: 401, message: 'Unauthorized', supabase: null };
+const ACTION_LABELS = { received: 'Received', given_out: 'Given out', thrown_out: 'Thrown out', corrected: 'Corrected', edited: 'Edited' };
 
-  const pantryId = req.headers.get('x-pantry-id');
-  if (!pantryId) return { valid: false, status: 400, message: 'Pantry ID required', supabase: null };
+// GET ?type=inventory (current stock) | history (every change, for agency reports) &from= &to=
+export const GET = handle(async (req) => {
+  const { supabase, orgId } = await getContext(req);
 
-  // Resolve organization ID (pantryId might be a location ID or organization ID)
-  let orgId = pantryId;
-  const { data: loc } = await supabase
-    .from('locations')
-    .select('organization_id')
-    .eq('id', pantryId)
-    .maybeSingle();
-  if (loc) {
-    orgId = loc.organization_id;
-  }
+  const { data: org } = await supabase.from('organizations').select('plan_type').eq('id', orgId).maybeSingle();
+  const plan = getPlanDetails(org?.plan_type || 'free');
+  if (!plan.features.csv_export) throw new ApiError(403, 'Upgrade required to export data.');
 
-  // Verify membership in user_organizations
-  const { data: membership, error: memberError } = await supabase
-    .from('user_organizations')
-    .select('status, role')
-    .eq('user_id', user.id)
-    .eq('organization_id', orgId)
-    .eq('status', 'active')
-    .maybeSingle();
+  const sp = new URL(req.url).searchParams;
+  const type = sp.get('type') || 'inventory';
+  const today = new Date().toISOString().slice(0, 10);
+  let csv;
 
-  if (memberError || !membership) {
-    return { valid: false, status: 403, message: 'Access Denied: Not a member', supabase: null };
-  }
-
-  // Fetch subscription tier from organizations
-  const { data: org, error: orgError } = await supabase
-    .from('organizations')
-    .select('plan_type')
-    .eq('id', orgId)
-    .maybeSingle();
-
-  if (orgError || !org) return { valid: false, status: 404, message: 'Organization configuration not found', supabase: null };
-
-  return {
-    valid: true,
-    user,
-    orgId,
-    pantryId,
-    tier: org.plan_type || 'free',
-    supabase
-  };
-}
-
-export async function GET(req) {
-  try {
-    const auth = await authenticateAndVerify(req);
-    if (!auth.valid) return NextResponse.json({ error: auth.message }, { status: auth.status });
-
-    // 1. GATEKEEPING
-    const plan = getPlanDetails(auth.tier);
-    if (!plan.features.csv_export) {
-      return NextResponse.json({ error: 'Upgrade required to export data.' }, { status: 403 });
-    }
-
-    const { searchParams } = new URL(req.url);
-    const type = searchParams.get('type') || 'inventory'; // Default to inventory
-
-    if (type !== 'inventory') {
-      return NextResponse.json({ error: 'Invalid export type. Only inventory export is supported.' }, { status: 400 });
-    }
-
-    const filename = `inventory-${new Date().toISOString().split('T')[0]}.csv`;
-
-    // 2. DATA FETCHING FROM SUPABASE POSTGRES
-    const { data: batches, error: batchErr } = await auth.supabase
+  if (type === 'inventory') {
+    const { data, error } = await supabase
       .from('inventory_batches')
-      .select(`
-        id,
-        quantity,
-        expiration_date,
-        source_type,
-        received_date,
-        location:locations(name),
-        catalog_item:catalog_items (
-          name, barcode, unit_of_measure, weight_per_unit_lbs,
-          category:categories (name)
-        )
-      `)
-      .order('expiration_date', { ascending: true, nullsFirst: true });
+      .select(`${BATCH_SELECT}, location:locations ( name )`)
+      .eq('organization_id', orgId)
+      .order('expiration_date', { ascending: true, nullsFirst: false });
+    if (error) throw error;
 
-    if (batchErr) {
-      console.error('Database export error:', batchErr);
-      return NextResponse.json({ error: 'Database Error' }, { status: 500 });
-    }
-
-    const headers = ['Name', 'Category', 'Quantity', 'Unit', 'Weight/Unit (lbs)', 'Barcode', 'Location', 'Expiration Date', 'Received Date', 'Source Type'];
-
-    const rows = (batches || []).map(batch => {
-      const item = batch.catalog_item || {};
-      const cat = item.category || {};
-      const loc = batch.location || {};
+    const headers = ['Item', 'Category', 'Tracked by', 'Size on label', 'Amount', 'Unit', 'Estimated lb',
+      'Expires', 'Expiry precision', 'Storage', 'Source', 'Location', 'Received', 'Barcode'];
+    const rows = (data || []).map((raw) => {
+      const l = mapBatch(raw);
+      const lb = l.trackBy === 'weight' ? l.quantity : l.weightPerUnit != null ? Math.round(l.quantity * l.weightPerUnit * 100) / 100 : null;
       return [
-        `"${(item.name || 'Unknown').replace(/"/g, '""')}"`,
-        `"${(cat.name || 'General').replace(/"/g, '""')}"`,
-        batch.quantity || 0,
-        `"${item.unit_of_measure || 'units'}"`,
-        item.weight_per_unit_lbs || 1,
-        `"${item.barcode || ''}"`,
-        `"${(loc.name || '').replace(/"/g, '""')}"`,
-        batch.expiration_date || '',
-        batch.received_date || '',
-        `"${batch.source_type || 'donation'}"`
+        l.name, l.category, l.trackBy === 'weight' ? 'Weight' : 'Count', sizeText(l.sizeAmount, l.sizeUnit),
+        l.quantity, l.unit, lb,
+        l.expirationDate, l.expirationPrecision, l.storageLocation,
+        l.sourceType ? SOURCE_LABELS[l.sourceType] : 'Not recorded',
+        raw.location?.name, l.receivedDate, l.barcode,
       ];
     });
-
-    const csvData = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-
-    // 3. RETURN CSV FILE
-    return new NextResponse(csvData, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      },
+    csv = toCsv(headers, rows);
+  } else if (type === 'history') {
+    const rows = await fetchHistory(supabase, (q) => {
+      q = q.eq('organization_id', orgId).neq('action_type', 'edited');
+      if (sp.get('from')) q = q.gte('created_at', sp.get('from'));
+      if (sp.get('to')) q = q.lte('created_at', sp.get('to'));
+      return q.order('created_at', { ascending: true }).limit(10000);
     });
 
-  } catch (error) {
-    console.error("Export Error:", error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    const deliveryIds = [...new Set(rows.map((r) => r.deliveryId).filter(Boolean))];
+    const donors = new Map();
+    if (deliveryIds.length > 0) {
+      const { data: ds } = await supabase.from('deliveries').select('id, donor_name, is_anonymous').in('id', deliveryIds);
+      for (const d of ds || []) donors.set(d.id, d.is_anonymous ? 'Anonymous' : d.donor_name || 'Not recorded');
+    }
+
+    const headers = ['Date', 'Action', 'Item', 'Category', 'Amount', 'Unit', 'Pounds', 'Source', 'Donor',
+      'Reason', 'Expires', 'Storage', 'Drop-off', 'Visit', 'By', 'Undo of'];
+    csv = toCsv(headers, rows.map((r) => [
+      r.timestamp, ACTION_LABELS[r.rawActionType] || r.rawActionType, r.itemName, r.category,
+      r.quantityChanged, r.unit, r.weightChanged,
+      r.source ? SOURCE_LABELS[r.source] : 'Not recorded',
+      r.deliveryId ? donors.get(r.deliveryId) || 'Not recorded' : '',
+      r.reason, r.expirationDate, r.storageLocation, r.deliveryId, r.visitId, r.userName, r.reversesId,
+    ]));
+  } else {
+    throw new ApiError(400, 'Invalid export type. Use inventory or history.');
   }
-}
+
+  return new NextResponse(csv, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="${type}-${today}.csv"`,
+    },
+  });
+});
