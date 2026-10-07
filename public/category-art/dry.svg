@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 10.8 45 46.2" fill="none" stroke="#4b5058" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Paper bag of rice/pasta + wheat stalk with orange grains -->
+  <rect x="12" y="17" width="26" height="5" rx="1" fill="#edd38e"/>
+  <path fill="#edd38e" d="M13 22h24l2 32H11z"/>
+  <rect x="17" y="32" width="16" height="11" rx="1.5" fill="#fff"/>
+  <path d="M48.7 56V18"/>
+  <path fill="#7dbb67" d="M48.7 51c-4-1-6-4-6-7 3 0 6 3 6 7z"/>
+  <g fill="#e27f2c">
+    <ellipse cx="48.7" cy="15" rx="1.8" ry="3.2"/>
+    <ellipse cx="46" cy="22" rx="1.9" ry="3.4" transform="rotate(-35 46 22)"/>
+    <ellipse cx="51.4" cy="22" rx="1.9" ry="3.4" transform="rotate(35 51.4 22)"/>
+    <ellipse cx="46" cy="29" rx="1.9" ry="3.4" transform="rotate(-35 46 29)"/>
+    <ellipse cx="51.4" cy="29" rx="1.9" ry="3.4" transform="rotate(35 51.4 29)"/>
+    <ellipse cx="46" cy="36" rx="1.9" ry="3.4" transform="rotate(-35 46 36)"/>
+    <ellipse cx="51.4" cy="36" rx="1.9" ry="3.4" transform="rotate(35 51.4 36)"/>
+  </g>
+</svg>

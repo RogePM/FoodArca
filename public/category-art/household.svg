@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 12 51 44" fill="none" stroke="#4b5058" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Spray bottle with orange head + paper towel roll -->
+  <rect x="8" y="14.5" width="5" height="3" rx="1" fill="#fff"/>
+  <path fill="#e27f2c" d="M13 13h13l4 6h-5v3H15v-3h-2z"/>
+  <path d="M17 22l-3 6"/>
+  <rect x="16" y="22" width="9" height="4" fill="#fff"/>
+  <path fill="#a9d9cb" d="M14 26h13l3 6v21a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2V30z"/>
+  <rect x="15" y="36" width="12" height="10" rx="1.5" fill="#fff"/>
+  <rect x="37" y="22" width="20" height="33" rx="2" fill="#fff"/>
+  <ellipse cx="47" cy="22" rx="10" ry="3" fill="#fff"/>
+  <ellipse cx="47" cy="22" rx="3" ry="1" fill="#d3d7dc"/>
+  <path stroke-dasharray="2 2.5" d="M37 38h20"/>
+</svg>

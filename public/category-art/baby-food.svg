@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="17 6.5 38 49.5" fill="none" stroke="#4b5058" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Baby bottle with orange collar + jar of puree -->
+  <path fill="#ebc49a" d="M21 13c0-3.5 1.8-5.5 4-5.5s4 2 4 5.5z"/>
+  <rect x="18" y="13" width="14" height="5" rx="1.5" fill="#e27f2c"/>
+  <rect x="18.5" y="18" width="13" height="37" rx="4" fill="#fff"/>
+  <rect x="20" y="34" width="10" height="19.5" rx="2.5" fill="#dde8f3" stroke="none"/>
+  <path d="M22 25h3M22 30h3M22 35h3"/>
+  <rect x="37" y="33" width="16" height="5" rx="1.5" fill="#d3d7dc"/>
+  <rect x="36" y="38" width="18" height="17" rx="4" fill="#f6cf6b"/>
+  <rect x="39" y="42.5" width="12" height="8" rx="1.5" fill="#fff"/>
+</svg>

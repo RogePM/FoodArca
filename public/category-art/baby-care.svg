@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="3 22.5 58.5 30.5" fill="none" stroke="#4b5058" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Diaper with orange tabs + a pacifier -->
+  <path fill="#fff" d="M6 26h30v4c0 10-6.5 18-15 19-8.5-1-15-9-15-19z"/>
+  <rect x="4" y="26" width="6" height="6" rx="1.5" fill="#e27f2c"/>
+  <rect x="32" y="26" width="6" height="6" rx="1.5" fill="#e27f2c"/>
+  <path d="M12 38c2 3 5 5 9 5s7-2 9-5"/>
+  <circle cx="50" cy="29" r="5.5"/>
+  <path fill="#ebc49a" d="M46.5 44c0 4.5 1.6 8 3.5 8s3.5-3.5 3.5-8"/>
+  <ellipse cx="50" cy="40" rx="10" ry="5.5" fill="#f2b8c6"/>
+  <circle cx="50" cy="40" r="2.4" fill="#fff"/>
+</svg>

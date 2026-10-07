@@ -47,21 +47,23 @@ import { InventoryItemActionsSheet } from './item-actions-sheet';
 import { MobileInventorySearch } from '@/components/ui/mobile-inventory-search';
 
 // A lot from /api/foods in the cart-line shape the add flow's item form edits.
+// Grouped batches drop item facts (category id, track-by, size), so read those off the raw lot.
 function toEditLine(lot) {
   if (!lot) return null;
+  const item = { ...lot.rawBatches?.[0], ...lot };
   return {
     id: lot.id,
-    catalogItemId: lot.catalogItemId || null,
+    catalogItemId: item.catalogItemId || null,
     name: lot.name || '',
-    categoryId: lot.categoryId ?? null,
-    categoryName: lot.category || null,
-    isFood: lot.isFood ?? true,
-    trackBy: lot.trackBy || 'count',
-    sizeAmount: lot.sizeAmount ?? null,
-    sizeUnit: lot.sizeUnit ?? null,
-    caseSize: lot.caseSize ?? null,
-    barcode: lot.barcode || null,
-    photoUrl: lot.photoUrl || null,
+    categoryId: item.categoryId ?? null,
+    categoryName: item.category || null,
+    isFood: item.isFood ?? true,
+    trackBy: item.trackBy || 'count',
+    sizeAmount: item.sizeAmount ?? null,
+    sizeUnit: item.sizeUnit ?? null,
+    caseSize: item.caseSize ?? null,
+    barcode: item.barcode || null,
+    photoUrl: item.photoUrl || null,
     quantity: Number(lot.quantity) || 0,
     expirationDate: lot.expirationDate || null,
     expirationPrecision: lot.expirationPrecision || null,
@@ -351,8 +353,9 @@ export function InventoryView() {
     };
     try {
       // Count ↔ weigh is an item change; the new amount becomes this (only) lot's amount.
-      if (line.trackBy !== lot.trackBy && lot.catalogItemId) {
-        await send(`/api/items/${lot.catalogItemId}`, 'PATCH', { trackBy: line.trackBy, newTotal: line.quantity });
+      const before = toEditLine(lot);
+      if (line.trackBy !== before.trackBy && before.catalogItemId) {
+        await send(`/api/items/${before.catalogItemId}`, 'PATCH', { trackBy: line.trackBy, newTotal: line.quantity });
       }
       await send(`/api/foods/${lot.id}`, 'PUT', {
         pantryId,

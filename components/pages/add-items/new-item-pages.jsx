@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, ChevronLeft, ChevronRight, RotateCw, Hash, Scale } from 'lucide-react';
 import { SIZE_UNITS, formatStorage, lastDayOfMonth } from '@/lib/inventory-format';
+import { CategoryGlyph } from '@/components/ui/category-glyph';
 import { BottomSheet } from './intake-fields';
 
 export const LIFT = 'shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]';
@@ -16,7 +17,7 @@ const CIRCLE_BTN = 'w-11 h-11 shrink-0 rounded-full border border-gray-200 bg-gr
 
 // The category page groups the list so nobody reads 15 rows. Order is fixed, so people learn
 // where things sit. Categories are broad (what it is, how it's stored); the example line under
-// each name settles the in-between cases. Icons: Fluent Emoji Flat (MIT), in /public/category-icons.
+// each name settles the in-between cases. Icons come from CategoryGlyph.
 const OTHER = 'Other / not sure';
 const CATEGORY_GROUPS = [
   { title: 'Pantry shelf', names: ['Canned & jarred', 'Dry goods', 'Snacks', 'Drinks', 'Baby food & formula'] },
@@ -24,21 +25,21 @@ const CATEGORY_GROUPS = [
   { title: 'Not food', names: ['Hygiene', 'Diapers & baby care', 'Household', 'Pet food'] },
 ];
 const CATEGORY_TILE = {
-  'Canned & jarred': { icon: 'canned', hint: 'Veggies, soup, beans, tuna, peanut butter' },
-  'Dry goods': { icon: 'dry', hint: 'Pasta, rice, cereal, flour, dry beans' },
-  'Snacks': { icon: 'snacks', hint: 'Chips, crackers, bars, cookies' },
-  'Drinks': { icon: 'drinks', hint: 'Juice, water, shelf milk, coffee' },
-  'Baby food & formula': { icon: 'baby-food', hint: 'Jars, pouches, formula' },
-  'Produce': { icon: 'produce', hint: 'Fresh fruit and vegetables' },
-  'Meat': { icon: 'meat', hint: 'Chicken, beef, pork, fish' },
-  'Dairy & eggs': { icon: 'dairy', hint: 'Milk, cheese, yogurt, eggs' },
-  'Bread & bakery': { icon: 'bakery', hint: 'Bread, buns, pastries' },
-  'Frozen': { icon: 'frozen', hint: 'Meals, veggies, desserts' },
-  'Hygiene': { icon: 'hygiene', hint: 'Soap, shampoo, toothpaste, pads' },
-  'Diapers & baby care': { icon: 'baby-care', hint: 'Diapers, wipes, baby wash' },
-  'Household': { icon: 'household', hint: 'Cleaning, paper towels, toilet paper' },
-  'Pet food': { icon: 'pet', hint: 'Dog and cat food' },
-  [OTHER]: { icon: 'other', hint: 'Pick this if nothing fits. You can change it later.' },
+  'Canned & jarred': { hint: 'Veggies, soup, beans, tuna, peanut butter' },
+  'Dry goods': { hint: 'Pasta, rice, cereal, flour, dry beans' },
+  'Snacks': { hint: 'Chips, crackers, bars, cookies' },
+  'Drinks': { hint: 'Juice, water, shelf milk, coffee' },
+  'Baby food & formula': { hint: 'Jars, pouches, formula' },
+  'Produce': { hint: 'Fresh fruit and vegetables' },
+  'Meat': { hint: 'Chicken, beef, pork, fish' },
+  'Dairy & eggs': { hint: 'Milk, cheese, yogurt, eggs' },
+  'Bread & bakery': { hint: 'Bread, buns, pastries' },
+  'Frozen': { hint: 'Meals, veggies, desserts' },
+  'Hygiene': { hint: 'Soap, shampoo, toothpaste, pads' },
+  'Diapers & baby care': { hint: 'Diapers, wipes, baby wash' },
+  'Household': { hint: 'Cleaning, paper towels, toilet paper' },
+  'Pet food': { hint: 'Dog and cat food' },
+  [OTHER]: { hint: 'Pick this if nothing fits. You can change it later.' },
 };
 
 export function Required() {
@@ -246,13 +247,10 @@ export function PillButton({ children, onClick, disabled, className = '' }) {
 // Category page
 // ---------------------------------------------------------------------------
 
-function CategoryIcon({ name, on }) {
-  const tile = CATEGORY_TILE[name] || CATEGORY_TILE[OTHER];
-  return (
-    <span className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${on ? 'bg-white' : 'bg-gray-100'}`}>
-      <img src={`/category-icons/${tile.icon}.svg`} alt="" className="w-[26px] h-[26px]" />
-    </span>
-  );
+// The drawings are mostly white line art, so they sit straight on the card (no gray chip) and
+// large enough to recognise before reading the name.
+function CategoryIcon({ name, size = 64 }) {
+  return <CategoryGlyph category={name} className={`${size === 64 ? 'w-16 h-16' : 'w-12 h-12'} object-contain object-left-bottom`} />;
 }
 
 export function CategoryPage({ open, onBack, categories, selectedId, onSelect }) {
@@ -288,10 +286,10 @@ export function CategoryPage({ open, onBack, categories, selectedId, onSelect })
                         type="button"
                         aria-pressed={on}
                         onClick={() => onSelect(c)}
-                        className={`min-h-[76px] p-2.5 rounded-2xl flex items-center gap-2.5 ${tileClass(on)}`}
+                        className={`p-3 pt-2 rounded-2xl flex flex-col items-start gap-1 ${tileClass(on)}`}
                       >
-                        <CategoryIcon name={c.name} on={on} />
-                        <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <CategoryIcon name={c.name} />
+                        <span className="w-full min-w-0 flex flex-col gap-0.5">
                           <span className="text-[14px] font-medium leading-tight">{c.name}</span>
                           {CATEGORY_TILE[c.name] && (
                             <span className="text-[11.5px] leading-snug text-gray-500">{CATEGORY_TILE[c.name].hint}</span>
@@ -310,7 +308,7 @@ export function CategoryPage({ open, onBack, categories, selectedId, onSelect })
                 onClick={() => onSelect(other)}
                 className={`w-full min-h-16 p-2.5 rounded-2xl flex items-center gap-2.5 ${tileClass(selectedId === other.id)}`}
               >
-                <CategoryIcon name={OTHER} on={selectedId === other.id} />
+                <CategoryIcon name={OTHER} size={48} />
                 <span className="flex-1 min-w-0 flex flex-col gap-px">
                   <span className="text-[14px] font-medium">{OTHER}</span>
                   <span className="text-[12px] text-gray-500">{CATEGORY_TILE[OTHER].hint}</span>

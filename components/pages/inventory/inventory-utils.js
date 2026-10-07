@@ -10,6 +10,7 @@
  */
 
 import { getCategoryName, getCategoryVisual, getCategoryStyle } from '@/lib/constants';
+import { capitalizeWords } from '@/lib/inventory-format';
 
 // (Exporting them here too just in case other files import them from inventory-utils)
 export { getCategoryName, getCategoryVisual, getCategoryStyle };
@@ -474,8 +475,7 @@ export const filterInventory = (inventory = [], query = '') => {
  * @returns {string}
  */
 export const formatItemName = (name) => {
-  const trimmed = String(name ?? '').trim();
-  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : '';
+  return capitalizeWords(String(name ?? '').trim());
 };
 
 /** Display label for a unit: generic counts ("count", "units", none) read as "items". */

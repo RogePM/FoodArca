@@ -10,7 +10,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, ArrowRight, Plus, Camera, Calendar, MapPin } from 'lucide-react';
-import { categorySlug, defaultTrackBy, formatSize } from '@/lib/inventory-format';
+import { capitalizeWords, categorySlug, defaultTrackBy, formatSize } from '@/lib/inventory-format';
 import { useCategories, usePantryItems, ItemThumb, recallStorage, rememberStorage } from './intake-fields';
 import {
   LIFT, Required, Progress, Counter, Segmented, DetailRow, DetailsCard, PillButton,
@@ -37,7 +37,7 @@ export function NewItemForm({ initial = {}, editLine = null, inStock = false, lo
 
   const [step, setStep] = useState(1);
   const [page, setPage] = useState(null); // 'category' | 'size' | 'photo' | 'expiry' | 'spot'
-  const [name, setName] = useState(src.name || '');
+  const [name, setName] = useState(capitalizeWords(src.name || ''));
   const [category, setCategory] = useState(
     src.categoryId ? { id: src.categoryId, name: src.categoryName, isFood: src.isFood ?? true } : null
   );
@@ -176,7 +176,8 @@ export function NewItemForm({ initial = {}, editLine = null, inStock = false, lo
                   type="text"
                   value={name}
                   autoFocus={!src.name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => setName(capitalizeWords(e.target.value))}
+                  autoCapitalize="words"
                   onFocus={() => setNameFocused(true)}
                   onBlur={() => setTimeout(() => setNameFocused(false), 150)}
                   onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}

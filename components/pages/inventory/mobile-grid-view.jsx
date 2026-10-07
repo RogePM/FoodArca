@@ -3,13 +3,13 @@
 import React, { useState } from 'react';
 import { Layers, MapPin, MoreHorizontal, Package, Pencil } from 'lucide-react';
 import {
-  getCategoryVisual,
   formatDate,
   getExpirationStatus,
   getUrgentStatusStyles,
   formatItemName,
   formatUnit,
 } from './inventory-utils';
+import { CategoryGlyph } from '@/components/ui/category-glyph';
 
 /**
  * Calculates subtle typography status styles according to the urgency hierarchy:
@@ -110,7 +110,6 @@ const formatQty = (n) =>
  */
 function ProductTile({ item, onEdit, onMoreActions }) {
   const [imgError, setImgError] = useState(false);
-  const catVisual = getCategoryVisual(item.category);
   const batchCount =
     item.batches && Array.isArray(item.batches)
       ? item.batches.length
@@ -125,7 +124,7 @@ function ProductTile({ item, onEdit, onMoreActions }) {
   return (
     <article className="flex flex-col min-w-0 pt-4 pb-5 border-b border-gray-200">
       {/* 1. Image */}
-      <div className="relative w-full aspect-[6/5] bg-white overflow-hidden flex items-center justify-center">
+      <div className="relative w-full aspect-[6/5] bg-white overflow-hidden flex items-center justify-start">
         {showPhoto ? (
           <img
             src={item.photoUrl}
@@ -133,16 +132,12 @@ function ProductTile({ item, onEdit, onMoreActions }) {
             loading="lazy"
             decoding="async"
             onError={() => setImgError(true)}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain object-left"
           />
         ) : (
-          <img
-            src={catVisual.imagePath}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="w-4/5 h-4/5 object-contain mix-blend-multiply"
-          />
+          // No photo: the category drawing, trimmed to its edges, filling the frame like a photo and
+          // standing on the same bottom-left line as the product photos.
+          <CategoryGlyph category={item.category} className="self-end w-full h-[86%] object-contain object-left-bottom" />
         )}
 
         {batchCount > 1 && (
