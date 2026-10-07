@@ -5,10 +5,12 @@ import { usePathname } from 'next/navigation';
 import { Menu, X, Leaf } from 'lucide-react';
 import { useAuthAction } from '@/lib/use-auth-action';
 
+// Ordered by the questions a visitor asks: what does it do, what does it cost, how do I reach you.
+// Legal pages (Privacy, Terms) live in the footer, not here.
 const NAV_LINKS = [
   { name: 'Features', href: '/features' },
-  { name: 'Distribution', href: '/' },
   { name: 'Pricing', href: '/pricing' },
+  { name: 'Contact', href: '/contact' },
 ];
 
 // Scroll distance (px) at which the home-page nav grows from its small, hero-blended
@@ -19,7 +21,8 @@ const COLLAPSE_AT = 24;
 export default function NavBar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const isHome = usePathname() === '/';
+  const pathname = usePathname();
+  const isHome = pathname === '/';
 
   useEffect(() => {
     if (!isHome) return;
@@ -100,7 +103,10 @@ export default function NavBar() {
               <a
                 key={link.name}
                 href={link.href}
-                className="text-sm font-medium text-[#57534E] hover:text-[#D97757] transition-colors"
+                aria-current={pathname === link.href ? 'page' : undefined}
+                className={`text-sm font-medium transition-colors hover:text-[#D97757] ${
+                  pathname === link.href ? 'text-[#B95B3E]' : 'text-[#57534E]'
+                }`}
               >
                 {link.name}
               </a>
@@ -140,7 +146,10 @@ export default function NavBar() {
                 key={link.name}
                 href={link.href}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="text-lg text-[#1C1917] font-medium py-3 px-4 rounded-xl hover:bg-[#F5F5F4] transition-colors"
+                aria-current={pathname === link.href ? 'page' : undefined}
+                className={`text-lg font-medium py-3 px-4 rounded-xl hover:bg-[#F5F5F4] transition-colors ${
+                  pathname === link.href ? 'text-[#B95B3E]' : 'text-[#1C1917]'
+                }`}
               >
                 {link.name}
               </a>

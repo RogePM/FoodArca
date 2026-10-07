@@ -33,7 +33,7 @@ const SECTIONS = [
     body: (
       <>
         <P>
-          Food Arca (&ldquo;Food Arca,&rdquo; &ldquo;we,&rdquo; &ldquo;us&rdquo;) makes inventory software for food banks and food pantries. This policy explains what personal information we collect when you visit foodarca.com or use the Food Arca app, how we use it, and the choices you have.
+          Food Arca is a product of {SITE.legalName} (&ldquo;Food Arca,&rdquo; &ldquo;we,&rdquo; &ldquo;us&rdquo;), which makes inventory software for food banks and food pantries. This policy explains what personal information we collect when you visit foodarca.com or use the Food Arca app, how we use it, and the choices you have.
         </P>
         <P>
           It applies to our website, the app, and anything you send us by email or through our contact form. It is part of our <a href="/terms" className="text-[#B95B3E] hover:text-[#9A4A30]">Terms of Service</a>. By creating an account or using Food Arca, you agree to this policy. If you do not agree, please do not use the service.
@@ -302,7 +302,8 @@ const SECTIONS = [
       <>
         <P>Questions or requests about privacy? Write to us and we will reply.</P>
         <div className="mt-5 rounded-2xl border border-[#E7E5E4] bg-white p-6 text-[15px] leading-relaxed">
-          <p className="font-semibold text-[#1C1917]">Food Arca</p>
+          <p className="font-semibold text-[#1C1917]">{SITE.legalName}</p>
+          <p>Operating Food Arca</p>
           <p>
             Email:{' '}
             <a href={`mailto:${SITE.email}`} className="text-[#B95B3E] hover:text-[#9A4A30]">{SITE.email}</a>

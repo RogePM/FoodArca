@@ -31,13 +31,13 @@ export default function Footer() {
           <div className="col-span-1 md:col-span-3 lg:col-span-2 lg:col-start-7">
             <h4 className="font-serif text-[#FAFAF9] mb-6 text-lg tracking-wide">Platform</h4>
             <ul className="space-y-4 text-[15px] text-[#A8A29E]">
-              {['Features', 'Inventory', 'Distribution', 'Pricing'].map((item) => (
-                <li key={item}>
-                  <a
-                    href={`#${item.toLowerCase()}`}
-                    className="hover:text-[#D97757] transition-colors"
-                  >
-                    {item}
+              {[
+                { name: 'Features', href: '/features' },
+                { name: 'Pricing', href: '/pricing' },
+              ].map((item) => (
+                <li key={item.name}>
+                  <a href={item.href} className="hover:text-[#D97757] transition-colors">
+                    {item.name}
                   </a>
                 </li>
               ))}
@@ -49,13 +49,7 @@ export default function Footer() {
             <h4 className="font-serif text-[#FAFAF9] mb-6 text-lg tracking-wide">Company</h4>
             <ul className="space-y-4 text-[15px] text-[#A8A29E]">
               <li>
-                <a href="#" className="hover:text-[#D97757] transition-colors">About Us</a>
-              </li>
-              <li>
                 <a href="/contact" className="hover:text-[#D97757] transition-colors">Contact</a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-[#D97757] transition-colors">Support</a>
               </li>
             </ul>
           </div>
@@ -79,11 +73,8 @@ export default function Footer() {
 
         {/* Bottom Bar: Adjusted border to a dark, subtle grey */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-8 border-t border-white/10 text-[13px] text-[#78716C]">
-          <p>&copy; {new Date().getFullYear()} Food Arca Inc. All rights reserved.</p>
-          <div className="flex items-center gap-2">
-            <span>Designed and built by</span>
-            <span className="text-[#FAFAF9] font-medium">Novo Web Designs</span>
-          </div>
+          <p>&copy; {new Date().getFullYear()} Novo Web Designs LLC. All rights reserved.</p>
+          <p>Food Arca is a product of Novo Web Designs LLC.</p>
         </div>
       </div>
     </footer>
