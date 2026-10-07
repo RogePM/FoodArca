@@ -178,7 +178,7 @@ function ProductTile({ item, onEdit, onMoreActions }) {
 
       {/* 3. Quantity — the "$1.47" slot: biggest, boldest, always black */}
       <p className="mt-3.5 flex items-baseline gap-1 text-gray-900 leading-none">
-        <span className="text-[24px] font-medium tracking-[-0.02em] tabular-nums">
+        <span className="text-[19px] font-medium tracking-[-0.01em] tabular-nums">
           {formatQty(totalQty)}
         </span>
         <span className="text-[14px] font-normal text-gray-500">{formatUnit(item.unit, totalQty)}</span>

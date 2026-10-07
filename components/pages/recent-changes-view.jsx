@@ -136,9 +136,9 @@ export function RecentChangesView() {
 
     // Helper for Quantity Column
     const renderQuantityChange = (change) => {
-        const unit = change.unit || 'units';
-        const isNegative = change.actionType === 'distributed' || change.actionType === 'scan_out' || change.actionType === 'deleted' || change.actionType === 'waste_disposal';
+        const unit = change.unit || '';
         const qty = change.quantityChanged || change.removedQuantity || 0;
+        const isNegative = qty < 0;
         
         return (
             <span className={`font-black text-sm ${isNegative ? 'text-[#d97757]' : 'text-emerald-600'}`}>

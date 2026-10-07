@@ -1,226 +1,80 @@
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Layers, Pencil } from 'lucide-react';
-import {
-  getCategoryVisual,
-  getCategoryName,
-  formatDate,
-  getUrgentStatusStyles,
-} from './inventory-utils';
+// Picking which batch of an item to edit. Same look as the first step of the add flow's
+// known-item sheet (one row per date and spot); a row opens the item edit flow for that batch.
+
+import React from 'react';
+import { X, ChevronRight } from 'lucide-react';
+import { formatAmountWithUnit, formatExpiry, formatStorage } from '@/lib/inventory-format';
+import { BottomSheet, ItemThumb } from '@/components/pages/add-items/intake-fields';
+
+const CIRCLE_BTN = 'w-11 h-11 shrink-0 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center text-[#1a1f36] active:bg-gray-200';
+
+function isExpired(date) {
+  return !!date && date < new Date().toISOString().slice(0, 10);
+}
 
 /**
- * Slide-up Bottom Sheet for selecting a specific logical batch to modify.
- * 
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether the bottom sheet is open
- * @param {Function} props.onClose - Callback to close the bottom sheet
- * @param {Object|null} props.item - The grouped product item containing logical batches
- * @param {Function} props.onSelectBatch - Callback invoked when a batch is selected for modification
+ * @param {boolean} props.isOpen
+ * @param {Function} props.onClose
+ * @param {Object|null} props.item - grouped item; its batches are already sorted soonest-expiring first
+ * @param {Function} props.onSelectBatch - called with the batch to edit
  */
-export function InventoryBatchSelectionSheet({
-  isOpen,
-  onClose,
-  item,
-  onSelectBatch,
-}) {
-  // Batches are already sorted FEFO and stripped of zero-quantity remnants by
-  // groupInventoryBatches, so every batch-count consumer (this sheet, grid
-  // badges, the desktop table) agrees on the same list.
-  const batches = useMemo(() => {
-    if (!item?.batches || !Array.isArray(item.batches)) return [];
-    return item.batches;
-  }, [item]);
+export function InventoryBatchSelectionSheet({ isOpen, onClose, item, onSelectBatch }) {
+  const batches = Array.isArray(item?.batches) ? item.batches : [];
+  if (!item || batches.length <= 1) return <BottomSheet open={false} onClose={onClose} />;
 
-  // Lock background body scroll when open
-  useEffect(() => {
-    if (isOpen && item && batches.length > 1) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, item, batches.length]);
-
-  if (!item || batches.length <= 1) {
-    return null;
-  }
-
-  const catVisual = getCategoryVisual(item.category);
+  const first = batches[0] || {};
+  const trackBy = item.trackBy || first.trackBy || 'count';
+  const isFood = item.isFood ?? first.isFood ?? true;
+  const total = batches.reduce((s, b) => s + (Number(b.quantity) || 0), 0);
+  const amountOf = (n) => (trackBy === 'weight' ? formatAmountWithUnit(n, 'weight') : String(n));
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-[10001] flex flex-col justify-end"
-          style={{ isolation: 'isolate' }}
-        >
-          {/* 1. BACKDROP SCRIM */}
-          <motion.div
-            key="batch-select-scrim"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-            onClick={onClose}
-          />
+    <BottomSheet open={isOpen} onClose={onClose} labelledBy="batch-pick-title">
+      <div className="flex flex-col overflow-hidden rounded-t-[32px] text-[#1a1f36]">
+        <div className="flex justify-center pt-2.5 shrink-0"><span className="w-10 h-[5px] rounded-full bg-gray-200" /></div>
 
-          {/* 2. SLIDE-UP BOTTOM SHEET */}
-          <motion.div
-            key="batch-select-sheet"
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-            className="relative bg-white rounded-t-[28px] shadow-[0_-10px_40px_rgba(0,0,0,0.15)] flex flex-col max-h-[85dvh] w-full overflow-hidden"
-          >
-            {/* Drag Handle */}
-            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mt-3 mb-1 shrink-0" />
-
-            {/* Header */}
-            <div className="px-6 pt-2 pb-3 flex items-center justify-between border-b border-gray-100 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-[17px] font-semibold text-[#1a1f36] tracking-tight">
-                  Select Batch
-                </h2>
-                <span className="bg-orange-50 text-[#d97757] text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-orange-100 flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-[#d97757]" />
-                  {batches.length} Batches
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 active:bg-gray-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#d97757]/40"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" strokeWidth={1.75} />
-              </button>
-            </div>
-
-            {/* Product Summary */}
-            <div className="px-6 pt-3.5 pb-2 shrink-0">
-              <div className="flex items-center gap-3 bg-gray-50/70 border border-gray-100 rounded-2xl p-2.5">
-                {item.photoUrl ? (
-                  <img
-                    src={item.photoUrl}
-                    alt={item.name}
-                    className="w-11 h-11 rounded-xl object-cover border border-gray-200 shrink-0"
-                  />
-                ) : (
-                  <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${catVisual.style.border} ${catVisual.style.bg} p-1`}
-                  >
-                    <img
-                      src={catVisual.imagePath}
-                      alt=""
-                      className="w-full h-full object-contain drop-shadow-sm mix-blend-multiply"
-                    />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-[14px] font-semibold text-[#1a1f36] truncate">
-                    {item.name}
-                  </h3>
-                  <p className="text-[12px] font-normal text-gray-500 mt-0.5 flex items-center gap-1.5">
-                    <span>{getCategoryName(item.category)}</span>
-                    <span>•</span>
-                    <span className="font-semibold text-gray-700">
-                      {item.totalQuantity} {item.unit || 'units'} total
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Logical Batches List */}
-            <motion.div
-              className="flex-1 overflow-y-auto px-6 py-3 space-y-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
-              initial="hidden"
-              animate="visible"
-              variants={{
-                visible: { transition: { staggerChildren: 0.035, delayChildren: 0.05 } },
-              }}
-            >
-              {batches.map((batch, idx) => {
-                const statusStyles = getUrgentStatusStyles(batch);
-                const formattedExp = formatDate(batch.expirationDate);
-                const mergedCount = batch.rawBatchIds?.length || 1;
-                const quantityColor = statusStyles.isLowStock
-                  ? 'text-amber-600'
-                  : 'text-gray-900';
-
-                return (
-                  <motion.div
-                    key={batch.id || `batch-${idx}`}
-                    variants={{
-                      hidden: { opacity: 0, y: 8 },
-                      visible: { opacity: 1, y: 0 },
-                    }}
-                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      if (onSelectBatch) onSelectBatch(batch);
-                      if (onClose) onClose();
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        if (onSelectBatch) onSelectBatch(batch);
-                        if (onClose) onClose();
-                      }
-                    }}
-                    className="bg-white border border-gray-200 hover:border-gray-300 active:bg-gray-50 active:scale-[0.98] rounded-2xl p-4 transition-all shadow-sm flex items-center justify-between gap-3 cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-[#d97757]/40 focus-visible:border-[#d97757]/40"
-                  >
-                    {/* Batch Details */}
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className={`text-[15px] font-bold tabular-nums ${quantityColor}`}>
-                          {batch.quantity} <span className="font-medium text-gray-500 text-[13px]">{item.unit || 'units'}</span>
-                        </span>
-                        {statusStyles.isLowStock && (
-                          <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider border border-amber-100">
-                            Low
-                          </span>
-                        )}
-                        {mergedCount > 1 && (
-                          <span className="text-[10px] bg-gray-100 text-gray-500 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
-                            {mergedCount} merged
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-[13px] font-medium ${statusStyles.isExpired || statusStyles.isExpiring ? statusStyles.expColorClass : 'text-gray-500'}`}
-                        >
-                          {formattedExp
-                            ? `Expires ${formattedExp}`
-                            : 'No expiration date'}
-                        </span>
-                        {batch.storageLocation && (
-                          <span className="text-[12px] text-gray-400 truncate">
-                            • {batch.storageLocation}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Action Icon */}
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 text-gray-400 group-hover:bg-[#d97757] group-hover:text-white transition-colors shrink-0">
-                      <Pencil className="w-4 h-4" strokeWidth={2.5} />
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          </motion.div>
+        {/* Header */}
+        <div className="shrink-0 px-4 pt-3.5 pb-4 flex items-center gap-3">
+          <ItemThumb photoUrl={item.photoUrl || first.photoUrl} categoryName={item.category || first.category} size={44} />
+          <div className="flex-1 min-w-0">
+            <h2 id="batch-pick-title" className="truncate text-[17px] font-semibold tracking-[-0.01em]">{item.name}</h2>
+            <p className="truncate text-[13px] text-gray-500">{formatAmountWithUnit(total, trackBy)} in stock</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className={CIRCLE_BTN}>
+            <X className="w-[18px] h-[18px]" strokeWidth={2.4} />
+          </button>
         </div>
-      )}
-    </AnimatePresence>
+
+        {/* Which batch */}
+        <div className="flex-1 overflow-y-auto px-4 pb-[calc(28px+env(safe-area-inset-bottom))] flex flex-col gap-2">
+          <span className="text-[13px] font-medium text-gray-500">Edit</span>
+          <div className="rounded-2xl border border-gray-200 px-3.5">
+            {batches.map((b, i) => (
+              <button
+                key={b.id || `batch-${i}`}
+                type="button"
+                onClick={() => {
+                  onSelectBatch?.(b);
+                  onClose?.();
+                }}
+                className={`w-full min-h-16 py-2.5 flex items-center gap-3 text-left ${i < batches.length - 1 ? 'border-b border-gray-100' : ''}`}
+              >
+                <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  <span className="text-[15px] font-medium">
+                    {isFood ? (b.expirationDate ? formatExpiry(b.expirationDate, b.expirationPrecision) : 'No date') : 'Current stock'}
+                    {isFood && isExpired(b.expirationDate) && <span className="ml-1.5 text-[12.5px] font-normal text-red-600">· Expired</span>}
+                  </span>
+                  <span className="truncate text-[13px] text-gray-500">{formatStorage(b.storageLocation) || 'No spot set'}</span>
+                </span>
+                <span className="text-[15px] font-medium text-[#4b5263]">{amountOf(b.quantity)}</span>
+                <ChevronRight className="w-[18px] h-[18px] shrink-0 text-gray-400" strokeWidth={2.2} />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </BottomSheet>
   );
 }

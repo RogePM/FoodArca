@@ -345,7 +345,7 @@ function QuantityFields({
                       value={formQty}
                       onKeyDown={handleKeyDown}
                       onChange={(e) => setFormQty(e.target.value.replace(/[^0-9]/g, ""))}
-                      className="w-0 flex-1 min-w-0 text-center text-[20px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
+                      className="w-0 flex-1 min-w-0 text-center !text-[20px] font-bold text-[#1a1f36] bg-transparent outline-none h-full"
                     />
                     <button
                       type="button"

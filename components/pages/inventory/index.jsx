@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/table';
 
 import { EditItemModal } from '@/components/modals/edit-item-modal';
-import { MobileManualEntryView } from '@/components/pages/add-items/mobile-manual-entry-view';
+import { NewItemForm } from '@/components/pages/add-items/new-item-form';
 import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { categories } from '@/lib/constants';
@@ -45,6 +45,29 @@ import { MobileGridView } from './mobile-grid-view';
 import { InventoryBatchSelectionSheet } from './batch-selection-sheet';
 import { InventoryItemActionsSheet } from './item-actions-sheet';
 import { MobileInventorySearch } from '@/components/ui/mobile-inventory-search';
+
+// A lot from /api/foods in the cart-line shape the add flow's item form edits.
+function toEditLine(lot) {
+  if (!lot) return null;
+  return {
+    id: lot.id,
+    catalogItemId: lot.catalogItemId || null,
+    name: lot.name || '',
+    categoryId: lot.categoryId ?? null,
+    categoryName: lot.category || null,
+    isFood: lot.isFood ?? true,
+    trackBy: lot.trackBy || 'count',
+    sizeAmount: lot.sizeAmount ?? null,
+    sizeUnit: lot.sizeUnit ?? null,
+    caseSize: lot.caseSize ?? null,
+    barcode: lot.barcode || null,
+    photoUrl: lot.photoUrl || null,
+    quantity: Number(lot.quantity) || 0,
+    expirationDate: lot.expirationDate || null,
+    expirationPrecision: lot.expirationPrecision || null,
+    storageLocation: lot.storageLocation || null,
+  };
+}
 
 function matchesCategoryFilter(productCategory, selectedCategoryValue) {
   if (!selectedCategoryValue || selectedCategoryValue === 'ALL' || selectedCategoryValue === 'all') return true;
@@ -311,43 +334,45 @@ export function InventoryView() {
     handleModify({ ...batch, hasSiblingBatches });
   };
 
-  const handleMobileSave = async (payload) => {
-    try {
-      if (selectedItem?.id) {
-        await fetch(`/api/foods/${selectedItem.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-pantry-id': pantryId
-          },
-          body: JSON.stringify({ ...payload, pantryId })
-        });
-      }
-      setIsSheetOpen(false);
-      setSelectedItem(null);
-      fetchInventory(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleMobileDelete = async (item) => {
-    if (!item?.id) return;
-    try {
-      const res = await fetch(`/api/foods/${item.id}`, {
-        method: 'DELETE',
-        headers: { 'x-pantry-id': pantryId }
+  // Saves the add flow's item form (a cart-line shape) back onto this lot.
+  const handleMobileSave = async (line) => {
+    const lot = selectedItem;
+    if (!lot?.id) return;
+    const send = async (url, method, body) => {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'x-pantry-id': pantryId },
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || 'Delete failed');
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || data.error || 'Could not save. Please try again.');
       }
+    };
+    try {
+      // Count ↔ weigh is an item change; the new amount becomes this (only) lot's amount.
+      if (line.trackBy !== lot.trackBy && lot.catalogItemId) {
+        await send(`/api/items/${lot.catalogItemId}`, 'PATCH', { trackBy: line.trackBy, newTotal: line.quantity });
+      }
+      await send(`/api/foods/${lot.id}`, 'PUT', {
+        pantryId,
+        name: line.name,
+        categoryId: line.categoryId,
+        photoUrl: line.photoUrl,
+        sizeAmount: line.sizeAmount,
+        sizeUnit: line.sizeUnit,
+        caseSize: line.caseSize,
+        quantity: line.quantity,
+        expirationDate: line.expirationDate,
+        expirationPrecision: line.expirationPrecision,
+        storageLocation: line.storageLocation,
+      });
       setIsSheetOpen(false);
       setSelectedItem(null);
       fetchInventory(true);
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Could not delete this item. Please try again.');
+      alert(err.message);
     }
   };
 
@@ -741,16 +766,17 @@ export function InventoryView() {
 
       {/* Edit Item Flows (Mobile vs Desktop) */}
       {isSheetOpen && !isDesktop ? (
-        <MobileManualEntryView
+        <NewItemForm
           key={selectedItem?.id || 'edit-item'}
-          initialItem={selectedItem}
+          inStock
+          editLine={toEditLine(selectedItem)}
+          lockTrackBy={!!selectedItem?.hasSiblingBatches}
           pantryId={pantryId}
           onBack={() => {
             setIsSheetOpen(false);
             setSelectedItem(null);
           }}
           onSave={handleMobileSave}
-          onDelete={handleMobileDelete}
         />
       ) : (
         <EditItemModal

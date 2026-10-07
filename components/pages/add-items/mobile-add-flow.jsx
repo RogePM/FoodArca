@@ -1,455 +1,208 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+// Add Items (mobile). Every way in ends in the same cart line:
+//   scan → item already in the pantry → KnownItemSheet (how much · expires · where)
+//   scan → found online / not found    → NewItemForm (what is it? → how much came in?)
+//   manual entry                       → NewItemForm
+//   search to restock                  → RestockSheet → KnownItemSheet
+// The cart is one drop-off: submitting it records the delivery and every line in history.
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { usePantry } from '@/components/providers/PantryProvider';
-import { categories } from '@/lib/constants';
-import { RestockSheet } from '@/components/pages/add-items/restock-sheet';
-import {
-  X, Plus, Minus, Calendar,
-  CheckCircle2, Package, Loader2, ChevronLeft, ChevronDown, Check
-} from 'lucide-react';
+import { CheckCircle2, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
-
-// Helper for labels
-function MobileFieldLabel({ label, optional, children }) {
-  return (
-    <div className="space-y-1.5 w-full">
-      <div className="flex items-center justify-between">
-        <label className="text-[13px] font-bold text-[#1a1f36] leading-none ml-0.5">{label}</label>
-        {optional && <span className="text-[11px] font-semibold text-[#a3acb9] uppercase tracking-wide mr-1">Optional</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
+import { usePantry } from '@/components/providers/PantryProvider';
+import { RestockSheet } from './restock-sheet';
 import { MobileCartView } from './mobile-cart-view';
-import { MobileManualEntryView } from './mobile-manual-entry-view';
 import { AddFlowBottomBar } from './add-flow-bottom-bar';
+import { KnownItemSheet } from './known-item-sheet';
+import { NewItemForm } from './new-item-form';
+import { toProduct } from './intake-fields';
+import {
+  CART_KEY, DELIVERY_KEY, EMPTY_DELIVERY, loadStored, saveStored, addLine, replaceLine,
+} from './cart-lines';
 
-// Dynamically import the scanner overlay to avoid SSR issues
 const BarcodeScannerOverlay = dynamic(
-  () => import('@/components/ui/BarcodeScannerOverlay').then(mod => mod.BarcodeScannerOverlay),
+  () => import('@/components/ui/BarcodeScannerOverlay').then((mod) => mod.BarcodeScannerOverlay),
   { ssr: false }
 );
 
-function formatExpDateDisplay(dateStr) {
-  if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function getCategoryMeta(catName) {
-  const safeStr = String(catName || '').toLowerCase();
-  const found = categories.find(
-    (c) => c.name.toLowerCase() === safeStr || c.value.toLowerCase() === safeStr
-  );
-  if (found) return { icon: found.icon, name: found.name, value: found.value };
-  return { icon: Package, name: 'Other', value: 'other' };
-}
-
-// Weight units convert to lbs directly; volume units (fl_oz/ml/l/gal) have no
-// reliable weight without a per-product density, so they're stored as-is and
-// contribute 0 toward totalWeightLbs — same gap the full manual-entry form has.
-function computePerUnitLbs(weightStr, unit) {
-  const val = parseFloat(weightStr);
-  if (!val || val <= 0) return 0;
-  if (unit === 'lbs') return val;
-  if (unit === 'oz') return val / 16;
-  if (unit === 'g') return val / 453.592;
-  if (unit === 'kg') return val * 2.20462;
-  return 0;
-}
+const productFromLine = (l) => ({
+  catalogItemId: l.catalogItemId,
+  name: l.name,
+  photoUrl: l.photoUrl,
+  barcode: l.barcode,
+  categoryId: l.categoryId,
+  categoryName: l.categoryName,
+  isFood: l.isFood,
+  trackBy: l.trackBy,
+  sizeAmount: l.sizeAmount,
+  sizeUnit: l.sizeUnit,
+  caseSize: l.caseSize,
+});
 
 export function MobileAddFlow({ onClose }) {
   const { pantryId } = usePantry();
   const router = useRouter();
 
-  // --- CART STATE ---
-  const [cartItems, setCartItems] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = sessionStorage.getItem('foodarca_staged_batch');
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
-  });
+  // --- Cart (one drop-off), kept for the session so a volunteer can step away ---
+  const [cartItems, setCartItems] = useState(() => (typeof window !== 'undefined' ? loadStored(CART_KEY, []) : []));
+  const [delivery, setDelivery] = useState(() =>
+    typeof window !== 'undefined' ? { ...EMPTY_DELIVERY, ...loadStored(DELIVERY_KEY, EMPTY_DELIVERY) } : EMPTY_DELIVERY
+  );
+  useEffect(() => { saveStored(CART_KEY, cartItems); }, [cartItems]);
+  useEffect(() => { saveStored(DELIVERY_KEY, delivery); }, [delivery]);
+  // Carts saved by the previous version of this screen can't be submitted any more.
+  useEffect(() => { try { sessionStorage.removeItem('foodarca_staged_batch'); } catch {} }, []);
 
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('foodarca_staged_batch', JSON.stringify(cartItems));
-    } catch (e) {}
-  }, [cartItems]);
-
-  // --- HELPER: Merge identical items in cart ---
-  const addItemToCartMerged = (newItem) => {
-    setCartItems(prev => {
-      const existingIdx = prev.findIndex(item => {
-        const isSameBarcode = item.barcode && newItem.barcode && item.barcode === newItem.barcode;
-        const isSameName = item.name?.toLowerCase() === newItem.name?.toLowerCase();
-        const matchIdentifier = isSameBarcode || isSameName;
-        
-        const itemExp = item.expirationDate ? String(item.expirationDate).split('T')[0] : '';
-        const newExp = newItem.expirationDate ? String(newItem.expirationDate).split('T')[0] : '';
-        const matchExp = itemExp === newExp;
-        
-        return matchIdentifier && matchExp;
-      });
-
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        const existing = updated[existingIdx];
-        const newQty = (parseFloat(existing.quantity) || 0) + (parseFloat(newItem.quantity) || 1);
-        const newWeight = (parseFloat(existing.totalWeightLbs) || 0) + (parseFloat(newItem.totalWeightLbs) || 0);
-        
-        updated[existingIdx] = {
-          ...existing,
-          existingBatchId: existing.existingBatchId || newItem.existingBatchId || null,
-          quantity: String(newQty),
-          totalWeightLbs: newWeight > 0 ? Number(newWeight.toFixed(2)) : 0
-        };
-        // Move the merged item to the top of the cart so the user sees it just got updated
-        const [mergedItem] = updated.splice(existingIdx, 1);
-        return [mergedItem, ...updated];
-      }
-      return [newItem, ...prev];
-    });
-  };
-
-  // --- VIEW ROUTING ---
-  // activeView: 'CAMERA', 'CART', 'MANUAL_ENTRY'
-  const [activeView, setActiveView] = useState('CART');
-
-  // --- SCANNER & SHEET STATE ---
-  // sheetState: 'CLOSED', 'KNOWN'
-  const [sheetState, setSheetState] = useState('CLOSED');
-  const [isGridSheetOpen, setIsGridSheetOpen] = useState(false);
-  const [scannedItem, setScannedItem] = useState(null);
-  const [manualEntryReturnView, setManualEntryReturnView] = useState('CART');
-  // Pure bookkeeping, not rendered — kept as a ref so a scan-in-flight doesn't
-  // re-render the component (a re-render here recreates handleScan, which used
-  // to force the camera to tear down and reacquire mid-scan; see BarcodeScannerOverlay).
+  // --- Views and overlays ---
+  const [activeView, setActiveView] = useState('CART'); // CART | CAMERA
+  const [newItem, setNewItem] = useState(null); // { initial?, editLine? }
+  const [known, setKnown] = useState(null); // { product, initialLine? }
+  const [restockOpen, setRestockOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
   const pendingScansRef = useRef(new Set());
-  const [toastMessage, setToastMessage] = useState(null); // { title: string, count: number }
-  const [isAdding, setIsAdding] = useState(false);
-  
-  // Form State (for the Known Item Sheet)
-  const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState(categories[0].value);
-  const [formQty, setFormQty] = useState('1');
-  const [formWeight, setFormWeight] = useState('');
-  const [formWeightUnit, setFormWeightUnit] = useState('lbs');
-  const [formBarcode, setFormBarcode] = useState('');
-  const [formExpDate, setFormExpDate] = useState('');
-  const [formUnit, setFormUnit] = useState('units');
-
-  const QUICK_UNIT_OPTIONS = [
-    { value: 'units', label: 'Units' },
-    { value: 'cans', label: 'Cans' },
-    { value: 'boxes', label: 'Boxes' },
-    { value: 'bottles', label: 'Bottles' },
-    { value: 'bags', label: 'Bags' },
-    { value: 'cases', label: 'Cases' },
-  ];
-
-  const UNIT_SINGULAR = {
-    units: 'unit',
-    cans: 'can',
-    boxes: 'box',
-    bottles: 'bottle',
-    bags: 'bag',
-    cases: 'case',
-  };
-
-  const WEIGHT_UNIT_OPTIONS = [
-    { value: 'lbs', label: 'lbs' },
-    { value: 'oz', label: 'oz' },
-    { value: 'fl_oz', label: 'fl oz' },
-    { value: 'kg', label: 'kg' },
-    { value: 'g', label: 'g' },
-    { value: 'ml', label: 'mL' },
-    { value: 'l', label: 'L' },
-    { value: 'gal', label: 'gal' },
-  ];
-
   const lastScanRef = useRef({ code: null, time: 0 });
 
-  // --- FORM STATE HELPERS (update local form only, NOT cart) ---
-  const syncQuantity = (newQty) => {
-    setFormQty(newQty);
+  const showToast = (title) => {
+    clearTimeout(toastTimer.current);
+    setToast(title);
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
+  };
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  const putLine = (line, isEdit) => {
+    setCartItems((prev) => (isEdit ? replaceLine(prev, line) : addLine(prev, line)));
+    if (!isEdit) showToast(line.name);
   };
 
-  const syncExpDate = (newDate) => {
-    setFormExpDate(newDate);
-  };
+  const openManual = () => setNewItem({ initial: { lookup: 'manual' } });
+  const editLine = (line) =>
+    line.catalogItemId
+      ? setKnown({ product: productFromLine(line), initialLine: line })
+      : setNewItem({ editLine: line });
 
-  const syncUnit = (newUnit) => {
-    setFormUnit(newUnit);
-  };
-
-  // --- ACTIONS ---
-  
-  const handleScan = async (code) => {
-    // 1. Continuous Mode Debounce: 
-    // Prevent scanning the EXACT same barcode within 1.5 seconds.
+  // Stable so the camera isn't torn down on every render (see BarcodeScannerOverlay).
+  const handleScan = useCallback(async (code) => {
     const now = Date.now();
-    if (lastScanRef.current.code === code && (now - lastScanRef.current.time) < 1500) {
-      return;
-    }
-    
-    // 2. Concurrency Safety: Prevent duplicate lookups of the same barcode in flight
+    if (lastScanRef.current.code === code && now - lastScanRef.current.time < 1500) return;
     if (pendingScansRef.current.has(code)) return;
-
     lastScanRef.current = { code, time: now };
     pendingScansRef.current.add(code);
-    setFormBarcode(code);
 
     try {
       const res = await fetch(`/api/barcode/${encodeURIComponent(code)}`, {
         headers: { 'x-pantry-id': pantryId },
-        cache: 'no-store'
+        cache: 'no-store',
       });
       const data = await res.json();
-      
-      if (data.found && data.data) {
-        // Known item found — populate popup for user confirmation (do NOT add to cart yet)
-        const pendingItem = {
-          id: crypto.randomUUID(),
-          barcode: code,
-          name: data.data.name || 'Unknown Item',
-          category: data.data.category || categories[0].value,
-          quantity: 1,
-          totalWeightLbs: data.data.weightPerUnit || 0,
-          unit: data.data.unit || 'units',
-          expirationDate: '',
-          photoUrl: data.data.photoUrl || null
-        };
-
-        // Populate the confirmation popup
-        setScannedItem(pendingItem); 
-        setFormName(pendingItem.name);
-        setFormCategory(pendingItem.category);
-        setFormQty('1');
-        setFormWeight(pendingItem.totalWeightLbs ? String(pendingItem.totalWeightLbs) : '');
-        setFormExpDate('');
-        setFormUnit(pendingItem.unit || 'units');
-        setSheetState('KNOWN');
-
-        // Optional haptic
+      if (data.found && data.source === 'catalog') {
+        setKnown({ product: toProduct(data.data) });
         if (navigator.vibrate) navigator.vibrate(100);
-
+      } else if (data.found) {
+        setNewItem({
+          initial: {
+            barcode: code,
+            name: data.data.name || '',
+            photoUrl: data.data.photoUrl || null,
+            sizeAmount: data.data.sizeAmount ?? null,
+            sizeUnit: data.data.sizeUnit ?? null,
+            lookup: 'openfoodfacts',
+          },
+        });
       } else {
-        // Not found -> go to full screen manual entry
-        openManualEntry({ barcode: code }, 'CART');
+        setNewItem({ initial: { barcode: code, lookup: 'notfound' } });
       }
     } catch (err) {
       console.error(err);
-      openManualEntry({ barcode: code }, 'CART');
+      setNewItem({ initial: { barcode: code, lookup: 'notfound' } });
     } finally {
       pendingScansRef.current.delete(code);
     }
-  };
+  }, [pantryId]);
 
-  const openManualEntry = (itemToEdit = null, returnTo = 'CAMERA') => {
-    setScannedItem(itemToEdit);
-    setSheetState('CLOSED');
-    setManualEntryReturnView(returnTo);
-    setActiveView('MANUAL_ENTRY');
-  };
+  const exitFlow = () => (onClose ? onClose() : router.push('/dashboard'));
 
-  const handleManualEntry = () => {
-    const randomCode = `INT-${Math.floor(100000 + Math.random() * 900000)}`;
-    openManualEntry({ barcode: randomCode, isInternal: true }, 'CAMERA');
-  };
+  const overlays = (
+    <>
+      <RestockSheet
+        isOpen={restockOpen}
+        onClose={() => setRestockOpen(false)}
+        onPickItem={(product) => { setRestockOpen(false); setKnown({ product }); }}
+      />
 
-  const closeSheet = () => {
-    setSheetState('CLOSED');
-    setScannedItem(null);
-  };
+      <KnownItemSheet
+        product={known?.product || null}
+        initialLine={known?.initialLine || null}
+        onClose={() => setKnown(null)}
+        onAdd={(line) => { putLine(line, !!known?.initialLine); setKnown(null); }}
+      />
 
-  const showToast = (title, count) => {
-    setToastMessage({ title, count });
-    setTimeout(() => setToastMessage(null), 2500);
-  };
-
-  const addToBatch = () => {
-    if (!formName.trim() || !formQty || isAdding) return;
-    
-    const qtyNum = parseFloat(formQty) || 1;
-    let perUnitLbs = 0;
-    if (formWeight && formWeightUnit === 'oz') {
-      perUnitLbs = parseFloat(formWeight) / 16;
-    } else if (formWeight) {
-      perUnitLbs = parseFloat(formWeight);
-    }
-    
-    const newItem = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      barcode: formBarcode,
-      name: formName.trim(),
-      category: formCategory,
-      categoryName: getCategoryMeta(formCategory).name,
-      quantity: String(qtyNum),
-      unit: scannedItem?.unit || 'units',
-      weightPerUnit: perUnitLbs > 0 ? perUnitLbs.toFixed(2) : '0',
-      totalWeightLbs: Number((perUnitLbs * qtyNum).toFixed(2)),
-      intakeMode: 'count',
-      expirationDate: formExpDate || null,
-      expirationPrecision: formExpDate ? 'day' : 'none',
-      sourceType: 'donation',
-      photoUrl: scannedItem?.photoUrl || null
-    };
-
-    addItemToCartMerged(newItem);
-    setIsAdding(true);
-    
-    setTimeout(() => {
-      setIsAdding(false);
-      closeSheet();
-      showToast(newItem.name, cartItems.length + 1);
-    }, 1000);
-  };
-
-  // Prevent background scrolling on iOS when a sheet is open
-  useEffect(() => {
-    if (sheetState !== 'CLOSED') {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [sheetState]);
-
-
-  // ============================
-  // ROUTER RENDER LOGIC
-  // ============================
-
-  const handleRestockItem = (item) => {
-    const newItem = {
-      id: item.id,
-      barcode: item.barcode,
-      name: item.name,
-      category: item.category,
-      categoryName: getCategoryMeta(item.category).name,
-      quantity: String(item.quantity),
-      unit: item.unit || 'units',
-      weightPerUnit: item.weightPerUnit ? String(item.weightPerUnit) : '0',
-      totalWeightLbs: item.totalWeightLbs || 0,
-      intakeMode: 'count',
-      expirationDate: item.expirationDate || null,
-      expirationPrecision: item.expirationPrecision || 'none',
-      sourceType: 'donation',
-      photoUrl: item.photoUrl || null,
-      isNewBatch: item.isNewBatch,
-      existingBatchId: item.existingBatchId || null,
-    };
-    addItemToCartMerged(newItem);
-    showToast(newItem.name, cartItems.length + 1);
-  };
+      <AnimatePresence>
+        {newItem && (
+          <NewItemForm
+            key={newItem.editLine?.id || newItem.initial?.barcode || 'manual'}
+            initial={newItem.initial}
+            editLine={newItem.editLine}
+            pantryId={pantryId}
+            onBack={() => setNewItem(null)}
+            onSave={(line) => { putLine(line, !!newItem.editLine); setNewItem(null); }}
+            onPickExisting={(product) => { setNewItem(null); setKnown({ product }); }}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  );
 
   if (activeView === 'CART') {
     return (
       <>
-      <AnimatePresence>
-        <MobileCartView 
-          cartItems={cartItems} 
-          setCartItems={setCartItems}
-          pantryId={pantryId}
-          onBack={(viewName) => {
-            // If called with no arguments (Back button), return to Dashboard
-            if (!viewName || typeof viewName !== 'string') {
-              if (onClose) {
-                onClose();
-              } else {
-                router.push('/dashboard');
-              }
-              return;
-            }
-            if (viewName === 'SEARCH') {
-              setIsGridSheetOpen(true);
-              return;
-            }
-            if (viewName === 'MANUAL_ENTRY') {
-              const randomCode = `INT-${Math.floor(100000 + Math.random() * 900000)}`;
-              openManualEntry({ barcode: randomCode, isInternal: true }, 'CART');
-              return;
-            }
-            setActiveView(viewName);
-          }}
-          onEdit={(item) => {
-            openManualEntry(item, 'CART');
-          }}
-        />
-      </AnimatePresence>
-      <RestockSheet 
-        isOpen={isGridSheetOpen}
-        onClose={() => setIsGridSheetOpen(false)}
-        onRestockItem={handleRestockItem}
-      />
+        <AnimatePresence>
+          <MobileCartView
+            cartItems={cartItems}
+            setCartItems={setCartItems}
+            delivery={delivery}
+            setDelivery={setDelivery}
+            onEdit={editLine}
+            onBack={(viewName) => {
+              if (!viewName || typeof viewName !== 'string') return exitFlow();
+              if (viewName === 'SEARCH') return setRestockOpen(true);
+              if (viewName === 'MANUAL_ENTRY') return openManual();
+              setActiveView(viewName);
+            }}
+          />
+        </AnimatePresence>
+        {overlays}
       </>
     );
   }
 
-  if (activeView === 'MANUAL_ENTRY') {
-    return (
-      <MobileManualEntryView 
-        key={scannedItem?.id || scannedItem?.barcode || 'manual-entry'}
-        onBack={() => setActiveView(manualEntryReturnView)} 
-        initialItem={scannedItem}
-        pantryId={pantryId}
-        onSave={(updatedItem) => {
-          setCartItems(prev => {
-            const exists = prev.find(i => i.id === updatedItem.id);
-            if (exists) {
-              return prev.map(i => i.id === updatedItem.id ? updatedItem : i);
-            }
-            return [updatedItem, ...prev];
-          });
-          setActiveView(manualEntryReturnView);
-          showToast(updatedItem.name, cartItems.length + (cartItems.find(i => i.id === updatedItem.id) ? 0 : 1));
-        }}
-      />
-    );
-  }
-
-  // default: activeView === 'CAMERA'
+  // CAMERA
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col w-full h-[100dvh] bg-black overflow-hidden">
-      
-      {/* 1. BACKGROUND CAMERA LAYER (Unmounts when navigating away) */}
-      <BarcodeScannerOverlay 
+      <BarcodeScannerOverlay
         onScan={handleScan}
-        isPaused={isGridSheetOpen || sheetState !== 'CLOSED'}
-        showCloseButton={false} 
+        isPaused={restockOpen || !!known || !!newItem}
+        showCloseButton={false}
         className="absolute inset-0 z-0"
       />
 
-      {/* 2. TOP CONTROLS */}
       <div className="absolute top-0 inset-x-0 p-4 pt-safe z-40 flex justify-between items-start pointer-events-none">
         <Button
           variant="secondary"
           onClick={() => setActiveView('CART')}
           className="h-14 w-14 rounded-full bg-black/50 backdrop-blur-md text-white border border-white/10 shadow-lg pointer-events-auto"
-          aria-label="Back to Cart"
+          aria-label="Back to cart"
         >
           <ChevronLeft className="h-12 w-12 text-white" strokeWidth={3} />
         </Button>
       </div>
 
-      {/* 3. CENTER SUCCESS FLASH (Loader Removed for Continuous Flow) */}
       <AnimatePresence>
-        {toastMessage && (
+        {toast && (
           <motion.div
             key="toast"
             initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.97 }}
@@ -464,12 +217,12 @@ export function MobileAddFlow({ onClose }) {
                 <div className="w-8 h-8 rounded-full bg-[#fff0eb] flex items-center justify-center text-[#e27f2c] shrink-0">
                   <CheckCircle2 className="w-4.5 h-4.5" strokeWidth={2.4} />
                 </div>
-                <span className="font-semibold text-[14px] text-[#1a1f36] truncate">Added {toastMessage.title}</span>
+                <span className="font-semibold text-[14px] text-[#1a1f36] truncate">Added {toast}</span>
               </div>
               <div className="flex items-center gap-1.5 pl-3 ml-2 shrink-0 border-l border-gray-100">
-                <span className="text-[13px] font-semibold text-[#e27f2c]">Open Cart</span>
+                <span className="text-[13px] font-semibold text-[#e27f2c]">Open cart</span>
                 <span className="bg-[#e27f2c] text-white text-[11px] font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
-                  {toastMessage.count}
+                  {cartItems.length}
                 </span>
               </div>
             </button>
@@ -477,297 +230,18 @@ export function MobileAddFlow({ onClose }) {
         )}
       </AnimatePresence>
 
-      {/* 4. BOTTOM NAVIGATION BAR (Scanner, Search items, Manual entry, Cart) */}
       <AddFlowBottomBar
         activeTab="SCANNER"
         cartCount={cartItems.length}
-        helperText="Scan a barcode to add an item to inventory"
+        helperText="Scan a barcode to add an item"
         onScanner={() => {}}
-        onSearch={() => setIsGridSheetOpen(true)}
-        onManual={handleManualEntry}
+        onSearch={() => setRestockOpen(true)}
+        onManual={openManual}
         onCart={() => setActiveView('CART')}
         hideCart
       />
 
-      {/* RESTOCK / SEARCH ITEMS SHEET */}
-      <RestockSheet 
-        isOpen={isGridSheetOpen}
-        onClose={() => setIsGridSheetOpen(false)}
-        onRestockItem={handleRestockItem}
-      />
-
-      {/* 5. FAST INTAKE SHEET (For Known Barcodes) — its own fixed layer so it
-          always renders above the camera, bottom nav and scrim regardless of
-          the camera container's overflow-hidden. */}
-      <AnimatePresence>
-        {sheetState === 'KNOWN' && (
-          <div className="fixed inset-0 z-[10000] flex flex-col justify-end" style={{ isolation: 'isolate' }}>
-            {/* SCRIM */}
-            <motion.div
-              key="known-scrim"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-              onClick={closeSheet}
-            />
-
-            {/* SLIDE-UP SHEET */}
-            <motion.div
-              key="known-sheet"
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-              className="relative bg-white rounded-t-[28px] shadow-[0_-10px_40px_rgba(0,0,0,0.15)] flex flex-col w-full max-h-[90dvh] overflow-y-auto"
-            >
-              {/* Close button — no "Item Found" title row, saves vertical space */}
-              <button
-                onClick={closeSheet}
-                className="absolute right-4 top-4 h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-[#8792a2] active:bg-gray-200 transition-colors z-10 shrink-0"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" strokeWidth={2.5} />
-              </button>
-
-              {/* Header: photo + editable name + tappable category */}
-              <div className="px-5 pt-5 pb-4 pr-14 border-b border-gray-100 flex items-start gap-3.5 min-w-0">
-                {scannedItem?.photoUrl ? (
-                  <img src={scannedItem.photoUrl} alt="" className="w-14 h-14 rounded-2xl object-cover border border-gray-100 shadow-sm shrink-0" />
-                ) : (
-                  <div className="w-14 h-14 rounded-2xl bg-[#fff0eb] border border-[#d97757]/10 flex items-center justify-center shrink-0">
-                    <Package className="h-6 w-6 text-[#d97757]" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <input
-                    type="text"
-                    value={formName}
-                    onChange={e => setFormName(e.target.value)}
-                    placeholder="Item name"
-                    className="w-full text-[16px] font-bold text-[#1a1f36] bg-transparent outline-none border-b border-transparent focus:border-[#d97757] leading-tight truncate pb-0.5"
-                  />
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="inline-flex items-center gap-1 max-w-full text-[12px] font-bold text-[#d97757] bg-[#fff0eb] pl-2.5 pr-1.5 py-1 rounded-full outline-none data-[state=open]:ring-1 data-[state=open]:ring-[#d97757] transition-shadow">
-                      <span className="truncate">{getCategoryMeta(formCategory).name}</span>
-                      <ChevronDown className="h-3 w-3 shrink-0" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-48 max-h-64 overflow-y-auto p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[10050]">
-                      {categories.map(cat => (
-                        <DropdownMenuItem
-                          key={cat.value}
-                          onClick={() => setFormCategory(cat.value)}
-                          className={`flex items-center justify-between px-3 py-2 text-[13px] rounded-lg cursor-pointer ${
-                            formCategory === cat.value
-                              ? 'bg-[#fff0eb] text-[#d97757] font-bold'
-                              : 'text-[#3c4257] font-medium'
-                          }`}
-                        >
-                          <span>{cat.name}</span>
-                          {formCategory === cat.value && <Check className="h-3.5 w-3.5 text-[#d97757]" />}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-
-              {/* Controls */}
-              <div className="px-5 py-4 space-y-4">
-
-              {/* Row 1: Quantity + Unit */}
-              <div className="flex gap-3 min-w-0">
-                {/* Quantity Stepper */}
-                <div className="flex-1 min-w-0">
-                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">How many?</span>
-                  <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200/80 h-[48px] min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => syncQuantity(String(Math.max(1, parseInt(formQty || '1') - 1)))}
-                      className="h-full w-11 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-l-xl transition-colors"
-                    >
-                      <Minus className="w-4 h-4" strokeWidth={2.5} />
-                    </button>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formQty}
-                      onChange={e => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
-                        syncQuantity(val || '1');
-                      }}
-                      className="w-0 flex-1 min-w-0 text-center text-[18px] font-black text-[#1a1f36] bg-transparent outline-none h-full"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => syncQuantity(String(parseInt(formQty || '1') + 1))}
-                      className="h-full w-11 shrink-0 flex items-center justify-center text-[#4f566b] active:bg-gray-100 rounded-r-xl transition-colors"
-                    >
-                      <Plus className="w-4 h-4" strokeWidth={2.5} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Unit Dropdown (Radix — portal-based, can never clip/overflow the sheet) */}
-                <div className="w-[112px] shrink-0">
-                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Counted as</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="w-full h-[48px] px-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[13px] font-bold text-[#1a1f36] flex items-center justify-between outline-none data-[state=open]:border-[#d97757] data-[state=open]:bg-white transition-colors">
-                      <span className="truncate">{QUICK_UNIT_OPTIONS.find(o => o.value === formUnit)?.label || 'Units'}</span>
-                      <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] shrink-0" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-36 p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[10050]">
-                      {QUICK_UNIT_OPTIONS.map(opt => (
-                        <DropdownMenuItem
-                          key={opt.value}
-                          onClick={() => syncUnit(opt.value)}
-                          className={`flex items-center justify-between px-3 py-2 text-[13px] rounded-lg cursor-pointer ${
-                            formUnit === opt.value
-                              ? 'bg-[#fff0eb] text-[#d97757] font-bold'
-                              : 'text-[#3c4257] font-medium'
-                          }`}
-                        >
-                          <span>{opt.label}</span>
-                          {formUnit === opt.value && <Check className="h-3.5 w-3.5 text-[#d97757]" />}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-
-              {/* Row 2: Weight / Volume per unit — editable so a wrong auto-filled
-                  size (e.g. from a barcode lookup) can be corrected on the spot.
-                  Framed as a plain question, not a spec-sheet term, since staff
-                  read this as "how big is ONE of these" not "size per unit". */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider">
-                    How big is 1 {UNIT_SINGULAR[formUnit] || 'unit'}?
-                  </span>
-                  <span className="text-[10px] font-semibold text-[#a3acb9] uppercase tracking-wide">Optional</span>
-                </div>
-                <div className="flex gap-3 min-w-0">
-                  <div className="flex-1 min-w-0 relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={formWeight}
-                      onChange={e => setFormWeight(e.target.value.replace(/[^0-9.]/g, ''))}
-                      placeholder="e.g. 500"
-                      className="w-full h-[48px] pl-3.5 pr-9 rounded-xl border border-gray-200/80 bg-gray-50 text-[15px] font-semibold text-[#1a1f36] outline-none focus:border-[#d97757] focus:bg-white transition-colors"
-                    />
-                    {formWeight && (
-                      <button
-                        type="button"
-                        onClick={() => setFormWeight('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 active:bg-gray-300 transition-colors"
-                        aria-label="Clear size"
-                      >
-                        <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="w-[112px] shrink-0">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="w-full h-[48px] px-3 rounded-xl border border-gray-200/80 bg-gray-50 text-[13px] font-bold text-[#1a1f36] flex items-center justify-between outline-none data-[state=open]:border-[#d97757] data-[state=open]:bg-white transition-colors">
-                      <span className="truncate">{WEIGHT_UNIT_OPTIONS.find(o => o.value === formWeightUnit)?.label || 'lbs'}</span>
-                      <ChevronDown className="h-3.5 w-3.5 text-[#a3acb9] shrink-0" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-32 max-h-64 overflow-y-auto p-1 rounded-xl bg-white border border-gray-200/90 shadow-xl z-[10050]">
-                      {WEIGHT_UNIT_OPTIONS.map(opt => (
-                        <DropdownMenuItem
-                          key={opt.value}
-                          onClick={() => setFormWeightUnit(opt.value)}
-                          className={`flex items-center justify-between px-3 py-2 text-[13px] rounded-lg cursor-pointer ${
-                            formWeightUnit === opt.value
-                              ? 'bg-[#fff0eb] text-[#d97757] font-bold'
-                              : 'text-[#3c4257] font-medium'
-                          }`}
-                        >
-                          <span>{opt.label}</span>
-                          {formWeightUnit === opt.value && <Check className="h-3.5 w-3.5 text-[#d97757]" />}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  </div>
-                </div>
-                <p className="text-[11px] font-medium text-[#a3acb9] mt-1.5 ml-0.5">
-                  The size on the label — e.g. 500 mL, 12 oz. Leave blank if unsure.
-                </p>
-              </div>
-
-              {/* Row 3: Expiration Date */}
-              <div>
-                <span className="text-[11px] font-bold text-[#8792a2] uppercase tracking-wider mb-1.5 block">Expiration Date</span>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#a3acb9] pointer-events-none z-10" />
-                  {/* The input's own text/placeholder is hidden (text-transparent) — every
-                      browser renders its native date placeholder differently (iOS shows
-                      none, Chrome/Android show their own "mm/dd/yyyy" regardless of the
-                      placeholder attribute), so we render one consistent label ourselves
-                      instead of layering a second one on top and doubling up. */}
-                  <input
-                    type="date"
-                    value={formExpDate}
-                    onChange={e => syncExpDate(e.target.value)}
-                    className="w-full h-[48px] pl-9 pr-9 rounded-xl border border-gray-200/80 bg-gray-50 text-transparent caret-transparent outline-none focus:border-[#d97757] focus:bg-white transition-colors appearance-none box-border"
-                    style={{ colorScheme: 'light' }}
-                  />
-                  <span className={`absolute left-9 right-9 top-1/2 -translate-y-1/2 truncate pointer-events-none text-[15px] ${formExpDate ? 'font-semibold text-[#1a1f36]' : 'font-medium text-[#a3acb9]'}`}>
-                    {formExpDate ? formatExpDateDisplay(formExpDate) : 'No date set'}
-                  </span>
-                  {/* Explicit clear button — appearance-none above also hides the
-                      browser's own native "clear" control, so this is the only way
-                      to reset the date once one is picked. */}
-                  {formExpDate && (
-                    <button
-                      type="button"
-                      onClick={() => syncExpDate('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 active:bg-gray-300 transition-colors z-10"
-                    >
-                      <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Confirm Button */}
-            <div className="px-5 pb-5 pt-1">
-              <button
-                onClick={() => {
-                  // Confirmed — NOW add to cart
-                  const confirmedItem = {
-                    id: scannedItem?.id || crypto.randomUUID(),
-                    barcode: formBarcode,
-                    name: formName.trim(),
-                    category: formCategory,
-                    categoryName: getCategoryMeta(formCategory).name,
-                    quantity: String(parseInt(formQty) || 1),
-                    unit: formUnit,
-                    weightPerUnit: computePerUnitLbs(formWeight, formWeightUnit).toFixed(2),
-                    totalWeightLbs: Number((computePerUnitLbs(formWeight, formWeightUnit) * (parseInt(formQty) || 1)).toFixed(2)),
-                    sizeValue: formWeight || null,
-                    sizeUnit: formWeight ? formWeightUnit : null,
-                    intakeMode: 'count',
-                    expirationDate: formExpDate || null,
-                    expirationPrecision: formExpDate ? 'day' : 'none',
-                    sourceType: 'donation',
-                    photoUrl: scannedItem?.photoUrl || null
-                  };
-                  addItemToCartMerged(confirmedItem);
-                  closeSheet();
-                  showToast(confirmedItem.name, cartItems.length + 1);
-                }}
-                className="w-full h-[50px] rounded-2xl bg-[#d97757] text-white font-bold text-[14px] active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-[0_8px_20px_-4px_rgba(217,119,87,0.45)]"
-              >
-                <Plus className="w-4 h-4" strokeWidth={3} />
-                Add to Batch
-              </button>
-            </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {overlays}
     </div>
   );
 }
