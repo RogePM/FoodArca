@@ -1,50 +1,72 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy } from 'react';
+import dynamic from 'next/dynamic';
+import { AnimatePresence } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { usePantry } from '@/components/providers/PantryProvider';
-import dynamic from 'next/dynamic';
+import { useIsDesktop, isDesktopNow } from '@/lib/first-paint';
+import { EmptyCartLanding } from './empty-cart-landing';
 
-// Dynamically import siblings from the same folder
-// Dynamically import siblings from the same folder
+const loadMobile = () => import('./mobile-add-flow').then((mod) => ({ default: mod.MobileAddFlow || mod.default }));
+
+// On a phone, start downloading the add flow as soon as this page's code runs, alongside the
+// page itself, instead of after the first render.
+if (typeof window !== 'undefined' && !isDesktopNow()) loadMobile();
+
+const MobileAddFlow = lazy(loadMobile);
+
 const DesktopAddView = dynamic(
   () => import('./desktop-add-view').then((mod) => mod.DesktopAddView || mod.default),
   { ssr: false }
 );
 
-const MobileAddFlow = dynamic(
-  () => import('./mobile-add-flow').then((mod) => mod.MobileAddFlow || mod.default),
-  { ssr: false }
-);
-function useMediaQuery(query) {
-  const [matches, setMatches] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia(query);
-    if (media.matches !== matches) setMatches(media.matches);
-    const listener = () => setMatches(media.matches);
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
-  }, [matches, query]);
-  return matches;
+const noop = () => {};
+
+// What the add flow draws first, drawn by the server so the page arrives already laid out. With
+// items in the cart, a blank page rather than the landing, so the landing never flashes before it.
+function MobileShell({ cartOpen }) {
+  if (cartOpen) return <div className="absolute inset-0 z-50 bg-white" />;
+  return (
+    <AnimatePresence initial={false}>
+      <EmptyCartLanding onBack={noop} shell />
+    </AnimatePresence>
+  );
 }
 
-export function AddItemView() {
+const Spinner = ({ className = 'flex' }) => (
+  <div className={`${className} h-[100dvh] items-center justify-center bg-gray-50`}>
+    <Loader2 className="animate-spin h-8 w-8 text-[#d97757]" />
+  </div>
+);
+
+// The first screen while the screen size is unknown: the phone layout (hidden on desktop). Drawn by
+// the server, and by the page's loading outline (app/dashboard/add/loading.jsx) while it's on its way.
+export function AddFirstScreen({ cartOpen = false }) {
+  return (
+    <>
+      <div className="md:hidden"><MobileShell cartOpen={cartOpen} /></div>
+      <Spinner className="hidden md:flex" />
+    </>
+  );
+}
+
+export function AddItemView({ cartOpen = false }) {
   const { isLoading } = usePantry();
-  const isDesktop = useMediaQuery("(min-width: 768px)"); 
-  const [mounted, setMounted] = useState(false);
+  const isDesktop = useIsDesktop();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Server and hydration: the screen size is unknown.
+  if (isDesktop === null) return <AddFirstScreen cartOpen={cartOpen} />;
 
-  if (!mounted || isLoading) {
+  // Phones go straight in: the add flow doesn't need the pantry to draw its landing and cart, and
+  // fills in pantry data as it arrives. Until its code is in, the same shell stays on screen.
+  if (!isDesktop) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin h-8 w-8 text-[#d97757]" />
-      </div>
+      <Suspense fallback={<MobileShell cartOpen={cartOpen} />}>
+        <MobileAddFlow />
+      </Suspense>
     );
   }
 
-  // Routes to the correct sibling file based on device
-  return isDesktop ? <DesktopAddView /> : <MobileAddFlow />;
+  return isLoading ? <Spinner /> : <DesktopAddView />;
 }

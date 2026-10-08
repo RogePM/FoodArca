@@ -44,6 +44,45 @@ export function PillRowSkeleton({ count = 6 }) {
   );
 }
 
+// The whole Inventory page as an outline, shown by app/dashboard/inventory/loading.jsx while the
+// server draws the first page. Same frame and sizes as InventoryView, so nothing moves when it lands.
+export function InventoryPageSkeleton() {
+  return (
+    <div className="w-full max-w-[100vw] bg-white md:bg-[#fafafa] font-sans" aria-busy="true" aria-label="Loading inventory">
+      {/* Desktop title */}
+      <div className="hidden md:flex bg-white px-6 pt-4 pb-0 items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 bg-orange-50 rounded-2xl border border-orange-100/50" />
+          <div>
+            <h2 className="text-[24px] font-bold text-[#1a1f36] tracking-tight leading-none">Inventory</h2>
+            <div className="w-28 h-3 mt-1.5 bg-gray-100 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="w-[118px] h-10 bg-[#d97757]/80 rounded-xl" />
+      </div>
+
+      {/* Search bar */}
+      <div className="sticky top-0 z-20 bg-[#d97757] md:bg-white px-4 md:px-6 pt-3 pb-2 shadow-[0_1px_0_0_#d97757] md:shadow-none">
+        <div className="md:hidden h-12 bg-white rounded-2xl shadow-[0_4px_20px_-6px_rgba(0,0,0,0.15)]" />
+        <div className="hidden md:block max-w-md mt-4 h-11 bg-white border border-gray-200 rounded-2xl" />
+      </div>
+
+      {/* Filter pills */}
+      <div className="bg-[#d97757] md:bg-white px-4 md:px-6 pt-1 pb-3 overflow-hidden">
+        <PillRowSkeleton />
+      </div>
+
+      {/* Items */}
+      <div className="px-4 md:px-5 pb-[120px] md:pb-8 pt-3 md:pt-4 max-w-full">
+        <div className="max-w-7xl mx-auto w-full">
+          <div className="md:hidden mt-2"><MobileGridSkeleton /></div>
+          <div className="hidden md:block"><DesktopTableSkeleton /></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DesktopTableSkeleton() {
   return (
     <div className="bg-white rounded-[20px] shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] border border-gray-200 overflow-hidden flex flex-col mb-12">

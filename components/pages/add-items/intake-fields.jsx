@@ -1,13 +1,15 @@
 'use client';
 
-// Shared building blocks for the add flow: the known-item sheet and the new-item form
+// Shared building blocks for the add flow: the restock sheet and the new-item form
 // both use these, so "how many", expiry and storage look and behave the same everywhere.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, X, Hash, Scale, Calendar, Check } from 'lucide-react';
 import { getCategoryVisual } from '@/lib/constants';
+import { usePantry } from '@/components/providers/PantryProvider';
+import { useInventory, useItemList, loadPantryItems } from '@/lib/use-inventory';
 import {
   SIZE_UNITS, STORAGE_OPTIONS, categorySlug, lastDayOfMonth, formatExpiry,
 } from '@/lib/inventory-format';
@@ -65,39 +67,26 @@ export function toProduct(d) {
   };
 }
 
-// The pantry's items (for name autocomplete and restock), optionally with stock totals.
+// The item list itself lives with the shelf (lib/use-inventory); re-exported for the add flow.
+export { loadPantryItems };
+
+// The pantry's items (for name autocomplete and restock), optionally with stock totals from the
+// shared shelf (lib/use-inventory).
 export function usePantryItems(pantryId, { withStock = false, enabled = true } = {}) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { lots, ready } = useInventory();
+  const dict = useItemList(enabled && !!pantryId);
 
-  useEffect(() => {
-    if (!pantryId || !enabled) return;
-    let alive = true;
-    setLoading(true);
-    const headers = { 'x-pantry-id': pantryId };
-    Promise.all([
-      fetch('/api/foods/dictionary', { headers, cache: 'no-store' }).then((r) => (r.ok ? r.json() : { dictionary: [] })),
-      withStock
-        ? fetch('/api/foods', { headers, cache: 'no-store' }).then((r) => (r.ok ? r.json() : { data: [] }))
-        : Promise.resolve({ data: [] }),
-    ])
-      .then(([dict, stock]) => {
-        const totals = new Map();
-        for (const lot of stock.data || []) {
-          totals.set(lot.catalogItemId, (totals.get(lot.catalogItemId) || 0) + Number(lot.quantity || 0));
-        }
-        const list = (dict.dictionary || []).map((d) =>
-          toProduct({ ...d, totalQuantity: withStock ? totals.get(d.catalogItemId) || 0 : null })
-        );
-        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        if (alive) setItems(list);
-      })
-      .catch((err) => console.error('Could not load pantry items:', err))
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [pantryId, withStock, enabled]);
+  const items = useMemo(() => {
+    if (!dict) return [];
+    const totals = new Map();
+    if (withStock) {
+      for (const lot of lots) totals.set(lot.catalogItemId, (totals.get(lot.catalogItemId) || 0) + Number(lot.quantity || 0));
+    }
+    const list = dict.map((d) => toProduct({ ...d, totalQuantity: withStock ? totals.get(d.catalogItemId) || 0 : null }));
+    return list.sort((x, y) => (x.name || '').localeCompare(y.name || ''));
+  }, [dict, lots, withStock]);
 
-  return { items, loading };
+  return { items, loading: !dict || (withStock && !ready) };
 }
 
 const STORAGE_KEY = 'foodarca_last_storage';

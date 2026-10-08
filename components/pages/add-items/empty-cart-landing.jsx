@@ -9,89 +9,66 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, CheckCircle2, Scan, ChevronRight } from 'lucide-react';
 import { usePantry } from '@/components/providers/PantryProvider';
+import { useSeed } from '@/components/providers/server-seed';
 import { getCategoryVisual } from '@/components/pages/inventory/inventory-utils';
 import { MobileInventorySearch } from '@/components/ui/mobile-inventory-search';
 
-export function EmptyCartLanding({ onBack }) {
-  const { pantryDetails } = usePantry();
+// The last "Recently added" list saved on this device (see the effect below), for the first draw.
+function savedRecent(orgId) {
+  try {
+    const saved = orgId && JSON.parse(localStorage.getItem(`foodarca_recent_v1:${orgId}`) || 'null');
+    return Array.isArray(saved) ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+// shell: drawn by the server before the add flow loads (add-item-view); layout only, no requests.
+export function EmptyCartLanding({ onBack, shell = false }) {
+  const { pantryDetails, lastInventoryUpdate } = usePantry();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [recentItems, setRecentItems] = useState([]);
-  const [recentItemsLoading, setRecentItemsLoading] = useState(true);
+  // First draw: the server's list (app/dashboard/add/page.jsx) when it sent one, else the copy saved
+  // on this device. The shell (server-drawn) uses only the server's, so it matches in the browser.
+  const seeded = useSeed('recentAdded');
+  const [initialRecent] = useState(() => seeded || (shell || typeof window === 'undefined' ? null : savedRecent(pantryDetails?.id)));
+  const [recentItems, setRecentItems] = useState(initialRecent || []);
+  const [recentItemsLoading, setRecentItemsLoading] = useState(!initialRecent);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Recently-added quick-tap strip on the empty state — real data pulled from
-  // the activity_logs audit trail (the same source the Activity Log/Recent
-  // Changes screens use), filtered down to "added" events and deduped so a
-  // volunteer sees each item once, most recent first. The activity log itself
-  // doesn't carry a product photo, so it's cross-referenced against the item
-  // dictionary (keyed by name) to attach a real photoUrl where one exists.
+  // Recently-added quick-tap strip: the items most recently received, each once, newest first,
+  // with their photos, in one small request (/api/foods/changes/recent?added=8). The last list is
+  // kept on the device and shown at once, then refreshed (and again whenever stock changes).
   useEffect(() => {
-    if (!pantryDetails?.id) return;
+    const pantryId = pantryDetails?.id;
+    if (!pantryId || shell) return;
+    const saveKey = `foodarca_recent_v1:${pantryId}`;
     let cancelled = false;
-    setRecentItemsLoading(true);
 
-    (async () => {
-      try {
-        const recentRes = await fetch('/api/foods/changes/recent', {
-          headers: { 'x-pantry-id': pantryDetails.id },
-          cache: 'no-store',
-        });
-        if (!recentRes.ok) return;
-        const logs = await recentRes.json();
-        if (cancelled || !Array.isArray(logs)) return;
-
-        // Narrow down to the handful of items this strip will actually show
-        // BEFORE asking for photos, so the dictionary lookup only needs to
-        // fetch those ~8 items instead of the whole org catalog.
-        const seen = new Set();
-        const added = [];
-        for (const log of logs) {
-          if (log.rawActionType !== 'received' || log.reversesId) continue;
-          if (!log.itemName || log.itemName === 'Unknown Item') continue;
-          if (seen.has(log.itemId)) continue;
-          seen.add(log.itemId);
-          added.push(log);
-          if (added.length >= 8) break;
-        }
-
-        if (added.length === 0) {
-          setRecentItems([]);
-          return;
-        }
-
-        const namesParam = [...new Set(added.map((log) => log.itemName))].join(',');
-        const dictRes = await fetch(`/api/foods/dictionary?names=${encodeURIComponent(namesParam)}`, {
-          headers: { 'x-pantry-id': pantryDetails.id },
-          cache: 'no-store',
-        });
-        if (cancelled) return;
-
-        const dictByName = new Map();
-        if (dictRes.ok) {
-          const { dictionary } = await dictRes.json();
-          for (const entry of dictionary || []) {
-            if (entry.name) dictByName.set(entry.name.toLowerCase().trim(), entry);
-          }
-        }
-
-        const withPhotos = added.map((log) => {
-          const dictMatch = dictByName.get(log.itemName.toLowerCase().trim());
-          return { ...log, photoUrl: dictMatch?.photoUrl || null };
-        });
-        setRecentItems(withPhotos);
-      } catch (_) {
-      } finally {
-        if (!cancelled) setRecentItemsLoading(false);
+    try {
+      const saved = JSON.parse(localStorage.getItem(saveKey) || 'null');
+      if (Array.isArray(saved)) {
+        setRecentItems(saved);
+        setRecentItemsLoading(false);
       }
-    })();
+    } catch {}
+
+    fetch('/api/foods/changes/recent?added=8', { headers: { 'x-pantry-id': pantryId }, cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((items) => {
+        if (cancelled || !Array.isArray(items)) return;
+        setRecentItems(items);
+        try { localStorage.setItem(saveKey, JSON.stringify(items)); } catch {}
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setRecentItemsLoading(false); });
 
     return () => { cancelled = true; };
-  }, [pantryDetails?.id]);
+  }, [pantryDetails?.id, lastInventoryUpdate, shell]);
 
   // Recently Added rows are read-only for now (see TODO.md — Recent Activity feature).
 

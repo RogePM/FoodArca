@@ -1,40 +1,60 @@
 'use client';
 
-import React, { useState, useEffect, useTransition } from 'react';
-import dynamic from 'next/dynamic';
+import React, { useState, useEffect, useTransition, Suspense, lazy } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { usePantry } from '@/components/providers/PantryProvider';
+import { useIsDesktop, isDesktopNow } from '@/lib/first-paint';
+import { MobileCheckoutCartView } from './mobile-checkout-cart-view';
 
 import { DistributionDesktopTable } from './distribution-desktop-table';
 import { CartSidebar } from './cart-sidebar';
 import { CartDrawer } from './cart-drawer';
 import { CheckoutModal } from './checkout-modal';
 
-// Dynamically import MobileDistributionFlow to prevent SSR issues
-const MobileDistributionFlow = dynamic(
-  () =>
-    import('./mobile-distribution-flow').then(
-      (mod) => mod.MobileDistributionFlow || mod.default
-    ),
-  { ssr: false }
-);
+const loadMobile = () =>
+  import('./mobile-distribution-flow').then((mod) => ({ default: mod.MobileDistributionFlow || mod.default }));
 
-function useMediaQuery(query) {
-  const [matches, setMatches] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia(query);
-    if (media.matches !== matches) setMatches(media.matches);
-    const listener = () => setMatches(media.matches);
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
-  }, [matches, query]);
-  return matches;
+// On a phone, start downloading the remove flow as soon as this page's code runs, alongside the
+// page itself, instead of after the first render.
+if (typeof window !== 'undefined' && !isDesktopNow()) loadMobile();
+
+const MobileDistributionFlow = lazy(loadMobile);
+
+const noop = () => {};
+
+// What the remove flow draws first, drawn by the server so the page arrives already laid out (the
+// landing fills in from the shared shelf). With items in the cart, a blank page rather than the
+// landing, so the landing never flashes before it.
+function MobileShell({ cartOpen }) {
+  if (cartOpen) return <div className="absolute inset-0 z-50 bg-white" />;
+  return (
+    <AnimatePresence initial={false}>
+      <MobileCheckoutCartView cartItems={[]} onOpenScanner={noop} onOpenVisualGrid={noop} onOpenProduct={noop} />
+    </AnimatePresence>
+  );
 }
 
-export function DistributionModule({ initialInventory = [] }) {
+const Spinner = ({ className = 'flex' }) => (
+  <div className={`${className} h-[100dvh] items-center justify-center bg-gray-50`}>
+    <Loader2 className="animate-spin h-8 w-8 text-[#d97757]" />
+  </div>
+);
+
+// The first screen while the screen size is unknown: the phone layout (hidden on desktop). Drawn by
+// the server, and by the page's loading outline (app/dashboard/remove/loading.jsx) while it's on its way.
+export function RemoveFirstScreen({ cartOpen = false }) {
+  return (
+    <>
+      <div className="md:hidden"><MobileShell cartOpen={cartOpen} /></div>
+      <Spinner className="hidden md:flex" />
+    </>
+  );
+}
+
+export function DistributionModule({ initialInventory = [], cartOpen = false }) {
   const { pantryId, lastInventoryUpdate, isLoading: isPantryLoading } = usePantry();
-  const isDesktop = useMediaQuery('(min-width: 768px)');
-  const [mounted, setMounted] = useState(false);
+  const isDesktop = useIsDesktop();
 
   // Desktop State
   const [inventory, setInventory] = useState(initialInventory);
@@ -45,13 +65,10 @@ export function DistributionModule({ initialInventory = [] }) {
   const [showCheckout, setShowCheckout] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Sync inventory with backend
   useEffect(() => {
-    if (!pantryId) return;
+    // Phones use the mobile flow, which reads the shared shelf (lib/use-inventory) instead.
+    if (!pantryId || !isDesktop) return;
     let isMounted = true;
     const syncInventory = async () => {
       try {
@@ -79,7 +96,7 @@ export function DistributionModule({ initialInventory = [] }) {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [pantryId, lastInventoryUpdate]);
+  }, [pantryId, lastInventoryUpdate, isDesktop]);
 
   // Desktop helper handlers
   const setGroupCartQty = (group, targetQty) => {
@@ -124,23 +141,20 @@ export function DistributionModule({ initialInventory = [] }) {
     setShowCheckout(false);
   };
 
-  if (!mounted || isPantryLoading) {
+  // Server and hydration: the screen size is unknown.
+  if (isDesktop === null) return <RemoveFirstScreen cartOpen={cartOpen} />;
+
+  // Phones go straight in: the remove flow doesn't need the pantry to draw its landing and cart,
+  // and fills in as data arrives. Until its code is in, the same shell stays on screen.
+  if (!isDesktop) {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin h-8 w-8 text-[#d97757]" />
-      </div>
+      <Suspense fallback={<MobileShell cartOpen={cartOpen} />}>
+        <MobileDistributionFlow onCheckoutSuccess={handleCheckoutSuccess} />
+      </Suspense>
     );
   }
 
-  // Route to mobile state machine on mobile, or desktop power table on desktop
-  if (!isDesktop) {
-    return (
-      <MobileDistributionFlow
-        initialItems={inventory}
-        onCheckoutSuccess={handleCheckoutSuccess}
-      />
-    );
-  }
+  if (isPantryLoading) return <Spinner />;
 
   // Desktop View
   return (

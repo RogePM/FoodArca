@@ -1,5 +1,4 @@
 import './globals.css';
-import { PantryProvider } from '@/components/providers/PantryProvider';
 import Script from 'next/script';
 import { Inter } from 'next/font/google';
 import { SITE_URL } from '@/lib/site';
@@ -44,9 +43,7 @@ export default function RootLayout({ children }) {
           `}
         </Script>
 
-        <PantryProvider>
-          {children}
-        </PantryProvider>
+        {children}
       </body>
     </html>
   );

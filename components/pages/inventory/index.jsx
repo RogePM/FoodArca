@@ -1,15 +1,13 @@
 'use client';
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   Plus,
   Pencil,
   Package,
-  Loader2,
   Calendar,
-  RefreshCw,
   ScanBarcode,
   Layers,
   X,
@@ -29,8 +27,10 @@ import {
 import { EditItemModal } from '@/components/modals/edit-item-modal';
 import { NewItemForm } from '@/components/pages/add-items/new-item-form';
 import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
-import { usePantry } from '@/components/providers/PantryProvider';
-import { categories } from '@/lib/constants';
+import { usePantry, useToday } from '@/components/providers/PantryProvider';
+import { useProgressiveList, useEndSentinel } from '@/lib/use-progressive-list';
+import { buildPills, countsFromSummary, matchesCategoryFilter } from '@/lib/inventory-query';
+import { useInventoryList } from './use-inventory-list';
 import {
   groupInventoryBatches,
   getExpirationStatus,
@@ -71,24 +71,29 @@ function toEditLine(lot) {
   };
 }
 
-function matchesCategoryFilter(productCategory, selectedCategoryValue) {
-  if (!selectedCategoryValue || selectedCategoryValue === 'ALL' || selectedCategoryValue === 'all') return true;
-  const prodCat = String(productCategory || 'other').toLowerCase();
-  const selected = String(selectedCategoryValue).toLowerCase();
-  const catObj = categories.find((c) => c.value === selected);
-  const catName = catObj?.name.toLowerCase();
-  return (
-    prodCat === selected ||
-    (catName && prodCat === catName) ||
-    prodCat.replace(/[\s&_-]/g, '') === selected.replace(/[\s&_-]/g, '')
-  );
-}
+const EMPTY = [];
 
-export function InventoryView() {
+// Code-point order on lower-cased names: the same order the database uses (collate "C"), so the
+// server's first page and the on-device list never disagree.
+const byName = (a, b) => {
+  const x = (a.name || '').toLowerCase();
+  const y = (b.name || '').toLowerCase();
+  return x < y ? -1 : x > y ? 1 : 0;
+};
+const byId = (a, b) => {
+  const x = String(a.catalogItemId || a.id || '');
+  const y = String(b.catalogItemId || b.id || '');
+  return x < y ? -1 : x > y ? 1 : 0;
+};
+
+// initial: the first page the server drew (app/dashboard/inventory/page.jsx), or null.
+export function InventoryView({ initial = null }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { pantryId, lastInventoryUpdate } = usePantry();
+  const { pantryId } = usePantry();
+  // The pantry's date: statuses match the server's (first page, counts) and survive hydration.
+  const today = useToday();
 
   // The URL is the single source of truth for search/pinned-item state, so a link from
   // elsewhere (e.g. the Settings search bar) or the browser back button always reflects
@@ -106,7 +111,6 @@ export function InventoryView() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  const [inventory, setInventory] = useState([]);
   // Seeded from ?filter= so arriving from the global search bar (Settings,
   // the Add-to-cart screen) with a pill already picked lands here filtered,
   // not on "All". Later taps on the page's own pills just call setActiveFilter
@@ -116,8 +120,19 @@ export function InventoryView() {
     key: 'expirationDate',
     order: 'asc',
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefetching, setIsRefetching] = useState(false);
+
+  // The data (see use-inventory-list): the server's first page, then either the whole shelf on the
+  // device (small pantries: every filter instant) or one server page at a time (large pantries).
+  const list = useInventoryList(initial, {
+    filter: activeFilter,
+    search: searchQuery,
+    itemId: pinnedItemId,
+    sort: sortConfig.key,
+    desc: sortConfig.order === 'desc',
+  });
+  const fetchInventory = list.refresh;
+  const inventory = list.complete ? list.shelfLots : EMPTY;
+  const isLoading = !list.complete && !list.ready;
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [batchSheetItem, setBatchSheetItem] = useState(null);
@@ -137,92 +152,32 @@ export function InventoryView() {
     }
   }, []);
 
-  const fetchInventory = useCallback(async (isBackground = false) => {
-    if (!pantryId) return;
-    if (!isBackground) setIsLoading(true);
-    else setIsRefetching(true);
-
-    try {
-      const params = new URLSearchParams({
-        sort: sortConfig.key,
-        order: sortConfig.order,
-      });
-      const response = await fetch(`/api/foods?${params}`, {
-        headers: { 'x-pantry-id': pantryId },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setInventory(data.data || []);
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-      setIsRefetching(false);
-    }
-  }, [pantryId, sortConfig]);
-
-  const hasFetchedInitial = React.useRef(false);
-
-  useEffect(() => {
-    if (pantryId) {
-      const isInitial = !hasFetchedInitial.current;
-      hasFetchedInitial.current = true;
-      fetchInventory(!isInitial);
-    }
-  }, [pantryId, sortConfig, lastInventoryUpdate, fetchInventory]);
-
   // Group raw inventory into logical catalog items first
   const allBatchedInventory = useMemo(() => {
     return groupInventoryBatches(inventory || []);
   }, [inventory]);
 
-  // Filter Pills list with dynamic counts based on batched items
+  // Filter pills with counts: counted here when the whole shelf is on the device, otherwise from the
+  // server's summary (same rules either way).
   const filterPillList = useMemo(() => {
-    let expiredCount = 0;
-    let expiringSoonCount = 0;
-    let lowStockCount = 0;
-    let noDateCount = 0;
-
+    if (!list.complete) return list.summary ? buildPills(countsFromSummary(list.summary), activeFilter) : [];
+    const counts = { all: allBatchedInventory.length, expired: 0, expiring: 0, low: 0, noDate: 0 };
     allBatchedInventory.forEach((item) => {
-      const statusStyles = getUrgentStatusStyles(item);
-      if (statusStyles.isExpired) expiredCount++;
-      if (statusStyles.isExpiring) expiringSoonCount++;
-      if (statusStyles.isLowStock) lowStockCount++;
-      if (!item.expirationDate) noDateCount++;
+      const statusStyles = getUrgentStatusStyles(item, today);
+      if (statusStyles.isExpired) counts.expired++;
+      if (statusStyles.isExpiring) counts.expiring++;
+      if (statusStyles.isLowStock) counts.low++;
+      if (!item.expirationDate) counts.noDate++;
     });
-
-    // Empty status pills are hidden ("All" always stays). The active pill is kept even at 0 so a
-    // filter selected from the URL, or one whose last item was just removed, doesn't vanish.
-    const list = [
-      { id: 'ALL', name: 'All', count: allBatchedInventory.length, isCategory: false },
-      { id: 'EXPIRING', name: 'Expiring Soon', count: expiringSoonCount, isCategory: false },
-      { id: 'EXPIRED', name: 'Expired', count: expiredCount, isCategory: false },
-      { id: 'LOW', name: 'Low Stock', count: lowStockCount, isCategory: false },
-      { id: 'NO_DATE', name: 'No Date', count: noDateCount, isCategory: false },
-    ].filter((pill) => pill.id === 'ALL' || pill.count > 0 || pill.id === activeFilter);
-
-    categories.forEach((cat) => {
-      const count = allBatchedInventory.filter((item) =>
-        matchesCategoryFilter(item.category, cat.value)
-      ).length;
-
-      if (count > 0 || cat.value === activeFilter) {
-        list.push({
-          id: cat.value,
-          name: cat.name,
-          count,
-          isCategory: true,
-        });
-      }
-    });
-
-    return list;
-  }, [allBatchedInventory, activeFilter]);
+    counts.categoryCount = (value) => allBatchedInventory.filter((item) => matchesCategoryFilter(item.category, value)).length;
+    return buildPills(counts, activeFilter);
+  }, [list.complete, list.summary, allBatchedInventory, activeFilter, today]);
 
   // Filter and sort items based on search query, filter pill, and sort config
   const batchedInventory = useMemo(() => {
+    // Large pantries: the server already filtered and sorted this page.
+    if (!list.complete) return list.items;
+
     // A specific item was chosen from the search suggestions — show just that item.
     // The id we're matching against may have come from a differently-grouped fetch
     // (e.g. the Settings page's own inventory fetch), so match against every id this
@@ -262,11 +217,11 @@ export function InventoryView() {
     // Quick filter match
     const normFilter = String(activeFilter || 'ALL').toUpperCase();
     if (normFilter === 'LOW' || normFilter === 'LOW_STOCK') {
-      result = result.filter((i) => getUrgentStatusStyles(i).isLowStock);
+      result = result.filter((i) => getUrgentStatusStyles(i, today).isLowStock);
     } else if (normFilter === 'EXPIRING' || normFilter === 'EXPIRING_SOON') {
-      result = result.filter((i) => getUrgentStatusStyles(i).isExpiring);
+      result = result.filter((i) => getUrgentStatusStyles(i, today).isExpiring);
     } else if (normFilter === 'EXPIRED') {
-      result = result.filter((i) => getUrgentStatusStyles(i).isExpired);
+      result = result.filter((i) => getUrgentStatusStyles(i, today).isExpired);
     } else if (normFilter === 'NO_DATE' || normFilter === 'NODATE') {
       result = result.filter((i) => !i.expirationDate);
     } else if (normFilter !== 'ALL') {
@@ -284,20 +239,26 @@ export function InventoryView() {
         aVal = a.totalQuantity !== undefined ? a.totalQuantity : a.quantity || 0;
         bVal = b.totalQuantity !== undefined ? b.totalQuantity : b.quantity || 0;
       } else if (sortConfig.key === 'name') {
-        aVal = (aVal || '').toLowerCase();
-        bVal = (bVal || '').toLowerCase();
-        return sortConfig.order === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        const c = byName(a, b);
+        return (sortConfig.order === 'asc' ? c : -c) || byId(a, b);
       }
       if (aVal < bVal) return sortConfig.order === 'asc' ? -1 : 1;
       if (aVal > bVal) return sortConfig.order === 'asc' ? 1 : -1;
-      return 0;
+      // Ties: by name, then id, as the server does.
+      return byName(a, b) || byId(a, b);
     });
 
     return result;
-  }, [allBatchedInventory, searchQuery, activeFilter, sortConfig, pinnedItemId]);
+  }, [list.complete, list.items, allBatchedInventory, searchQuery, activeFilter, sortConfig, pinnedItemId, today]);
 
-  // Backward compatibility processedInventory
-  const processedInventory = batchedInventory;
+  // Only the first rows are drawn; more as you scroll (counts and search still cover everything).
+  const listKey = `${activeFilter}|${searchQuery}|${pinnedItemId}|${sortConfig.key}|${sortConfig.order}`;
+  const { visible: localRows, sentinel: localMore } = useProgressiveList(list.complete ? batchedInventory : EMPTY, listKey);
+  // Large pantries: the next page comes from the server as the end nears.
+  const serverMore = useEndSentinel(list.loadMore, !list.complete && list.hasMore, list.items.length);
+  const visibleRows = list.complete ? localRows : batchedInventory;
+  const moreRows = list.complete ? localMore : serverMore;
+  const shownTotal = list.complete ? batchedInventory.length : list.total;
 
   const handleSort = (key) => {
     setSortConfig((prev) => ({
@@ -471,21 +432,14 @@ export function InventoryView() {
       <div className="hidden md:flex bg-white px-6 pt-4 pb-0 items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 bg-orange-50 rounded-2xl flex items-center justify-center border border-orange-100/50">
-            {isRefetching ? (
-              <RefreshCw className="h-5 w-5 text-[#d97757] animate-spin" />
-            ) : (
-              <Package
-                className="h-6 w-6 text-[#d97757]"
-                strokeWidth={2}
-              />
-            )}
+            <Package className="h-6 w-6 text-[#d97757]" strokeWidth={2} />
           </div>
           <div>
             <h2 className="text-[24px] font-bold text-[#1a1f36] tracking-tight leading-none">
               Inventory
             </h2>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mt-1">
-              {batchedInventory.length} Items Stocked
+              {shownTotal} Items Stocked
             </p>
           </div>
         </div>
@@ -507,7 +461,7 @@ export function InventoryView() {
           accentColor="#d97757"
           initialQuery={searchQuery}
           onQueryChange={handleSearchQueryChange}
-          inventoryData={allBatchedInventory}
+          inventoryData={list.complete ? allBatchedInventory : null}
           onItemSelect={handleSearchItemSelect}
           onSubmit={(query, filterId) => {
             updateSearchParams({ q: query || null, itemId: null });
@@ -548,7 +502,7 @@ export function InventoryView() {
 
       {/* 3. NON-STICKY PILLS */}
       <div className="bg-[#d97757] md:bg-white px-4 md:px-6 pt-1 pb-3 overflow-hidden shrink-0 relative">
-        {isLoading ? (
+        {filterPillList.length === 0 ? (
           <PillRowSkeleton />
         ) : (
         <div className="flex gap-2 overflow-x-auto scroll-smooth overscroll-x-contain pb-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -596,7 +550,7 @@ export function InventoryView() {
 
       {/* --- CONTENT AREA --- */}
       <div className="px-4 md:px-5 pb-[120px] md:pb-8 pt-3 md:pt-4 max-w-full">
-        <div className="max-w-7xl mx-auto w-full">
+        <div className={`max-w-7xl mx-auto w-full transition-opacity ${list.pending && !list.complete && list.ready ? 'opacity-60' : ''}`}>
             {isLoading && (
               <>
                 <div className="md:hidden mt-2">
@@ -608,13 +562,13 @@ export function InventoryView() {
               </>
             )}
 
-            {!isLoading && batchedInventory.length === 0 && (
+            {!isLoading && visibleRows.length === 0 && (
               <div className="text-center py-20 bg-white rounded-[28px] border-2 border-dashed border-gray-300 text-gray-500 font-bold uppercase text-[10px]">
                 No Items Found
               </div>
             )}
 
-            {!isLoading && batchedInventory.length > 0 && (
+            {!isLoading && visibleRows.length > 0 && (
               <>
                 {/* 💻 DESKTOP TABLE (md+ screens) */}
                 <div className="hidden md:block rounded-[24px] border border-gray-200 bg-white overflow-hidden shadow-sm">
@@ -639,8 +593,8 @@ export function InventoryView() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {batchedInventory.map((item) => {
-                        const statusStyles = getUrgentStatusStyles(item);
+                      {visibleRows.map((item) => {
+                        const statusStyles = getUrgentStatusStyles(item, today);
                         const displayDate = item.expirationDate;
 
                         return (
@@ -716,7 +670,8 @@ export function InventoryView() {
                 {/* 📱 MOBILE 2-COLUMN VISUAL GRID (<md screens) */}
                 <div className="block md:hidden">
                   <MobileGridView
-                    inventory={batchedInventory}
+                    inventory={visibleRows}
+                    count={shownTotal}
                     onSelectItem={handleSelectItem}
                     handleSelectProduct={handleSelectItem}
                     onMoreActions={setActionsSheetItem}
@@ -729,6 +684,7 @@ export function InventoryView() {
                     onClearFilter={() => setActiveFilter('ALL')}
                   />
                 </div>
+                {moreRows}
               </>
             )}
           </div>

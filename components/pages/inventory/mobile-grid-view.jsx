@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useToday } from '@/components/providers/PantryProvider';
 import { Layers, MapPin, MoreHorizontal, Package, Pencil } from 'lucide-react';
 import {
   formatDate,
@@ -20,8 +21,8 @@ import { CategoryGlyph } from '@/components/ui/category-glyph';
  * @param {Object} item - Product group item with batches and totalQuantity
  * @returns {Object} { totalQty, displayDate, isExpired, isExpiring, isLowStock, expColorClass, stockColorClass }
  */
-export function getProductStatusMeta(item) {
-  const styles = getUrgentStatusStyles(item);
+export function getProductStatusMeta(item, today = null) {
+  const styles = getUrgentStatusStyles(item, today);
   const totalQty =
     item.totalQuantity !== undefined
       ? parseFloat(item.totalQuantity)
@@ -53,11 +54,11 @@ export function getProductStatusMeta(item) {
  * Plain-language expiration line for a tile ("Expires in 3 days", "Expired 2 days ago").
  * amber-700 rather than amber-600 so the text clears 4.5:1 on white.
  */
-export function getExpirationLine(displayDate) {
+export function getExpirationLine(displayDate, today = null) {
   if (!displayDate) {
     return { text: 'No expiration date', className: 'text-gray-500' };
   }
-  const { days, isExpired } = getExpirationStatus(displayDate);
+  const { days, isExpired } = getExpirationStatus(displayDate, today);
   if (days === null) {
     return { text: 'No expiration date', className: 'text-gray-500' };
   }
@@ -85,10 +86,10 @@ export function getExpirationLine(displayDate) {
  * Status tags for a tile, styled like the reference's "Pickup / Delivery" chips:
  * one shape, small tint, color only when something needs attention.
  */
-export function getStatusTags(item, { displayDate, isLowStock }) {
+export function getStatusTags(item, { displayDate, isLowStock }, today = null) {
   const tags = [];
   if (displayDate) {
-    const { days, isExpired } = getExpirationStatus(displayDate);
+    const { days, isExpired } = getExpirationStatus(displayDate, today);
     if (isExpired) tags.push({ label: 'Expired', className: 'bg-red-50 text-red-700' });
     else if (days !== null && days <= 30) {
       tags.push({ label: 'Expiring soon', className: 'bg-amber-50 text-amber-800' });
@@ -108,15 +109,18 @@ const formatQty = (n) =>
  * Owns its own broken-photo fallback state, since a real `photoUrl` can 404
  * independently of whether the category icon fallback applies.
  */
-function ProductTile({ item, onEdit, onMoreActions }) {
+// priority: one of the first tiles on screen; its photo loads right away (it is the page's LCP).
+function ProductTile({ item, onEdit, onMoreActions, priority = false }) {
   const [imgError, setImgError] = useState(false);
   const batchCount =
     item.batches && Array.isArray(item.batches)
       ? item.batches.length
       : item.logicalBatchCount || 1;
 
-  const { totalQty, displayDate, isLowStock } = getProductStatusMeta(item);
-  const tags = getStatusTags(item, { displayDate, isLowStock });
+  // The pantry's date, so a server-drawn tile reads the same once the browser takes over.
+  const today = useToday();
+  const { totalQty, displayDate, isLowStock } = getProductStatusMeta(item, today);
+  const tags = getStatusTags(item, { displayDate, isLowStock }, today);
   const dateText = displayDate && formatDate(displayDate);
   const showPhoto = Boolean(item.photoUrl) && !imgError;
   const displayName = formatItemName(item.name);
@@ -129,7 +133,8 @@ function ProductTile({ item, onEdit, onMoreActions }) {
           <img
             src={item.photoUrl}
             alt={displayName}
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'auto'}
             decoding="async"
             onError={() => setImgError(true)}
             className="w-full h-full object-contain object-left"
@@ -228,6 +233,7 @@ export function MobileGridView({
   title = 'All items',
   isFiltered = false,
   onClearFilter,
+  count, // every match (the page may draw only the first of them)
 }) {
   const handleEdit = onSelectItem || handleSelectProduct;
 
@@ -255,7 +261,7 @@ export function MobileGridView({
         <h2 className="text-[20px] font-bold tracking-[-0.01em] text-gray-900">
           {title}
         </h2>
-        <span className="text-[16px] text-gray-500">({inventory.length})</span>
+        <span className="text-[16px] text-gray-500">({count ?? inventory.length})</span>
         {isFiltered && onClearFilter && (
           <button
             type="button"
@@ -268,7 +274,7 @@ export function MobileGridView({
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 pb-6">
-        {inventory.map((item) => {
+        {inventory.map((item, i) => {
           const itemKey =
             item.catalogItemId ||
             item._id ||
@@ -281,6 +287,7 @@ export function MobileGridView({
               item={item}
               onEdit={handleEdit}
               onMoreActions={onMoreActions}
+              priority={i < 4}
             />
           );
         })}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { handle, getContext, BATCH_SELECT, mapBatch } from '@/lib/server/inventory-api';
+import { pantryToday } from '@/lib/pantry-context';
 
 // Pounds only count what is actually known: a drop-off's scale weight when it was weighed,
 // otherwise item weights. Items with no known weight are reported separately ("not weighed"),
@@ -7,8 +8,24 @@ import { handle, getContext, BATCH_SELECT, mapBatch } from '@/lib/server/invento
 
 const round1 = (n) => parseFloat(Number(n || 0).toFixed(1));
 
+// Days and hours are the pantry's own (its location's timezone), not the server's (UTC), so
+// "today" turns over at the pantry's midnight, the same day the rest of the app uses (pantryToday).
+const addDays = (ymd, n) => {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+function hourIn(timezone, at) {
+  try {
+    return Number(new Intl.DateTimeFormat('en-US', { timeZone: timezone || 'America/New_York', hour: 'numeric', hourCycle: 'h23' }).format(at));
+  } catch {
+    return at.getUTCHours();
+  }
+}
+
 export const GET = handle(async (req) => {
-  const { supabase, orgId } = await getContext(req);
+  const { supabase, orgId, timezone } = await getContext(req);
+  const dayOf = (at) => pantryToday(timezone, at);
 
   const rangeParam = new URL(req.url).searchParams.get('range') || '7d';
   const now = new Date();
@@ -19,11 +36,12 @@ export const GET = handle(async (req) => {
   else if (rangeParam === 'all') startDate = new Date(2000, 0, 1);
   else startDate.setDate(now.getDate() - 7);
 
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  const fetchFrom = (startDate < startOfYesterday ? startDate : startOfYesterday).toISOString();
-  const todayStr = now.toISOString().slice(0, 10);
-  const in7 = new Date(now.getTime() + 7 * 864e5).toISOString().slice(0, 10);
+  const todayStr = dayOf(now);
+  const yesterdayStr = addDays(todayStr, -1);
+  const in7 = addDays(todayStr, 7);
+  // Two days back always covers the pantry's yesterday, whatever its timezone.
+  const twoDaysAgo = new Date(now.getTime() - 2 * 864e5);
+  const fetchFrom = (startDate < twoDaysAgo ? startDate : twoDaysAgo).toISOString();
 
   // ---------------- Current stock ----------------
   const { data: lotRows, error: lotErr } = await supabase
@@ -104,17 +122,17 @@ export const GET = handle(async (req) => {
   // Signs: received is +, given out / thrown out are − (undo rows carry the opposite sign).
   const signed = (e) => (e.kind === 'in' ? 1 : -1);
 
+  // One point per pantry day, from the range's first day through today.
   const series = (start) => {
     const map = new Map();
-    const cur = new Date(start);
+    let day = dayOf(start);
     if (rangeParam === 'all') {
-      const cap = new Date(now.getTime() - 30 * 864e5);
-      if (cur < cap) cur.setTime(cap.getTime());
+      const cap = addDays(todayStr, -30);
+      if (day < cap) day = cap;
     }
-    while (cur <= now) {
-      const ymd = cur.toISOString().slice(0, 10);
-      map.set(ymd, { date: cur.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), amount: 0 });
-      cur.setDate(cur.getDate() + 1);
+    for (; day <= todayStr; day = addDays(day, 1)) {
+      const label = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      map.set(day, { date: label, amount: 0 });
     }
     return map;
   };
@@ -130,18 +148,19 @@ export const GET = handle(async (req) => {
 
   for (const e of events) {
     const at = new Date(e.at);
+    const day = dayOf(at);
     const lbs = e.lbs == null ? 0 : e.lbs * signed(e);
     if (at >= startDate) {
       totals[e.kind] += lbs;
       itemTotals[e.kind] += e.items * signed(e);
       notWeighed[e.kind] += e.unweighed || 0;
-      const point = seriesMaps[e.kind].get(at.toISOString().slice(0, 10));
+      const point = seriesMaps[e.kind].get(day);
       if (point) point.amount += lbs;
     }
-    if (at >= startOfToday) {
+    if (day === todayStr) {
       today[e.kind] += lbs;
-      buckets[e.kind][slots[Math.min(5, Math.floor(at.getHours() / 4))]] += lbs;
-    } else if (at >= startOfYesterday) {
+      buckets[e.kind][slots[Math.min(5, Math.floor(hourIn(timezone, at) / 4))]] += lbs;
+    } else if (day === yesterdayStr) {
       yesterday[e.kind] += lbs;
     }
   }

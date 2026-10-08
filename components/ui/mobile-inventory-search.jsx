@@ -6,16 +6,11 @@ import { Search, X, ScanBarcode, ArrowLeft, ChevronRight } from 'lucide-react';
 import { BarcodeScannerOverlay } from '@/components/ui/BarcodeScannerOverlay';
 import { usePantry } from '@/components/providers/PantryProvider';
 import { categories } from '@/lib/constants';
-import { getCategoryVisual, groupInventoryBatches, getUrgentStatusStyles } from '@/components/pages/inventory/inventory-utils';
+import { getCategoryVisual, getUrgentStatusStyles } from '@/components/pages/inventory/inventory-utils';
+import { matchesCategoryFilter, countsFromSummary } from '@/lib/inventory-query';
+import { fetchInventoryList, itemsOf } from '@/components/pages/inventory/use-inventory-list';
 
-function matchesCategoryFilter(productCategory, selectedCategoryValue) {
-  if (!selectedCategoryValue || selectedCategoryValue === 'ALL') return true;
-  const prodCat = String(productCategory || 'other').toLowerCase();
-  const selected = String(selectedCategoryValue).toLowerCase();
-  const catObj = categories.find((c) => c.value === selected);
-  const catName = catObj?.name.toLowerCase();
-  return prodCat === selected || (catName && prodCat === catName);
-}
+const NO_ITEMS = [];
 
 function SearchResultThumb({ item }) {
   const [imgError, setImgError] = useState(false);
@@ -157,45 +152,41 @@ export function MobileInventorySearch({
   // ('EXPIRING'/'EXPIRED'/'LOW') or a category value once one is tapped.
   const [activeFilter, setActiveFilter] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
-  const [localInventory, setLocalInventory] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Without inventoryData (Settings, the Add landing, a large pantry's Inventory page) this asks the
+  // server instead of downloading the whole shelf: the pill counts when the overlay opens, and just
+  // the matching items for a typed query or a picked pill (/api/inventory, same rules as the page).
+  const serverMode = !inventoryData;
+  const SEARCH_RESULTS_LIMIT = 8; // a typed query shows at most this many (see the results list)
+  const [summary, setSummary] = useState(null);
+  const [remote, setRemote] = useState(null); // { key, items, total }
 
-  if (initialQuery !== prevInitialQuery) {
-    setPrevInitialQuery(initialQuery);
-    setSearchQuery(initialQuery);
-  }
-
-  // If inventoryData is not provided, fetch it when the overlay opens
   useEffect(() => {
-    if (isSearchOverlayOpen && !inventoryData && localInventory.length === 0 && pantryId) {
-      const fetchInventory = async () => {
-        setIsLoading(true);
-        try {
-          const res = await fetch('/api/foods', {
-            headers: { 'x-pantry-id': pantryId }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            // simple grouping for display
-            setLocalInventory(data.data || []);
-          }
-        } catch (error) {
-          console.error(error);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchInventory();
-    }
-  }, [isSearchOverlayOpen, inventoryData, pantryId, localInventory.length]);
+    if (!serverMode || !isSearchOverlayOpen || !pantryId) return;
+    const ctrl = new AbortController();
+    fetchInventoryList(pantryId, { limit: 0, summary: true }, ctrl.signal)
+      .then((page) => setSummary(page.summary || { all: 0 }))
+      .catch((err) => { if (err.name !== 'AbortError') setSummary({ all: 0 }); });
+    return () => ctrl.abort();
+  }, [serverMode, isSearchOverlayOpen, pantryId]);
 
-  // When we're fetching our own data (no inventoryData prop, e.g. on the Settings page),
-  // group raw batch records into one card per item — same shape the Inventory page passes in.
-  const groupedLocalInventory = React.useMemo(
-    () => groupInventoryBatches(localInventory),
-    [localInventory]
-  );
-  const activeInventory = inventoryData || groupedLocalInventory;
+  const remoteKey = searchQuery ? `q:${searchQuery.trim().toLowerCase()}` : activeFilter ? `f:${activeFilter}` : null;
+  useEffect(() => {
+    if (!serverMode || !isSearchOverlayOpen || !pantryId || !remoteKey) return;
+    const ctrl = new AbortController();
+    const query = searchQuery ? { search: searchQuery, limit: SEARCH_RESULTS_LIMIT } : { filter: activeFilter, limit: 100 };
+    // A short pause while typing, so each keystroke doesn't become a request.
+    const timer = setTimeout(() => {
+      fetchInventoryList(pantryId, query, ctrl.signal)
+        .then((page) => setRemote({ key: remoteKey, items: itemsOf(page), total: page.total }))
+        .catch((err) => { if (err.name !== 'AbortError') setRemote({ key: remoteKey, items: [], total: 0 }); });
+    }, searchQuery ? 200 : 0);
+    return () => { clearTimeout(timer); ctrl.abort(); };
+    // remoteKey stands for searchQuery / activeFilter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverMode, isSearchOverlayOpen, pantryId, remoteKey]);
+
+  const activeInventory = inventoryData || NO_ITEMS;
+  const isLoading = serverMode && !summary;
 
   // Two separate pill groups — status and category are different kinds of
   // question ("what state is it in" vs "what is it"), so they read as two
@@ -205,29 +196,34 @@ export function MobileInventorySearch({
     let expiringSoonCount = 0;
     let lowStockCount = 0;
 
-    activeInventory.forEach((item) => {
-      const statusStyles = getUrgentStatusStyles(item);
-      if (statusStyles.isExpired) expiredCount++;
-      if (statusStyles.isExpiring) expiringSoonCount++;
-      if (statusStyles.isLowStock) lowStockCount++;
-    });
+    if (serverMode) {
+      expiredCount = summary?.expired || 0;
+      expiringSoonCount = summary?.expiring || 0;
+      lowStockCount = summary?.low || 0;
+    } else {
+      activeInventory.forEach((item) => {
+        const statusStyles = getUrgentStatusStyles(item);
+        if (statusStyles.isExpired) expiredCount++;
+        if (statusStyles.isExpiring) expiringSoonCount++;
+        if (statusStyles.isLowStock) lowStockCount++;
+      });
+    }
 
     return [
       { id: 'EXPIRING', name: 'Expiring Soon', count: expiringSoonCount },
       { id: 'EXPIRED', name: 'Expired', count: expiredCount },
       { id: 'LOW', name: 'Low Stock', count: lowStockCount },
     ];
-  }, [activeInventory]);
+  }, [serverMode, summary, activeInventory]);
 
   const categoryPills = React.useMemo(() => {
+    const countOf = serverMode
+      ? countsFromSummary(summary).categoryCount
+      : (value) => activeInventory.filter((item) => matchesCategoryFilter(item.category, value)).length;
     return categories
-      .map((cat) => ({
-        id: cat.value,
-        name: cat.name,
-        count: activeInventory.filter((item) => matchesCategoryFilter(item.category, cat.value)).length,
-      }))
+      .map((cat) => ({ id: cat.value, name: cat.name, count: countOf(cat.value) }))
       .filter((pill) => pill.count > 0);
-  }, [activeInventory]);
+  }, [serverMode, summary, activeInventory]);
 
   // Toggling the already-active pill clears it, returning to the picker state.
   // Only used as a fallback when there's nowhere to navigate to (no onSubmit).
@@ -253,7 +249,6 @@ export function MobileInventorySearch({
   // pantry — capped so the list stays a quick glance, not a second full
   // inventory dump. Pill browsing isn't capped; picking "All" via a pill is
   // an intentional "show me everything" action, typing "a" isn't.
-  const SEARCH_RESULTS_LIMIT = 8;
 
   // Typing takes over completely — the picker (pills) is a browse tool for
   // when nothing's been looked up yet, and a typed query is its own lookup,
@@ -261,6 +256,10 @@ export function MobileInventorySearch({
   // active. So: a query searches the whole inventory; with no query, a pill
   // (if any) is what's shown; with neither, the list stays empty.
   const { items: filteredInventory, matchCount } = React.useMemo(() => {
+    if (serverMode) {
+      if (!remoteKey || !remote) return { items: [], matchCount: 0 };
+      return { items: remote.items, matchCount: remote.total };
+    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim();
       const matches = activeInventory.filter((i) =>
@@ -278,7 +277,7 @@ export function MobileInventorySearch({
     else if (activeFilter) result = activeInventory.filter((i) => matchesCategoryFilter(i.category, activeFilter));
 
     return { items: result, matchCount: result.length };
-  }, [activeInventory, searchQuery, activeFilter]);
+  }, [serverMode, remote, remoteKey, activeInventory, searchQuery, activeFilter]);
 
   const handleQueryChange = (val) => {
     setSearchQuery(val);
@@ -523,7 +522,7 @@ export function MobileInventorySearch({
                 the grid it's about to land on. */}
             {(activeFilter || searchQuery) && !isClosing && (
               <div className={searchQuery ? 'px-2 pt-2' : 'px-2 pt-5 mt-6 border-t border-gray-100'}>
-                {isLoading ? (
+                {isLoading || (serverMode && !remote) ? (
                   <div className="divide-y divide-gray-100">
                     {Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)}
                   </div>

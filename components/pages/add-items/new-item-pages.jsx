@@ -5,6 +5,7 @@
 // counter / row / header shapes those screens are built from.
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useInventory } from '@/lib/use-inventory';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, ChevronLeft, ChevronRight, RotateCw, Hash, Scale, Check } from 'lucide-react';
 import { SIZE_UNITS, formatStorage, lastDayOfMonth } from '@/lib/inventory-format';
@@ -524,21 +525,11 @@ export function spotText(spot, lastSpot) {
   return formatStorage(spot) + (spot === lastSpot ? ' · same as last time' : '');
 }
 
-// Spots this pantry has used: every storage value on its shelves now, plus the last one picked.
+// Spots this pantry has used: every storage value on its shelves now (the shared shelf, already in
+// memory), plus the last one picked. pantryId and enabled are kept so callers stay the same.
 export function usePantrySpots(pantryId, enabled, extra = []) {
-  const [spots, setSpots] = useState([]);
-  useEffect(() => {
-    if (!pantryId || !enabled) return;
-    let alive = true;
-    fetch('/api/foods', { headers: { 'x-pantry-id': pantryId }, cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : { data: [] }))
-      .then((d) => {
-        if (!alive) return;
-        setSpots([...new Set((d.data || []).map((l) => l.storageLocation).filter(Boolean))]);
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [pantryId, enabled]);
+  const { lots } = useInventory();
+  const spots = useMemo(() => [...new Set(lots.map((l) => l.storageLocation).filter(Boolean))], [lots]);
   const extraKey = extra.filter(Boolean).join('\n');
   return useMemo(() => [...new Set([...(extraKey ? extraKey.split('\n') : []), ...spots])], [spots, extraKey]);
 }

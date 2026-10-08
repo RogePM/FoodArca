@@ -10,7 +10,7 @@ import { OverviewGrid } from './dashboard/overview-grid';
 export function DashboardHome({ setActiveView: propSetActiveView }) {
   const { navigateToView } = useDashboardRoute();
   const setActiveView = propSetActiveView || navigateToView;
-  const { pantryId } = usePantry();
+  const { pantryId, lastInventoryUpdate, lastCatalogUpdate } = usePantry();
   
   // State
   const [stats, setStats] = useState(null);
@@ -18,22 +18,27 @@ export function DashboardHome({ setActiveView: propSetActiveView }) {
   const [gridLoading, setGridLoading] = useState(false);
   const [selectedRange, setSelectedRange] = useState('7d');
 
-  // Fetch Data on pantryId or selectedRange change
+  // Live: a teammate's change (realtime bumps lastInventoryUpdate / lastCatalogUpdate, also on wake-up
+  // and reconnect) refetches the numbers quietly, keeping the current ones on screen meanwhile.
+  // Only a new range dims the grid.
+  const [shownRange, setShownRange] = useState(selectedRange);
   useEffect(() => {
     if (!pantryId) return;
 
     let isMounted = true;
     const fetchData = async () => {
-      if (stats) setGridLoading(true);
-      else setLoading(true);
+      if (!stats) setLoading(true);
+      else if (shownRange !== selectedRange) setGridLoading(true);
 
       try {
         const res = await fetch(`/api/dashboard/stats?range=${selectedRange}`, {
-          headers: { 'x-pantry-id': pantryId }
+          headers: { 'x-pantry-id': pantryId },
+          cache: 'no-store',
         });
         if (res.ok && isMounted) {
           const data = await res.json();
           setStats(data);
+          setShownRange(selectedRange);
         }
       } catch (error) {
         console.error('Dashboard Stats Error:', error);
@@ -47,7 +52,9 @@ export function DashboardHome({ setActiveView: propSetActiveView }) {
 
     fetchData();
     return () => { isMounted = false; };
-  }, [pantryId, selectedRange]);
+    // stats and shownRange only choose how to show the wait.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pantryId, selectedRange, lastInventoryUpdate, lastCatalogUpdate]);
 
   return (
     <div className="max-w-[1400px] mx-auto px-6 pt-6 pb-24 md:px-8 space-y-4 font-sans">

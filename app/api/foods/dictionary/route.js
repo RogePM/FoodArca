@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server';
-import { handle, getContext, ITEM_SELECT, mapItem } from '@/lib/server/inventory-api';
+import { handle, getContext, ITEM_SELECT, toDictionaryItem, fetchCatalogPage } from '@/lib/server/inventory-api';
+import { fromSearchParams, toCatalogRpcArgs } from '@/lib/inventory-query';
 
 // GET: the pantry's item list (for name autocomplete, restock, the no-barcode grid).
 // Optional ?names=a,b,c to fetch just a few items by name.
+// With ?limit= (plus filter, q, offset, summary=1; see lib/inventory-query), one page of it instead,
+// each item with its stock here: { total, ids, items, summary }. Restock uses this when the pantry
+// is too large to keep the whole list on the device.
 export const GET = handle(async (req) => {
-  const { supabase, orgId } = await getContext(req);
+  const { supabase, orgId, locationId } = await getContext(req);
 
   const { searchParams } = new URL(req.url);
+  if (searchParams.has('limit')) {
+    const page = await fetchCatalogPage(supabase, toCatalogRpcArgs(locationId, fromSearchParams(searchParams)));
+    return NextResponse.json(page || { total: 0, ids: [], items: [], summary: null });
+  }
+
   const namesParam = searchParams.get('names');
   const names = namesParam
     ? namesParam.split(',').map((n) => n.trim()).filter(Boolean).slice(0, 20)
@@ -27,15 +36,5 @@ export const GET = handle(async (req) => {
   const { data, error } = await query;
   if (error) throw error;
 
-  const dictionary = (data || []).map((row) => {
-    const item = mapItem(row);
-    return {
-      ...item,
-      id: item.barcode || item.catalogItemId, // legacy key used by the current UI
-      category: item.categorySlug || 'other', // legacy: UI slug
-      categoryName: item.category,
-    };
-  });
-
-  return NextResponse.json({ dictionary });
+  return NextResponse.json({ dictionary: (data || []).map(toDictionaryItem) });
 });

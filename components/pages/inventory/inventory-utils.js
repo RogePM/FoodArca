@@ -79,7 +79,9 @@ export const formatDate = (dateString) => {
  * @param {string|Date|null|undefined} dateString 
  * @returns {{ label: string, className: string, color: string, isExpired: boolean, isExpiring: boolean, days: number|null }}
  */
-export const getExpirationStatus = (dateString) => {
+// today: optional 'YYYY-MM-DD' (the pantry's date, see useToday). Pass it wherever the result is drawn
+// on the server, so the server and the browser agree; without it, the device's own date is used.
+export const getExpirationStatus = (dateString, today = null) => {
   if (!dateString) {
     return {
       label: 'No Date',
@@ -104,13 +106,18 @@ export const getExpirationStatus = (dateString) => {
   }
 
   const [year, month, day] = norm.split('-').map(Number);
-  const target = new Date(year, month - 1, day);
-  const now = new Date();
-  target.setHours(0, 0, 0, 0);
-  now.setHours(0, 0, 0, 0);
-
-  const diffTime = target.getTime() - now.getTime();
-  const days = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  let days;
+  if (today) {
+    // Whole calendar days between two dates, free of any timezone.
+    const [ty, tm, td] = today.split('-').map(Number);
+    days = Math.round((Date.UTC(year, month - 1, day) - Date.UTC(ty, tm - 1, td)) / 86400000);
+  } else {
+    const target = new Date(year, month - 1, day);
+    const now = new Date();
+    target.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+    days = Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }
 
   if (days < 0) {
     return {
@@ -177,7 +184,7 @@ export const getExpirationStatus = (dateString) => {
  *   statusLevel: 'expired' | 'expiring' | 'low_stock' | 'normal' | 'no_date'
  * }}
  */
-export const getUrgentStatusStyles = (item) => {
+export const getUrgentStatusStyles = (item, today = null) => {
   if (!item) {
     return {
       isExpired: false,
@@ -201,7 +208,7 @@ export const getUrgentStatusStyles = (item) => {
     dateToEvaluate = primary?.expirationDate;
   }
 
-  const expStatus = getExpirationStatus(dateToEvaluate);
+  const expStatus = getExpirationStatus(dateToEvaluate, today);
   const rawQty =
     item.totalQuantity !== undefined
       ? item.totalQuantity

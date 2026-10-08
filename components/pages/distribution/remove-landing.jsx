@@ -4,10 +4,12 @@
 // clay search header, Scan to Remove hero, Browse items by category, Expiring soon.
 // Empty states: nothing expiring in the next 2 weeks, and nothing in stock at all.
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Search, Scan, Plus, Check, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { usePantry } from '@/components/providers/PantryProvider';
+import { useInventory } from '@/lib/use-inventory';
+import { useToday } from '@/components/providers/PantryProvider';
+import { useSeed } from '@/components/providers/server-seed';
 import { getCategoryName } from '@/lib/constants';
 import { CategoryGlyph } from '@/components/ui/category-glyph';
 
@@ -18,10 +20,11 @@ const CARD_LIFT = 'shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]';
 const isWeightUnit = (unit) => /^(lb|lbs|pound|pounds)$/i.test(unit || '');
 const round = (n) => Math.round(n * 100) / 100;
 
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+// 'YYYY-MM-DD' as a local calendar date (never shifted by a timezone), so the server and the
+// browser draw the same dates.
+function localDate(value) {
+  const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
 }
 
 function shortDate(date, withYear) {
@@ -49,7 +52,7 @@ function summarize(rows) {
     };
     p.total += qty;
     if (!p.photoUrl && r.photoUrl) p.photoUrl = r.photoUrl;
-    const d = r.expirationDate ? new Date(r.expirationDate) : null;
+    const d = localDate(r.expirationDate);
     if (d && !isNaN(d.getTime()) && (!p.earliest || d < p.earliest)) p.earliest = d;
     map.set(key, p);
   }
@@ -80,40 +83,41 @@ function Thumb({ item }) {
 
 export function RemoveLanding({ onOpenScanner, onOpenVisualGrid, onOpenProduct }) {
   const router = useRouter();
-  const { pantryId, lastInventoryUpdate } = usePantry();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // The shared shelf (lib/use-inventory): already loaded when the sheet opens. Until it's current,
+  // the server's head start (app/dashboard/remove/page.jsx: shelf counts and the soonest four items)
+  // draws the page; once the shelf has been current it stays in charge, through realtime refreshes.
+  const { lots: rows, ready, fresh } = useInventory();
+  const seed = useSeed('removeLanding');
+  const [shelfTookOver, setShelfTookOver] = useState(false);
+  if (fresh && !shelfTookOver) setShelfTookOver(true);
+  const useShelf = seed ? shelfTookOver : ready;
+  const loading = !useShelf && !seed;
 
-  useEffect(() => {
-    if (!pantryId) return;
-    let alive = true;
-    fetch('/api/foods', { headers: { 'x-pantry-id': pantryId }, cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => { if (alive && Array.isArray(data?.data)) setRows(data.data); })
-      .catch((err) => console.error('Error fetching inventory for Remove:', err))
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [pantryId, lastInventoryUpdate]);
-
-  const items = useMemo(() => summarize(rows), [rows]);
-  const hasStock = items.length > 0;
+  const items = useMemo(() => summarize(useShelf ? rows : seed?.lots), [useShelf, rows, seed]);
+  const hasStock = useShelf ? items.length > 0 : (seed?.summary?.all || 0) > 0;
   const empty = !loading && !hasStock;
 
-  // Busiest shelves first, six tiles.
+  // Busiest shelves first, six tiles. Counted from the shelf, or from the server's summary.
   const shelves = useMemo(() => {
     const map = new Map();
-    for (const p of items) {
-      const label = getCategoryName(p.category);
-      const s = map.get(label) || { label, filter: p.category, count: 0 };
-      s.count += 1;
+    const add = (category, n) => {
+      const label = getCategoryName(category);
+      const s = map.get(label) || { label, filter: category, count: 0 };
+      s.count += n;
       map.set(label, s);
-    }
+    };
+    if (useShelf) for (const p of items) add(p.category, 1);
+    else for (const [category, n] of Object.entries(seed?.summary?.categories || {})) add(category, n);
     return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 6);
-  }, [items]);
+  }, [useShelf, items, seed]);
+
+  // The pantry's date (the same on the server and in the browser).
+  const todayIso = useToday();
+  const todayDate = useMemo(() => localDate(todayIso), [todayIso]);
 
   // What should go out first: expired or expiring within 2 weeks, oldest first.
   const { soon, next } = useMemo(() => {
-    const today = startOfToday().getTime();
+    const today = todayDate.getTime();
     const dated = items
       .filter((p) => p.earliest)
       .map((p) => ({ ...p, days: Math.round((p.earliest.getTime() - today) / DAY) }))
@@ -122,9 +126,9 @@ export function RemoveLanding({ onOpenScanner, onOpenVisualGrid, onOpenProduct }
       soon: dated.filter((p) => p.days <= SOON_DAYS).slice(0, 3),
       next: dated.find((p) => p.days > SOON_DAYS) || null,
     };
-  }, [items]);
+  }, [items, todayDate]);
 
-  const thisYear = new Date().getFullYear();
+  const thisYear = todayDate.getFullYear();
   const soonSub = (p) => {
     const date = shortDate(p.earliest, p.earliest.getFullYear() !== thisYear);
     return `${p.days < 0 ? 'Expired' : 'Expires'} ${date} · ${stockText(p)}`;

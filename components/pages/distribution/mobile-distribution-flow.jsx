@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, useTransition } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePantry } from '@/components/providers/PantryProvider';
+import { useInventory } from '@/lib/use-inventory';
+import { setCartHint, CART_HINT } from '@/lib/hint-cookies';
 import {
   ChevronLeft,
   Search,
@@ -17,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MobileCheckoutCartView } from './mobile-checkout-cart-view';
-import { NoBarcodeVisualGridSheet } from './no-barcode-visual-grid-sheet';
+import { NoBarcodeVisualGridSheet, groupInventoryByProduct } from './no-barcode-visual-grid-sheet';
 
 // Dynamically import scanner overlay to avoid SSR issues
 const BarcodeScannerOverlay = dynamic(
@@ -25,82 +27,8 @@ const BarcodeScannerOverlay = dynamic(
   { ssr: false }
 );
 
-/**
- * Group flat inventory batch records into products with aggregated total quantity
- * and FEFO-sorted active batches.
- */
-export function groupInventoryByProduct(rawItems = []) {
-  const safeItems = Array.isArray(rawItems) ? rawItems : [];
-  const groups = new Map();
-
-  for (const item of safeItems) {
-    if (!item) continue;
-    const qty = Number(item.quantity || 0);
-    if (isNaN(qty) || qty <= 0) continue; // Only active inventory batches with positive quantity
-
-    const groupKey = item.catalogItemId || item.barcode || item.name || 'unknown-item';
-    if (!groups.has(groupKey)) {
-      groups.set(groupKey, {
-        catalogItemId: item.catalogItemId || item.id || item._id || groupKey,
-        id: item.catalogItemId || item.id || item._id || groupKey,
-        name: item.name || 'Unknown Item',
-        category: item.category || 'Other',
-        barcode: item.barcode || null,
-        photoUrl: item.photoUrl || null,
-        unit: item.unit || 'units',
-        totalQuantity: 0,
-        batches: [],
-      });
-    }
-
-    const group = groups.get(groupKey);
-    group.totalQuantity += qty;
-
-    const expKey = item.expirationDate ? item.expirationDate.split('T')[0] : 'nodate';
-    
-    const existingBatch = group.batches.find(b => 
-      (b.expirationDate ? b.expirationDate.split('T')[0] : 'nodate') === expKey
-    );
-
-    if (existingBatch) {
-      existingBatch.quantity += qty;
-      // Note: we just use the first batch's id for the cart, the backend handles FEFO deduction by catalogItemId anyway
-    } else {
-      const batchId = item.id || item._id || item.batchId || `batch-${group.batches.length}-${expKey}`;
-      group.batches.push({
-        id: batchId,
-        _id: batchId,
-        quantity: qty,
-        expirationDate: item.expirationDate || null,
-        expirationPrecision: item.expirationPrecision || 'none',
-        sourceType: item.sourceType || 'donation',
-        receivedDate: item.receivedDate || null,
-        donorName: item.donorName || null,
-      });
-    }
-  }
-
-  // Sort batches FEFO within each product and sort products alphabetically
-  const result = Array.from(groups.values()).map((product) => {
-    product.batches.sort((a, b) => {
-      const timeA = a?.expirationDate ? new Date(a.expirationDate).getTime() : NaN;
-      const timeB = b?.expirationDate ? new Date(b.expirationDate).getTime() : NaN;
-      const hasA = !isNaN(timeA);
-      const hasB = !isNaN(timeB);
-      if (!hasA && !hasB) return 0;
-      if (!hasA) return 1; // Put null / invalid expiration dates last
-      if (!hasB) return -1;
-      return timeA - timeB;
-    });
-    return product;
-  });
-
-  result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  return result;
-}
-
-export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, onClose }) {
-  const { pantryId, lastInventoryUpdate } = usePantry();
+export function MobileDistributionFlow({ onCheckoutSuccess, onClose }) {
+  const { pantryId } = usePantry();
 
   // --- CART STATE ---
   const [cart, setCart] = useState(() => {
@@ -115,45 +43,18 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
     return [];
   });
 
-  const [inventory, setInventory] = useState(initialItems);
-  const [isPending, startTransition] = useTransition();
+  // The shelf, shared with the landing and the sheet (one request, kept for the session).
+  const { lots: inventory, ready: inventoryReady, refresh: refreshInventory } = useInventory();
 
   // Sync to sessionStorage whenever cart changes
   useEffect(() => {
     try {
       sessionStorage.setItem('foodarca_staged_distribution_cart', JSON.stringify(cart));
+      setCartHint(CART_HINT.remove, cart.length > 0);
     } catch (e) {
       console.warn('Failed to persist staged distribution cart', e);
     }
   }, [cart]);
-
-  // Sync inventory with backend
-  useEffect(() => {
-    if (!pantryId) return;
-    let isMounted = true;
-    const syncInventory = async () => {
-      try {
-        const res = await fetch('/api/foods', {
-          headers: { 'x-pantry-id': pantryId },
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (isMounted) {
-            startTransition(() => {
-              setInventory(json.data || []);
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching inventory in mobile distribution flow:', err);
-      }
-    };
-
-    if (inventory.length === 0) {
-      syncInventory();
-    }
-  }, [pantryId, lastInventoryUpdate]);
 
   // Group inventory for Visual Grid & Quick Action
   const groupedProducts = useMemo(() => groupInventoryByProduct(inventory), [inventory]);
@@ -369,21 +270,8 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
         sessionStorage.removeItem('foodarca_staged_distribution_cart');
       } catch (_) {}
 
-      // Refresh inventory data after checkout deduction
-      try {
-        const refreshRes = await fetch('/api/foods', {
-          headers: { 'x-pantry-id': pantryId },
-          cache: 'no-store',
-        });
-        if (refreshRes.ok) {
-          const refreshJson = await refreshRes.json();
-          startTransition(() => {
-            setInventory(refreshJson.data || []);
-          });
-        }
-      } catch (e) {
-        console.warn('Failed to refresh inventory after checkout', e);
-      }
+      // Refresh the shared shelf after the deduction.
+      refreshInventory();
 
       if (onCheckoutSuccess) {
         onCheckoutSuccess();
@@ -404,7 +292,7 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
     <>
       {/* 1. PRIMARY VIEW ROUTING */}
       {activeView === 'CART' ? (
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           <MobileCheckoutCartView
             cartItems={cart}
             onUpdateQuantity={handleUpdateQuantity}
@@ -570,6 +458,7 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
         }}
         startProduct={scanProduct}
         products={groupedProducts}
+        loading={!inventoryReady}
         onStageItem={handleStageFromSheet}
         stagedCart={cart}
         initialCategory={visualGridFilter}

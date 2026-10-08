@@ -1,10 +1,10 @@
 'use client';
 
 // Add Items (mobile). Every way in ends in the same cart line:
-//   scan → item already in the pantry → KnownItemSheet (how much · expires · where)
+//   scan → item already in the pantry → RestockSheet, opened on the item (add to · date · how many)
 //   scan → found online / not found    → NewItemForm (what is it? → how much came in?)
 //   manual entry                       → NewItemForm
-//   search to restock                  → RestockSheet → KnownItemSheet
+//   search to restock                  → RestockSheet: grid → Restock → the same steps, one sheet
 // The cart is one drop-off: submitting it records the delivery and every line in history.
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -14,12 +14,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePantry } from '@/components/providers/PantryProvider';
+import { loadInventory } from '@/lib/use-inventory';
+import { setCartHint, CART_HINT } from '@/lib/hint-cookies';
 import { RestockSheet } from './restock-sheet';
 import { MobileCartView } from './mobile-cart-view';
 import { AddFlowBottomBar } from './add-flow-bottom-bar';
-import { KnownItemSheet } from './known-item-sheet';
 import { NewItemForm } from './new-item-form';
-import { toProduct } from './intake-fields';
+import { toProduct, loadPantryItems } from './intake-fields';
 import {
   CART_KEY, DELIVERY_KEY, EMPTY_DELIVERY, loadStored, saveStored, addLine, replaceLine,
 } from './cart-lines';
@@ -44,15 +45,23 @@ const productFromLine = (l) => ({
 });
 
 export function MobileAddFlow({ onClose }) {
-  const { pantryId } = usePantry();
+  const { pantryId, lastInventoryUpdate, lastCatalogUpdate } = usePantry();
   const router = useRouter();
+
+  // Keep the shared shelf and item list current while Add is open, so Search and a scan open their
+  // sheet already filled.
+  useEffect(() => { loadInventory(pantryId, lastInventoryUpdate); }, [pantryId, lastInventoryUpdate]);
+  useEffect(() => { loadPantryItems(pantryId, lastCatalogUpdate); }, [pantryId, lastCatalogUpdate]);
 
   // --- Cart (one drop-off), kept for the session so a volunteer can step away ---
   const [cartItems, setCartItems] = useState(() => (typeof window !== 'undefined' ? loadStored(CART_KEY, []) : []));
   const [delivery, setDelivery] = useState(() =>
     typeof window !== 'undefined' ? { ...EMPTY_DELIVERY, ...loadStored(DELIVERY_KEY, EMPTY_DELIVERY) } : EMPTY_DELIVERY
   );
-  useEffect(() => { saveStored(CART_KEY, cartItems); }, [cartItems]);
+  useEffect(() => {
+    saveStored(CART_KEY, cartItems);
+    setCartHint(CART_HINT.add, cartItems.length > 0);
+  }, [cartItems]);
   useEffect(() => { saveStored(DELIVERY_KEY, delivery); }, [delivery]);
   // Carts saved by the previous version of this screen can't be submitted any more.
   useEffect(() => { try { sessionStorage.removeItem('foodarca_staged_batch'); } catch {} }, []);
@@ -128,17 +137,14 @@ export function MobileAddFlow({ onClose }) {
 
   const overlays = (
     <>
+      {/* One sheet for search-to-restock, a scan match and Edit on a known line (opened on the item). */}
       <RestockSheet
-        isOpen={restockOpen}
-        onClose={() => setRestockOpen(false)}
-        onPickItem={(product) => { setRestockOpen(false); setKnown({ product }); }}
-      />
-
-      <KnownItemSheet
-        product={known?.product || null}
+        isOpen={restockOpen || !!known}
+        startProduct={known?.product || null}
         initialLine={known?.initialLine || null}
-        onClose={() => setKnown(null)}
-        onAdd={(line) => { putLine(line, !!known?.initialLine); setKnown(null); }}
+        cartItems={cartItems}
+        onClose={() => { setRestockOpen(false); setKnown(null); }}
+        onAdd={(line, isEdit) => { putLine(line, isEdit); setRestockOpen(false); setKnown(null); }}
       />
 
       <AnimatePresence>
@@ -160,7 +166,7 @@ export function MobileAddFlow({ onClose }) {
   if (activeView === 'CART') {
     return (
       <>
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           <MobileCartView
             cartItems={cartItems}
             setCartItems={setCartItems}
