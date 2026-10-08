@@ -471,37 +471,41 @@ export function MobileDistributionFlow({ initialItems = [], onCheckoutSuccess, o
                       setToastMessage(null);
                       setIsVisualGridOpen(true);
                     }}
-                    className="bg-[#2a2f45] text-white rounded-2xl px-5 py-3.5 shadow-xl border border-amber-500/40 w-full max-w-sm flex items-center justify-between active:scale-95 transition-transform"
+                    className="bg-white rounded-2xl pl-3 pr-4 py-2.5 border border-gray-200 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.2)] w-full max-w-sm flex items-center justify-between active:scale-[0.98] transition-transform"
                   >
                     <div className="flex items-center gap-3 overflow-hidden text-left">
-                      <Search className="w-5 h-5 text-amber-400 shrink-0" />
+                      <span className="w-9 h-9 rounded-full bg-[#fbeee9] text-[#d97757] flex items-center justify-center shrink-0">
+                        <Search className="w-[18px] h-[18px]" strokeWidth={2.4} />
+                      </span>
                       <div className="min-w-0">
-                        <p className="font-semibold text-[13px] text-white leading-tight">
-                          Item not found in current inventory
+                        <p className="font-semibold text-[14px] text-[#1a1f36] leading-tight truncate">
+                          Not in your inventory
                         </p>
-                        <p className="text-[11px] text-gray-300 truncate">
-                          Tap to search via No Barcode grid
+                        <p className="mt-0.5 text-[12.5px] text-gray-500 truncate">
+                          Tap to search for it instead
                         </p>
                       </div>
                     </div>
-                    <span className="bg-[#d97757] text-white text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 ml-2">
+                    <span className="text-[13.5px] font-semibold text-[#b5583a] shrink-0 ml-3">
                       Search
                     </span>
                   </button>
                 ) : (
                   <button
                     onClick={() => setActiveView('CART')}
-                    className="bg-[#2a2f45] text-white rounded-2xl px-5 py-3.5 shadow-xl border border-gray-700 w-full max-w-sm flex items-center justify-between active:scale-95 transition-transform"
+                    className="bg-white rounded-2xl pl-3 pr-3 py-2.5 border border-gray-200 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.2)] w-full max-w-sm flex items-center justify-between active:scale-[0.98] transition-transform"
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                      <span className="font-semibold text-[14px] truncate">
-                        Staged {toastMessage.title}
+                      <span className="w-9 h-9 rounded-full bg-[#fbeee9] text-[#d97757] flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-[18px] h-[18px]" strokeWidth={2.4} />
+                      </span>
+                      <span className="font-semibold text-[14px] text-[#1a1f36] truncate">
+                        Added {toastMessage.title}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 pl-3 border-l border-gray-600 ml-3 shrink-0">
-                      <span className="text-[13px] font-bold text-gray-300">Open Cart</span>
-                      <span className="bg-[#d97757] text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+                    <div className="flex items-center gap-1.5 pl-3 ml-3 shrink-0 border-l border-gray-200">
+                      <span className="text-[13.5px] font-semibold text-[#b5583a]">Open cart</span>
+                      <span className="bg-[#d97757] text-white text-[11px] font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center">
                         {toastMessage.count}
                       </span>
                     </div>

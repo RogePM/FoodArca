@@ -451,21 +451,23 @@ export function MobileCheckoutCartView({
             transition={{ duration: 0.18 }}
             className="absolute inset-x-0 bottom-[calc(76px+env(safe-area-inset-bottom))] flex justify-center pointer-events-none z-40"
           >
-            <div className="pointer-events-auto h-14 p-1 flex items-center gap-1 rounded-full bg-white border border-gray-200 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.18)]">
+            {/* Filled clay so it floats clear of the outlined counters below it; both halves equal. */}
+            <div className="pointer-events-auto h-12 p-1 flex items-center rounded-full bg-[#d97757] shadow-[0_4px_12px_-6px_rgba(0,0,0,0.25)]">
               <button
                 type="button"
                 onClick={onOpenScanner}
-                className="h-full px-4 rounded-full bg-[#fbeee9] text-[#b5583a] flex items-center gap-2 text-[14px] font-semibold active:bg-[#f6ddd3]"
+                className="h-full px-4 rounded-full text-white flex items-center gap-2 text-[14px] font-semibold active:bg-white/15"
               >
-                <ScanBarcode className="w-5 h-5" strokeWidth={2.2} />
+                <ScanBarcode className="w-[18px] h-[18px]" strokeWidth={2.2} />
                 Scan
               </button>
+              <span aria-hidden className="w-px h-5 bg-white/35" />
               <button
                 type="button"
                 onClick={() => onOpenVisualGrid('all')}
-                className="h-full px-3.5 rounded-full text-[#1a1f36] flex items-center gap-2 text-[14px] font-medium active:bg-gray-100"
+                className="h-full px-4 rounded-full text-white flex items-center gap-2 text-[14px] font-semibold active:bg-white/15"
               >
-                <Search className="w-[18px] h-[18px] text-[#4b5263]" strokeWidth={2.2} />
+                <Search className="w-[18px] h-[18px]" strokeWidth={2.2} />
                 Search
               </button>
             </div>
@@ -481,7 +483,7 @@ export function MobileCheckoutCartView({
             aria-label="Add more items"
             aria-expanded={false}
             // Solid clay so it reads at a glance over the white list.
-            className="absolute right-4 bottom-[calc(80px+env(safe-area-inset-bottom))] z-40 w-12 h-12 rounded-full bg-[#d97757] text-white flex items-center justify-center shadow-[0_8px_20px_-8px_rgba(181,88,58,0.55)] active:bg-[#c66547] active:scale-95 transition-colors"
+            className="absolute right-4 bottom-[calc(80px+env(safe-area-inset-bottom))] z-40 w-12 h-12 rounded-full bg-[#d97757] text-white flex items-center justify-center shadow-[0_4px_12px_-6px_rgba(0,0,0,0.18)] active:bg-[#c66547] active:scale-95 transition-colors"
           >
             <Plus className="w-5 h-5" strokeWidth={2.4} />
           </motion.button>
@@ -501,10 +503,10 @@ export function MobileCheckoutCartView({
                 : cartItems.length > 0 && !isScrolling
                   ? 'right-4 bottom-[calc(144px+env(safe-area-inset-bottom))]'
                   : 'right-4 bottom-[calc(80px+env(safe-area-inset-bottom))]'
-            } rounded-2xl bg-[#1a1f36] text-white flex items-center gap-3 pl-4 pr-2 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)]`}
+            } rounded-2xl bg-white border border-gray-200 text-[#1a1f36] flex items-center gap-3 pl-4 pr-2 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.2)]`}
           >
-            <span className="flex-1 min-w-0 truncate text-[14px]">Removed {removed.line.name}</span>
-            <button type="button" onClick={undoRemove} className="h-10 px-3.5 rounded-xl text-[14px] font-semibold underline underline-offset-[3px]">
+            <span className="flex-1 min-w-0 truncate text-[14px] font-medium">Removed {removed.line.name}</span>
+            <button type="button" onClick={undoRemove} className="h-10 px-3.5 rounded-xl text-[14px] font-semibold text-[#b5583a] active:bg-[#fbeee9]">
               Undo
             </button>
           </motion.div>
